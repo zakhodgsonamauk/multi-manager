@@ -2505,7 +2505,7 @@ console.log(`${result.written ? 'Installed' : 'Already installed'}: ${result.pat
 if (result.written) console.log('Restart Windows Terminal so it picks up the Multi-Manager profile.');
 ```
 
-**Step 4: run.** `node --test test/terminal-profile.test.ts` should PASS (`ℹ pass 2`). Then run `node scripts/install-terminal-profile.ts`. Expected: `Already installed: C:\Users\zak_h\AppData\Local\Microsoft\Windows Terminal\Fragments\multi-manager\multi-manager.json`, because the spike installed the same content. If it prints `Installed`, the spike's file differed. Diff the two and reconcile them. Typecheck and lint should be silent.
+**Step 4: run.** `node --test test/terminal-profile.test.ts` should PASS (`ℹ pass 2`). Then run `node scripts/install-terminal-profile.ts`. Expected: `Already installed: %LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\multi-manager\multi-manager.json`, because the spike installed the same content. If it prints `Installed`, the spike's file differed. Diff the two and reconcile them. Typecheck and lint should be silent.
 
 **Step 5: commit**
 
