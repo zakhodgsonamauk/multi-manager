@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { resourceReport } from '../monitor/enforce.ts';
 import { monitoredSessions, realMonitorDeps, runTick, type MonitorDeps } from '../monitor/monitor.ts';
 import { allocateNumber } from './counters.ts';
-import { getLimits, listLimits, setLimits } from './limits.ts';
+import { getLimits, getStallMinutes, listLimits, setLimits } from './limits.ts';
 import { listProjects, requireProject, requireProjectById } from './projects.ts';
 import { getSession } from './sessions.ts';
 import type { ToolContext } from './tools.ts';
@@ -33,7 +33,7 @@ function projectIdFor(ctx: ToolContext, project: string | undefined): number {
 const caps = z.record(z.string().min(1), z.number().int().nonnegative());
 
 function named(ctx: ToolContext, limits: ReturnType<typeof getLimits>) {
-  return { project: requireProjectById(ctx.db, limits.project_id).name, ...limits };
+  return { project: requireProjectById(ctx.db, limits.project_id).name, ...limits, stall_minutes: getStallMinutes(ctx.db, limits.project_id) };
 }
 
 /** Process limits, number allocation and the monitor. `deps` defaults to the real process snapshot and taskkill. */
@@ -50,6 +50,7 @@ export function registerMonitorTools(server: McpServer, ctx: ToolContext, deps: 
         max_processes_per_session: z.number().int().nonnegative().nullable().optional().describe('null removes the cap'),
         session_binary_caps: caps.optional().describe('Per session, e.g. {"godot.exe": 2}; "*" wildcards allowed'),
         machine_binary_caps: caps.optional().describe('Across all Multi-Manager sessions, e.g. {"godot.exe": 6}'),
+        stall_minutes: z.number().int().positive().nullable().optional().describe('Minutes without activity before a session counts as stuck (default 20); null resets'),
       },
     },
     (a) =>
@@ -65,6 +66,7 @@ export function registerMonitorTools(server: McpServer, ctx: ToolContext, deps: 
             maxProcessesPerSession: a.max_processes_per_session,
             sessionBinaryCaps: a.session_binary_caps,
             machineBinaryCaps: a.machine_binary_caps,
+            stallMinutes: a.stall_minutes,
           }),
         );
       }),

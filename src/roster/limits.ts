@@ -8,14 +8,20 @@ CREATE TABLE IF NOT EXISTS limits (
   max_processes_per_session INTEGER,
   session_binary_caps TEXT NOT NULL DEFAULT '{}',
   machine_binary_caps TEXT NOT NULL DEFAULT '{}',
+  stall_minutes INTEGER,
   updated_at TEXT NOT NULL
 );`;
+
+/** Minutes without activity before a session counts as stuck, unless a project sets its own. */
+export const DEFAULT_STALL_MINUTES = 20;
 
 const ready = new WeakSet<DatabaseSync>();
 
 export function ensureLimitsSchema(db: DatabaseSync): void {
   if (ready.has(db)) return;
   db.exec(LIMITS_SCHEMA);
+  const columns = many<{ name: string }>(db.prepare('PRAGMA table_info(limits)').all());
+  if (!columns.some((c) => c.name === 'stall_minutes')) db.exec('ALTER TABLE limits ADD COLUMN stall_minutes INTEGER');
   ready.add(db);
 }
 
@@ -65,6 +71,16 @@ export interface LimitsPatch {
   /** Replaces the whole map when given. */
   sessionBinaryCaps?: BinaryCaps;
   machineBinaryCaps?: BinaryCaps;
+  /** undefined keeps the current value; null goes back to the default. */
+  stallMinutes?: number | null;
+}
+
+/** The project's stall threshold in minutes (DEFAULT_STALL_MINUTES unless set). */
+export function getStallMinutes(db: DatabaseSync, projectId: number | null): number {
+  if (projectId === null) return DEFAULT_STALL_MINUTES;
+  ensureLimitsSchema(db);
+  const row = one<{ stall_minutes: number | null }>(db.prepare('SELECT stall_minutes FROM limits WHERE project_id = ?').get(projectId));
+  return row?.stall_minutes ?? DEFAULT_STALL_MINUTES;
 }
 
 export function setLimits(db: DatabaseSync, projectId: number, patch: LimitsPatch, now: Date = new Date()): Limits {
@@ -77,14 +93,18 @@ export function setLimits(db: DatabaseSync, projectId: number, patch: LimitsPatc
     session_binary_caps: patch.sessionBinaryCaps === undefined ? current.session_binary_caps : normaliseCaps(patch.sessionBinaryCaps),
     machine_binary_caps: patch.machineBinaryCaps === undefined ? current.machine_binary_caps : normaliseCaps(patch.machineBinaryCaps),
   };
+  const currentStall = one<{ stall_minutes: number | null }>(db.prepare('SELECT stall_minutes FROM limits WHERE project_id = ?').get(projectId));
+  const stall = patch.stallMinutes === undefined ? (currentStall?.stall_minutes ?? null) : patch.stallMinutes;
+  if (stall !== null && (!Number.isInteger(stall) || stall < 1)) throw new Error('stall_minutes must be a whole number of 1 or more');
   db.prepare(
-    `INSERT INTO limits (project_id, max_processes_per_session, session_binary_caps, machine_binary_caps, updated_at)
-     VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO limits (project_id, max_processes_per_session, session_binary_caps, machine_binary_caps, stall_minutes, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT (project_id) DO UPDATE SET
        max_processes_per_session = excluded.max_processes_per_session,
        session_binary_caps = excluded.session_binary_caps,
        machine_binary_caps = excluded.machine_binary_caps,
+       stall_minutes = excluded.stall_minutes,
        updated_at = excluded.updated_at`,
-  ).run(projectId, max, JSON.stringify(next.session_binary_caps), JSON.stringify(next.machine_binary_caps), iso(now));
+  ).run(projectId, max, JSON.stringify(next.session_binary_caps), JSON.stringify(next.machine_binary_caps), stall, iso(now));
   return getLimits(db, projectId);
 }

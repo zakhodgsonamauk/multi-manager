@@ -55,9 +55,9 @@ test('monitor tools: limits, resources, a tick that enforces, and number allocat
   const { call, killed, client } = await connect(t, (ids) => ({ sessionId: ids.arch, role: 'architect' }));
   assert.deepEqual((await client.listTools()).tools.map((x) => x.name).sort(), ['allocate_number', 'get_limits', 'monitor_tick', 'resources', 'set_limits']);
 
-  const set = await call('set_limits', { session_binary_caps: { 'godot.exe': 1 }, machine_binary_caps: { 'godot.exe': 6 } });
+  const set = await call('set_limits', { session_binary_caps: { 'godot.exe': 1 }, machine_binary_caps: { 'godot.exe': 6 }, stall_minutes: 30 });
   assert.equal(set.error, false, set.text);
-  assert.deepEqual(set.json(), { project: 'alpha', project_id: 1, max_processes_per_session: null, session_binary_caps: { 'godot.exe': 1 }, machine_binary_caps: { 'godot.exe': 6 } });
+  assert.deepEqual(set.json(), { project: 'alpha', project_id: 1, max_processes_per_session: null, session_binary_caps: { 'godot.exe': 1 }, machine_binary_caps: { 'godot.exe': 6 }, stall_minutes: 30 });
   const other = await call('set_limits', { project: 'beta', max_processes_per_session: 3 });
   assert.equal(other.error, true);
   assert.match(other.text, /Only the front desk or this project's architect/);

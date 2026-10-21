@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { releaseAll } from '../roster/claims.ts';
 import { assertNotPaused } from '../roster/pause.ts';
+import { saveSessionTask } from '../roster/session-tasks.ts';
 import { resolveDbPath, type Env } from '../roster/db.ts';
 import { requireGoal, updateGoal } from '../roster/goals.ts';
 import {
@@ -159,7 +160,7 @@ export async function launchDeveloper(
   assertNotPaused(ctx.db, project.id);
   const workstream = requireWorkstreamById(ctx.db, architect.workstream_id);
   const name = sessionName(project.name, workstream.name, 'dev', input.label);
-  return launchTab(ctx, {
+  const result = await launchTab(ctx, {
     role: 'developer',
     project,
     workstream,
@@ -168,6 +169,8 @@ export async function launchDeveloper(
     prompt: (sessionId) => developerPrompt(project.name, workstream.name, input.task, sessionId),
     worktree: name,
   });
+  saveSessionTask(ctx.db, result.session.id, input.label, input.task);
+  return result;
 }
 
 /**
