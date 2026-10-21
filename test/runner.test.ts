@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ownsProcess, runCommand, waitForPid, writeSettingsFile } from '../src/launch/runner.ts';
+import { hidesWindow, launchEnv, ownsProcess, runCommand, waitForPid, writeSettingsFile } from '../src/launch/runner.ts';
 import { tempDir } from './helpers.ts';
 
 test('runCommand returns exit code and output', async () => {
@@ -41,4 +41,24 @@ test('ownsProcess refuses a name mismatch and a non-claude image', { skip: proce
   writeFileSync(join(dir, `${process.pid}.json`), JSON.stringify({ pid: process.pid, name: 'mm-a-main' }));
   assert.equal(await ownsProcess(process.pid, 'mm-other', dir), false);
   assert.equal(await ownsProcess(process.pid, 'mm-a-main', dir), false); // image is node.exe, not claude.exe
+});
+
+test('launchEnv drops the calling Claude session variables but keeps the rest', () => {
+  const env = launchEnv({
+    PATH: 'x',
+    CLAUDECODE: '1',
+    CLAUDE_CODE_CHILD_SESSION: '1',
+    CLAUDE_CODE_MESSAGING_SOCKET: 'pipe',
+    CLAUDE_PID: '3260',
+    CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+    MM_ROLE: 'architect',
+  });
+  assert.deepEqual(env, { PATH: 'x', CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1', MM_ROLE: 'architect' });
+});
+
+test('hidesWindow is false only for wt.exe', () => {
+  assert.equal(hidesWindow(String.raw`C:\Users\me\AppData\Local\Microsoft\WindowsApps\wt.exe`), false);
+  assert.equal(hidesWindow('wt.exe'), false);
+  assert.equal(hidesWindow('taskkill'), true);
+  assert.equal(hidesWindow('tasklist'), true);
 });

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "spike-env": {
+      "command": "node",
+      "args": [
+        "I:\\Dropbox (Personal)\\Projects\\multi-manager\\conductor\\tracks\\core_20261021\\spike\\spike-env-mcp.mjs"
+      ]
+    }
+  }
+}

@@ -24,9 +24,25 @@ export interface LaunchDeps {
   ensureTerminalProfile: () => void;
 }
 
+/**
+ * The environment for anything we start. Drops the calling session's Claude Code variables: a tab that
+ * inherits CLAUDE_CODE_CHILD_SESSION (and friends) never registers for cross-session messaging (spike step 3).
+ */
+export function launchEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(env).filter(([key]) => !/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_PID$)/.test(key) || key === 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'),
+  );
+}
+
+/** wt.exe must not get windowsHide: it hides the new Terminal window too (spike step 2). */
+export function hidesWindow(file: string): boolean {
+  return !/(^|[\\/])wt(\.exe)?$/i.test(file);
+}
+
 export const runCommand: Runner = (command) =>
   new Promise((resolve) => {
-    execFile(command.file, command.args, { timeout: 60_000, windowsHide: true, encoding: 'utf8' }, (error, stdout, stderr) => {
+    const options = { timeout: 60_000, windowsHide: hidesWindow(command.file), env: launchEnv(), encoding: 'utf8' as const };
+    execFile(command.file, command.args, options, (error, stdout, stderr) => {
       const code = error === null ? 0 : typeof error.code === 'number' ? error.code : 1;
       resolve({ code, stdout, stderr: stderr !== '' ? stderr : (error?.message ?? '') });
     });
