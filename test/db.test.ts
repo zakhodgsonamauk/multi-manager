@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openRoster, resolveDbPath } from '../src/roster/db.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { migrate, openRoster, resolveDbPath, SCHEMA } from '../src/roster/db.ts';
 import { tempDir, tempRoster } from './helpers.ts';
 
 const firstValue = (row: object | undefined): unknown => Object.values(row ?? {})[0];
@@ -36,4 +37,23 @@ test('the schema has every roster table and a second open is harmless', (t) => {
   openRoster().close();
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((row) => row.name);
   assert.deepEqual(tables, ['claims', 'goals', 'items', 'projects', 'sessions', 'spend', 'workstreams']);
+});
+
+test('an old roster without sessions.wrapper_pid gains it on open, once', (t) => {
+  const path = join(tempDir(t), 'roster.db');
+  const old = new DatabaseSync(path);
+  old.exec(SCHEMA.replace('  wrapper_pid INTEGER,\n', ''));
+  old.exec("INSERT INTO sessions (role, state, created_at) VALUES ('architect', 'running', 'x')");
+  const columns = (db: DatabaseSync) => db.prepare('PRAGMA table_info(sessions)').all().map((row) => row.name);
+  assert.ok(!columns(old).includes('wrapper_pid'));
+  old.close();
+  const db = openRoster(path);
+  try {
+    assert.ok(columns(db).includes('wrapper_pid'));
+    assert.equal(firstValue(db.prepare('SELECT wrapper_pid FROM sessions').get()), null);
+    migrate(db);
+    assert.equal(columns(db).filter((c) => c === 'wrapper_pid').length, 1);
+  } finally {
+    db.close();
+  }
 });

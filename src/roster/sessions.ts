@@ -14,6 +14,8 @@ export interface Session {
   workstream_id: number | null;
   name: string | null;
   pid: number | null;
+  /** The pwsh wrapper that holds the session's kill-on-close Job (src/launch/wrapper.ts). */
+  wrapper_pid: number | null;
   folder: string | null;
   state: SessionState;
   last_checkin_at: string | null;
@@ -78,6 +80,10 @@ export function setSessionState(db: DatabaseSync, id: number, state: SessionStat
 
 export function setSessionPid(db: DatabaseSync, id: number, pid: number | null): void {
   db.prepare('UPDATE sessions SET pid = ? WHERE id = ?').run(pid, id);
+}
+
+export function setSessionWrapperPid(db: DatabaseSync, id: number, pid: number | null): void {
+  db.prepare('UPDATE sessions SET wrapper_pid = ? WHERE id = ?').run(pid, id);
 }
 
 /** The single front-desk record; created (stopped) if missing. More than one front desk is out of scope. */

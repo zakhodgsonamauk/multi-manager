@@ -28,7 +28,14 @@ export function readSessionFile(pid: number, dir: string = claudeSessionsDir()):
   }
 }
 
-export function findSessionPid(name: string, options: { since?: number; dir?: string } = {}): number | null {
+/**
+ * The newest session file named `name`. Claude Code leaves stale files behind after a kill (spike step 7),
+ * so callers pass `isLive` (e.g. "is a running claude.exe") to skip entries whose process is gone.
+ */
+export function findSessionPid(
+  name: string,
+  options: { since?: number; dir?: string; isLive?: (pid: number) => boolean } = {},
+): number | null {
   const dir = options.dir ?? claudeSessionsDir();
   let entries: string[];
   try {
@@ -46,6 +53,7 @@ export function findSessionPid(name: string, options: { since?: number; dir?: st
       continue;
     }
     if (sessionFileName(file) !== name || typeof file.pid !== 'number') continue;
+    if (options.isLive !== undefined && !options.isLive(file.pid)) continue;
     const started = file.startedAt ?? 0;
     if (options.since !== undefined && started < options.since) continue;
     if (best === null || started > (best.startedAt ?? 0)) best = file;
@@ -57,4 +65,22 @@ export function findSessionPid(name: string, options: { since?: number; dir?: st
 export function parseTasklistImage(csv: string): string | null {
   const match = /^"([^"]+)","(\d+)"/m.exec(csv.trim());
   return match === null ? null : match[1];
+}
+
+/** Every pid in `tasklist /FI "IMAGENAME eq <image>" /FO CSV /NH` output. */
+export function parseTasklistPids(csv: string): Set<number> {
+  const pids = new Set<number>();
+  for (const match of csv.matchAll(/^"[^"]+","(\d+)"/gm)) pids.add(Number(match[1]));
+  return pids;
+}
+
+/** `Get-CimInstance Win32_Process … | ConvertTo-Json` → name and command line, or null. */
+export function parseProcessInfo(json: string): { name: string; commandLine: string } | null {
+  try {
+    const value = JSON.parse(json) as { Name?: unknown; CommandLine?: unknown } | null;
+    if (value === null || typeof value.Name !== 'string') return null;
+    return { name: value.Name, commandLine: typeof value.CommandLine === 'string' ? value.CommandLine : '' };
+  } catch {
+    return null;
+  }
 }

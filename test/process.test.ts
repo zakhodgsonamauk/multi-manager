@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { findSessionPid, parseTasklistImage, readSessionFile } from '../src/launch/process.ts';
+import { findSessionPid, parseProcessInfo, parseTasklistImage, parseTasklistPids, readSessionFile } from '../src/launch/process.ts';
 import { tempDir } from './helpers.ts';
 
 function writeSession(dir: string, pid: number, fields: Record<string, unknown>): void {
@@ -30,6 +30,27 @@ test('readSessionFile reads <pid>.json or returns null', (t) => {
   writeSession(dir, 77, { name: 'mm-alpha-main', startedAt: 1 });
   assert.equal(readSessionFile(77, dir)?.name, 'mm-alpha-main');
   assert.equal(readSessionFile(78, dir), null);
+});
+
+test('isLive filters out stale session files', (t) => {
+  const dir = tempDir(t);
+  writeSession(dir, 100, { name: 'mm-alpha-main', startedAt: 1000 });
+  writeSession(dir, 200, { name: 'mm-alpha-main', startedAt: 3000 });
+  assert.equal(findSessionPid('mm-alpha-main', { dir, isLive: (pid) => pid === 100 }), 100);
+  assert.equal(findSessionPid('mm-alpha-main', { dir, isLive: () => false }), null);
+});
+
+test('parseTasklistPids reads every pid', () => {
+  const csv = '"claude.exe","4242","Console","1","301,512 K"\r\n"claude.exe","5151","Console","1","1 K"\r\n';
+  assert.deepEqual([...parseTasklistPids(csv)], [4242, 5151]);
+  assert.equal(parseTasklistPids('INFO: No tasks are running which match the specified criteria.\r\n').size, 0);
+});
+
+test('parseProcessInfo reads CIM JSON', () => {
+  assert.deepEqual(parseProcessInfo('{"Name":"pwsh.exe","CommandLine":"pwsh -NoProfile"}'), { name: 'pwsh.exe', commandLine: 'pwsh -NoProfile' });
+  assert.deepEqual(parseProcessInfo('{"Name":"System","CommandLine":null}'), { name: 'System', commandLine: '' });
+  assert.equal(parseProcessInfo(''), null);
+  assert.equal(parseProcessInfo('null'), null);
 });
 
 test('parseTasklistImage reads the image name from tasklist CSV', () => {

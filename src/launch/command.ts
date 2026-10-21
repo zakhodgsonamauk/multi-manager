@@ -1,3 +1,5 @@
+import { buildWrapperScript, encodeCommand, PWSH_ARGS, sessionStateDir } from './wrapper.ts';
+
 export interface Command {
   file: string;
   args: string[];
@@ -26,6 +28,8 @@ export interface LaunchSpec {
   parentId: number | null;
   rosterDb: string;
   worktree?: string;
+  /** Optional Job process cap for the session's whole tree; unset means no cap. */
+  maxProcesses?: number;
 }
 
 export const WT_WINDOW = 'multi-manager';
@@ -57,20 +61,37 @@ export function sessionEnv(spec: LaunchSpec): Record<string, string> {
   return env;
 }
 
-export function buildLaunchCommand(spec: LaunchSpec): LaunchCommand {
-  const claude = ['claude', '-n', spec.name];
-  if (spec.skipPermissions) claude.push('--dangerously-skip-permissions');
-  if (spec.worktree !== undefined) claude.push('--worktree', spec.worktree);
-  claude.push(
+/** The arguments after `claude` that the wrapper runs. */
+export function claudeArgs(spec: LaunchSpec): string[] {
+  const args = ['-n', spec.name];
+  if (spec.skipPermissions) args.push('--dangerously-skip-permissions');
+  if (spec.worktree !== undefined) args.push('--worktree', spec.worktree);
+  args.push(
     '--plugin-dir', spec.pluginDir,
     '--append-system-prompt-file', spec.briefingFile,
     '--settings', spec.settingsPath,
     spec.prompt,
   );
-  const args = ['-w', WT_WINDOW, 'new-tab', '--profile', WT_PROFILE, '--title', spec.name, '-d', spec.folder, ...claude];
+  return args;
+}
+
+/**
+ * wt.exe opens a tab running pwsh with the wrapper script (wrapper.ts) as -EncodedCommand: paths with
+ * spaces and parentheses do not survive Terminal re-hosting otherwise, and base64 never holds wt's ';'.
+ */
+export function buildLaunchCommand(spec: LaunchSpec): LaunchCommand {
+  const script = buildWrapperScript({
+    sessionId: spec.sessionId,
+    rosterDb: spec.rosterDb,
+    stateDir: sessionStateDir(spec.rosterDb),
+    folder: spec.folder,
+    claudeArgs: claudeArgs(spec),
+    maxProcesses: spec.maxProcesses,
+  });
+  const tab = ['-w', WT_WINDOW, 'new-tab', '--profile', WT_PROFILE, '--title', spec.name, '-d', spec.folder].map(escapeForWt);
   return {
     file: spec.wtPath,
-    args: args.map(escapeForWt),
+    args: [...tab, 'pwsh', ...PWSH_ARGS, encodeCommand(script)],
     settings: { path: spec.settingsPath, content: `${JSON.stringify({ env: sessionEnv(spec) }, null, 2)}\n` },
   };
 }
