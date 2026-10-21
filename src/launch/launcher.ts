@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { releaseAll } from '../roster/claims.ts';
+import { assertNotPaused } from '../roster/pause.ts';
 import { resolveDbPath, type Env } from '../roster/db.ts';
 import { requireGoal, updateGoal } from '../roster/goals.ts';
 import {
@@ -113,9 +114,10 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
 
 export async function launchArchitect(
   ctx: LaunchContext,
-  input: { project: string; workstream?: string; goalId?: number; parentId: number | null },
+  input: { project: string; workstream?: string; goalId?: number; parentId: number | null; extraPrompt?: string },
 ): Promise<LaunchResult> {
   const project = requireProject(ctx.db, input.project);
+  assertNotPaused(ctx.db, project.id);
   const workstream = requireWorkstream(ctx.db, project.id, input.workstream ?? 'main');
   const existing = runningArchitect(ctx.db, workstream.id);
   if (existing !== undefined) return { session: existing, existing: true, warnings: [] };
@@ -128,7 +130,7 @@ export async function launchArchitect(
     workstream,
     name: sessionName(project.name, workstream.name),
     parentId: input.parentId,
-    prompt: () => architectPrompt(project.name, workstream.name, input.goalId),
+    prompt: () => [architectPrompt(project.name, workstream.name, input.goalId), input.extraPrompt].filter(Boolean).join(' '),
   });
   if (input.goalId !== undefined) updateGoal(ctx.db, input.goalId, { state: 'planning' });
   return result;
@@ -143,6 +145,7 @@ export async function launchDeveloper(
     throw new Error('Only an architect with a project workstream can launch developer sessions');
   }
   const project = requireProjectById(ctx.db, architect.project_id);
+  assertNotPaused(ctx.db, project.id);
   const workstream = requireWorkstreamById(ctx.db, architect.workstream_id);
   const name = sessionName(project.name, workstream.name, 'dev', input.label);
   return launchTab(ctx, {

@@ -20,6 +20,13 @@ const required: Record<string, RegExp[]> = {
     /--dangerously-skip-permissions/,
     /never headless or background/i,
     /closes fully/i,
+    /pause_status/,
+    /finish_pause/,
+    /force: true/,
+    /Nothing left running/,
+    /`resume` only when the user says go/,
+    /record-only/i,
+    /relayed decision/i,
   ],
   architect: [
     /^# Multi-Manager: Architect/m,
@@ -41,14 +48,29 @@ const required: Record<string, RegExp[]> = {
     /UI design and flow/i,
     /never headless or background/i,
     /stop_developer/,
+    /PAUSE item/,
+    /commit WIP/,
+    /resume note/,
+    /report_paused/,
+    /WAIT for the user's go/,
+    /recommended default/,
+    /dated decision/,
+    /never full suites/,
+    /screenshots/,
+    /record-only/i,
+    /relayed decision/i,
   ],
-  developer: [/^# Multi-Manager: Developer/m, /only on (that|your) slice/i, /worktree/i, /never merge/i, /push/i, /raise_item/],
+  developer: [
+    /^# Multi-Manager: Developer/m, /only on (that|your) slice/i, /worktree/i, /never merge/i, /push/i, /raise_item/,
+    /PAUSE item/, /commit WIP/, /resume note/, /report_paused/, /never full suites/, /relayed decision/i,
+  ],
 };
 
 for (const [role, patterns] of Object.entries(required)) {
   test(`${role} briefing covers its R6 duties and stays tight`, () => {
     const text = read(role);
     for (const pattern of patterns) assert.match(text, pattern, `${role}.md is missing ${pattern}`);
-    assert.ok(text.length < 4000, `${role}.md is ${text.length} characters`);
+    // 5000, up from 4000: room for pause/resume duties and the user's working style (field report 2026-10-21).
+    assert.ok(text.length < 5000, `${role}.md is ${text.length} characters`);
   });
 }

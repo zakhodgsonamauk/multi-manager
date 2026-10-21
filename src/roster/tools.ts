@@ -26,6 +26,7 @@ import {
 } from './sessions.ts';
 import { reportSpend, spendForGoal } from './spend.ts';
 import { statusSummary } from './status.ts';
+import { registerPauseTools } from './tools-pause.ts';
 
 export interface Identity {
   sessionId: number | null;
@@ -372,4 +373,6 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
         return stopSession(ctx.launch, session_id);
       }),
   );
+
+  registerPauseTools(server, ctx);
 }
