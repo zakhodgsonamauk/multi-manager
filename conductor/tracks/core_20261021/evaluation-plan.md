@@ -100,7 +100,7 @@ Feasible. The main session is an interactive `claude.exe` in Windows Terminal. P
   - Embedded `"` characters are **not** escaped by wt's rebuild, so an argument containing `"` corrupts the command line. `architectPrompt` has none. `developerPrompt` embeds free task text (for example `Add a "Save" button`) and only strips `;`. Newlines in task text are also unsafe. See RF10.
   - The spike's own prompt has no quotes, so Phase 1 is safe.
 - **`-w multi-manager`.** On first use this creates a new named window inside the existing `WindowsTerminal.exe` (pid 13084) and does not touch the user's other windows. Later calls add tabs to it. Nothing to fix; record it in spike.md.
-- **Resolving `claude`.** `claude` is the native `C:\Users\zak_h\.local\bin\claude.exe`, and that folder is in the user's registry PATH, so a WT tab will find it. Image name `claude.exe` matches `ownsProcess`. Optional hardening: resolve the absolute path once (`where.exe claude`) and pass it to `wt`.
+- **Resolving `claude`.** `claude` is the native `%USERPROFILE%\.local\bin\claude.exe`, and that folder is in the user's registry PATH, so a WT tab will find it. Image name `claude.exe` matches `ownsProcess`. Optional hardening: resolve the absolute path once (`where.exe claude`) and pass it to `wt`.
 - **Workspace trust (new finding).**
   - The docs (permissions page, "Project allow rules and workspace trust") say "Claude Code shows the trust dialog in interactive sessions only."
   - No `%TEMP%` path is trusted in `~/.claude.json`, so the spike tab in `%TEMP%\mm spike project` will probably open on a trust dialog. The docs do not say whether `--dangerously-skip-permissions` skips it.

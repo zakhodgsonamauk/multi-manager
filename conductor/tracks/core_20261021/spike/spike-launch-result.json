@@ -1,5 +1,5 @@
 {
-  "wt": "C:\\Users\\zak_h\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe",
+  "wt": "%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe",
   "args": [
     "-w",
     "multi-manager",
@@ -9,7 +9,7 @@
     "--title",
     "mm-spike-main",
     "-d",
-    "C:\\Users\\zak_h\\AppData\\Local\\Temp\\mm spike project",
+    "%USERPROFILE%\\AppData\\Local\\Temp\\mm spike project",
     "claude",
     "-n",
     "mm-spike-main",
@@ -30,7 +30,7 @@
   "sessionFile": {
     "pid": 20464,
     "sessionId": "c82d5b70-1300-478d-86df-c6fa8c3ac9af",
-    "cwd": "C:\\Users\\zak_h\\AppData\\Local\\Temp\\mm spike project",
+    "cwd": "%USERPROFILE%\\AppData\\Local\\Temp\\mm spike project",
     "startedAt": 1792593023500,
     "procStart": "134370666226598541",
     "version": "2.1.306",
