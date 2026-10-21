@@ -13,9 +13,19 @@ test('plugin.json names the multi-manager plugin', () => {
   assert.ok(String(manifest.description).length > 20);
 });
 
-test('.mcp.json starts the roster server with node from the plugin root', () => {
-  const servers = json('.mcp.json').mcpServers as Record<string, { command: string; args: string[] }>;
+test('plugin.json starts the roster server with node from the plugin root', () => {
+  const servers = json('.claude-plugin/plugin.json').mcpServers as Record<string, { command: string; args: string[] }>;
   assert.deepEqual(servers.roster, { command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/src/roster/server.ts'] });
+});
+
+test('no .mcp.json at the repo root: it would load as a project MCP config in any session opened here', () => {
+  assert.ok(!existsSync(join(root, '.mcp.json')));
+});
+
+test('plugin.json names the pane mod\'s state contract', () => {
+  const manifest = json('.claude-plugin/plugin.json');
+  assert.equal(manifest.types, './types/index.d.ts');
+  assert.ok(existsSync(join(root, 'types', 'index.d.ts')));
 });
 
 test('every user command exists, has a description and names its roster tool', () => {
@@ -25,6 +35,8 @@ test('every user command exists, has a description and names its roster tool', (
     status: 'status',
     'start-architect': 'launch_architect',
     'stop-architect': 'stop_architect',
+    // The mod answers /multi-manager:pane itself; the markdown is the fallback where mods are off.
+    pane: 'status',
   };
   for (const [name, tool] of Object.entries(commands)) {
     const path = join(root, 'commands', `${name}.md`);

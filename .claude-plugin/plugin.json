@@ -3,5 +3,12 @@
   "version": "0.1.0",
   "description": "One front desk session that directs architect sessions across several projects, each in its own Windows Terminal tab, through a shared roster.",
   "author": { "name": "zakhodgsonamauk" },
-  "keywords": ["orchestration", "multi-session", "roster", "windows"]
+  "keywords": ["orchestration", "multi-session", "roster", "windows"],
+  "types": "./types/index.d.ts",
+  "mcpServers": {
+    "roster": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/src/roster/server.ts"]
+    }
+  }
 }

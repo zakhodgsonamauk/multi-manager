@@ -1,0 +1,19 @@
+{
+  "//": "Type-checks the front desk pane mod (hooks/*.tsx, types/, mod-test/) against Claude Code's plugin API. Separate from the repo's tsconfig.json because a hooks module has no Node and compiles JSX against `h`. The API types live in .claude-plugin/types/ (gitignored), which Claude Code writes whenever it loads this folder with --plugin-dir (front-desk.bat does).",
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "types": [],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment"
+  },
+  "include": ["../.claude-plugin/types", ".", "../types", "../mod-test"]
+}
