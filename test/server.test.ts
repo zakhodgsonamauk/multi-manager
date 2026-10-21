@@ -11,9 +11,9 @@ const ALL_TOOLS = [
   'add_project', 'add_workstream', 'allocate_number', 'answer_item', 'check_in', 'claim', 'close_item', 'create_goal',
   'finish_pause', 'get_briefing', 'get_goal', 'get_limits', 'launch_architect', 'launch_developer', 'list_items',
   'list_projects', 'list_sessions', 'list_workstreams', 'mark_seen', 'monitor_tick', 'pause', 'pause_status',
-  'raise_item', 'record_nudge', 'register_session', 'release', 'report_paused', 'report_spend', 'resources', 'restart_developer',
-  'resume', 'set_limits', 'set_voice', 'start_front_desk', 'status', 'stop_architect', 'stop_developer', 'team_health', 'update_goal',
-  'voice_status',
+  'raise_item', 'record_nudge', 'register_session', 'release', 'report_paused', 'report_spend', 'resources',
+  'restart_architect', 'restart_developer', 'restorable_sessions', 'restore_all', 'resume', 'set_limits', 'set_voice',
+  'start_front_desk', 'status', 'stop_architect', 'stop_developer', 'team_health', 'update_goal', 'voice_status',
 ];
 
 function text(result: unknown): string {

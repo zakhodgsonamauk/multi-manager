@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   name TEXT,
   pid INTEGER,
   wrapper_pid INTEGER,
+  claude_session_id TEXT,
   folder TEXT,
   state TEXT NOT NULL CHECK (state IN ('running', 'stopped')),
   last_checkin_at TEXT,
@@ -98,7 +99,10 @@ export function openRoster(path: string = resolveDbPath()): DatabaseSync {
 }
 
 /** Columns added after a table first shipped; CREATE TABLE IF NOT EXISTS does not add them to an old file. */
-const ADDED_COLUMNS: { table: string; column: string; type: string }[] = [{ table: 'sessions', column: 'wrapper_pid', type: 'INTEGER' }];
+const ADDED_COLUMNS: { table: string; column: string; type: string }[] = [
+  { table: 'sessions', column: 'wrapper_pid', type: 'INTEGER' },
+  { table: 'sessions', column: 'claude_session_id', type: 'TEXT' },
+];
 
 export function migrate(db: DatabaseSync): void {
   for (const { table, column, type } of ADDED_COLUMNS) {

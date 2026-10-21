@@ -9,6 +9,8 @@ export interface ClaudeSessionFile {
   startedAt?: number;
   kind?: string;
   cwd?: string;
+  /** The conversation id, as `claude --resume` takes it. */
+  sessionId?: string;
 }
 
 /** The session-file field that holds the `claude -n` name. The only place to change if the spike finds a different field. */

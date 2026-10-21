@@ -30,6 +30,7 @@ import { registerPauseTools } from './tools-pause.ts';
 import { registerMonitorTools } from './tools-monitor.ts';
 import { registerHealthTools } from './tools-health.ts';
 import { registerVoiceTools } from './tools-voice.ts';
+import { registerRecoveryTools } from './tools-recovery.ts';
 
 export interface Identity {
   sessionId: number | null;
@@ -381,4 +382,5 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   registerMonitorTools(server, ctx);
   registerHealthTools(server, ctx);
   registerVoiceTools(server, ctx);
+  registerRecoveryTools(server, ctx);
 }

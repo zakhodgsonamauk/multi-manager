@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Command, SettingsFile } from './command.ts';
 import {
@@ -12,6 +13,7 @@ import {
   readSessionFile,
   sessionFileName,
 } from './process.ts';
+import { findTranscriptIn } from '../monitor/activity.ts';
 import { ensureTerminalProfile } from './terminal-profile.ts';
 import { isWrapperProcess } from './wrapper.ts';
 
@@ -39,6 +41,10 @@ export interface LaunchDeps {
   /** Deletes our own state files; missing ones are fine. */
   removeFiles: (paths: string[]) => void;
   ensureTerminalProfile: () => void;
+  /** Claude Code's conversation id (sessionId) from <pid>.json, or null. Optional: without it the monitor fills the id in later. */
+  readClaudeSessionId?: (pid: number) => string | null;
+  /** True if the conversation's transcript (<id>.jsonl) still exists. Optional: without it a resume is always tried. */
+  conversationExists?: (claudeSessionId: string) => boolean;
 }
 
 /**
@@ -157,5 +163,10 @@ export function realDeps(): LaunchDeps {
     ensureTerminalProfile: () => {
       ensureTerminalProfile();
     },
+    readClaudeSessionId: (pid) => {
+      const id = readSessionFile(pid)?.sessionId;
+      return typeof id === 'string' && id !== '' ? id : null;
+    },
+    conversationExists: (id) => findTranscriptIn(join(homedir(), '.claude', 'projects'), id) !== null,
   };
 }

@@ -17,14 +17,16 @@ import {
 import {
   registerSession,
   requireSession,
+  reviveSession,
   runningArchitect,
   runningChildren,
+  setClaudeSessionId,
   setSessionPid,
   setSessionState,
   setSessionWrapperPid,
   type Session,
 } from '../roster/sessions.ts';
-import { architectPrompt, buildLaunchCommand, buildStopCommand, developerPrompt, sessionName } from './command.ts';
+import { architectPrompt, buildLaunchCommand, buildStopCommand, developerPrompt, restartPrompt, sessionName } from './command.ts';
 import type { LaunchDeps } from './runner.ts';
 import { sessionFiles, sessionStateDir, wrapperMarker, type SessionFiles } from './wrapper.ts';
 
@@ -55,7 +57,19 @@ interface TabSpec {
   parentId: number | null;
   prompt: (sessionId: number) => string;
   worktree?: string;
+  /** Relaunch under this existing roster row instead of registering a new one. */
+  reuse?: Session;
+  /** Continue this Claude Code conversation (`claude --resume`). */
+  resumeId?: string;
 }
+
+export interface RestartResult extends LaunchResult {
+  /** True if the earlier conversation was resumed; false if it could not be and a fresh one was started. */
+  resumed: boolean;
+}
+
+/** Claude Code conversation ids are UUIDs; anything else is not passed to --resume. */
+const CONVERSATION_ID = /^[A-Za-z0-9_-]+$/;
 
 export function wtPath(env: Env): string {
   return env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe') : 'wt.exe';
@@ -75,14 +89,17 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
   const warning = permissionWarning(tab.project);
   if (warning !== null) warnings.push(warning);
   ctx.deps.ensureTerminalProfile();
-  const session = registerSession(ctx.db, {
-    role: tab.role,
-    parentId: tab.parentId,
-    projectId: tab.project.id,
-    workstreamId: tab.workstream.id,
-    name: tab.name,
-    folder: tab.project.folder,
-  });
+  const session =
+    tab.reuse !== undefined
+      ? reviveSession(ctx.db, tab.reuse.id)
+      : registerSession(ctx.db, {
+          role: tab.role,
+          parentId: tab.parentId,
+          projectId: tab.project.id,
+          workstreamId: tab.workstream.id,
+          name: tab.name,
+          folder: tab.project.folder,
+        });
   const rosterDb = resolveDbPath(ctx.env);
   const files = sessionFiles(sessionStateDir(rosterDb), session.id);
   ctx.deps.removeFiles([files.wrapperPid, files.exit]);
@@ -100,6 +117,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     parentId: tab.parentId,
     rosterDb,
     worktree: tab.worktree,
+    resumeId: tab.resumeId,
   });
   ctx.deps.writeSettings(command.settings);
   const since = Date.now() - 1000;
@@ -120,6 +138,9 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     warnings.push(`${tab.name} was launched but its process id was not found yet. Stopping it will look the id up again by name.`);
   } else {
     setSessionPid(ctx.db, session.id, pid);
+    // Remember the conversation so a crash or reboot can resume it; the monitor fills it in if it is not written yet.
+    const conversation = ctx.deps.readClaudeSessionId?.(pid) ?? null;
+    if (conversation !== null) setClaudeSessionId(ctx.db, session.id, conversation);
   }
   return { session: requireSession(ctx.db, session.id), existing: false, warnings };
 }
@@ -225,4 +246,56 @@ export async function stopArchitect(ctx: LaunchContext, input: { project: string
   const architect = runningArchitect(ctx.db, workstream.id);
   if (architect === undefined) throw new Error(`No running architect for ${project.name}/${workstream.name}`);
   return stopSession(ctx, architect.id);
+}
+
+/**
+ * Brings a dead (or hung) architect back under the same roster id, so its developers, items and goals stay
+ * attached. Kills only its own leftovers (never its developers), then relaunches with `claude --resume` on its
+ * saved conversation, or a fresh conversation that is told the earlier one could not be restored.
+ * Never called automatically: the front desk offers it and the user says yes.
+ */
+export async function restartArchitect(ctx: LaunchContext, input: { sessionId: number; reason: string }): Promise<RestartResult> {
+  const old = requireSession(ctx.db, input.sessionId);
+  if (old.role !== 'architect' || old.project_id === null || old.workstream_id === null) {
+    throw new Error(`Session #${old.id} is not an architect with a project workstream`);
+  }
+  const project = requireProjectById(ctx.db, old.project_id);
+  assertNotPaused(ctx.db, project.id);
+  const workstream = requireWorkstreamById(ctx.db, old.workstream_id);
+  const other = runningArchitect(ctx.db, workstream.id);
+  if (other !== undefined && other.id !== old.id) {
+    throw new Error(`Architect #${other.id} (${other.name ?? 'unnamed'}) is already running for ${project.name}/${workstream.name}. Talk to it, or stop it first.`);
+  }
+  const warnings: string[] = [];
+  const files = sessionFiles(sessionStateDir(resolveDbPath(ctx.env)), old.id);
+  // Leftovers: kill only a wrapper or claude.exe that is provably this session's. Most often there is none.
+  const target = await killTarget(ctx, old, files, []);
+  if (target !== null) {
+    const result = await ctx.deps.run(buildStopCommand(target));
+    warnings.push(result.code === 0 ? `Closed ${old.name ?? `session #${old.id}`}'s leftover process ${target}.` : `taskkill of leftover ${target} exited with ${result.code}.`);
+  }
+  ctx.deps.removeFiles([files.settings, files.wrapperPid, files.exit]);
+  setSessionState(ctx.db, old.id, 'stopped');
+  releaseAll(ctx.db, old.id);
+  const id = old.claude_session_id;
+  const resumed = id !== null && CONVERSATION_ID.test(id) && (ctx.deps.conversationExists?.(id) ?? true);
+  if (!resumed) {
+    setClaudeSessionId(ctx.db, old.id, null);
+    warnings.push(
+      id === null
+        ? 'No saved conversation id for this architect, so it starts a fresh conversation and re-reads its progress log.'
+        : `Conversation ${id} could not be found, so it starts a fresh conversation and re-reads its progress log.`,
+    );
+  }
+  const result = await launchTab(ctx, {
+    role: 'architect',
+    project,
+    workstream,
+    name: old.name ?? sessionName(project.name, workstream.name),
+    parentId: old.parent_id,
+    prompt: () => restartPrompt(project.name, workstream.name, input.reason, resumed),
+    reuse: old,
+    resumeId: resumed ? (id ?? undefined) : undefined,
+  });
+  return { ...result, warnings: [...warnings, ...result.warnings], resumed };
 }
