@@ -8,10 +8,10 @@ import { tempDir } from './helpers.ts';
 const serverPath = join(import.meta.dirname, '..', 'src', 'roster', 'server.ts');
 
 const ALL_TOOLS = [
-  'add_project', 'add_workstream', 'answer_item', 'check_in', 'claim', 'close_item', 'create_goal', 'get_briefing',
-  'get_goal', 'launch_architect', 'launch_developer', 'list_items', 'list_projects', 'list_sessions', 'list_workstreams',
-  'mark_seen', 'raise_item', 'register_session', 'release', 'report_spend', 'start_front_desk', 'status',
-  'stop_architect', 'stop_developer', 'update_goal',
+  'add_project', 'add_workstream', 'allocate_number', 'answer_item', 'check_in', 'claim', 'close_item', 'create_goal',
+  'get_briefing', 'get_goal', 'get_limits', 'launch_architect', 'launch_developer', 'list_items', 'list_projects',
+  'list_sessions', 'list_workstreams', 'mark_seen', 'monitor_tick', 'raise_item', 'register_session', 'release',
+  'report_spend', 'resources', 'set_limits', 'start_front_desk', 'status', 'stop_architect', 'stop_developer', 'update_goal',
 ];
 
 function text(result: unknown): string {

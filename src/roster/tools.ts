@@ -26,6 +26,7 @@ import {
 } from './sessions.ts';
 import { reportSpend, spendForGoal } from './spend.ts';
 import { statusSummary } from './status.ts';
+import { registerMonitorTools } from './tools-monitor.ts';
 
 export interface Identity {
   sessionId: number | null;
@@ -372,4 +373,6 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
         return stopSession(ctx.launch, session_id);
       }),
   );
+
+  registerMonitorTools(server, ctx);
 }
