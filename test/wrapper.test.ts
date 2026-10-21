@@ -177,3 +177,9 @@ test('killing the wrapper kills what it started (kill-on-close Job); ownership i
   assert.equal(gone, true, `child ${pid} outlived its wrapper`);
   assert.ok(!existsSync(sessionFiles(stateDir, 42).exit), 'a killed wrapper writes no exit file');
 });
+
+test('wrapperMarker matches across slash style and case, but not across sessions', () => {
+  const marker = wrapperMarker(2, 'C:/Users/Me/Temp/mm/roster.db');
+  assert.equal(wrapperMarker(2, String.raw`c:\users\me\temp\mm\roster.db`), marker);
+  assert.notEqual(wrapperMarker(3, 'C:/Users/Me/Temp/mm/roster.db'), marker);
+});

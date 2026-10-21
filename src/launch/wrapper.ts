@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path';
+import { dirname, join, win32 } from 'node:path';
 
 /**
  * The PowerShell wrapper every session tab runs (field report: kill-on-close Jobs everywhere).
@@ -39,7 +39,10 @@ export function sessionFiles(stateDir: string, sessionId: number): SessionFiles 
 
 /** First line of every wrapper script; proves a pwsh process is this roster's wrapper for this session. */
 export function wrapperMarker(sessionId: number, rosterDb: string): string {
-  return `# multi-manager wrapper session=${sessionId} roster=${rosterDb.replace(/[\r\n]/g, ' ')}`;
+  // win32.resolve normalises slashes; lower-casing makes drive letters and folders compare the way Windows does,
+  // so the marker written at launch matches the one checked at stop.
+  const roster = win32.resolve(rosterDb).toLowerCase().replace(/[\r\n]/g, ' ');
+  return `# multi-manager wrapper session=${sessionId} roster=${roster}`;
 }
 
 /** A PowerShell single-quoted literal. */
