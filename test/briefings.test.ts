@@ -39,7 +39,21 @@ const required: Record<string, RegExp[]> = {
   architect: [
     /^# Multi-Manager: Architect/m,
     /one workstream/i,
-    /conductor\//,
+    /docs\/multi-manager\//,
+    /status\.md/,
+    /tasks\/NNN-slug\.md/,
+    /decisions\.md/,
+    /templates\/architect\//,
+    /allocate_number/,
+    /never picked by hand/,
+    /\/multi-manager:plan-goal/,
+    /\/multi-manager:dispatch/,
+    /\/multi-manager:review-return/,
+    /\/multi-manager:wrap-goal/,
+    /restart_developer/,
+    /Never restart an architect/,
+    /verbatim/,
+    /plain words/i,
     /progress\.md/,
     /approval rules/i,
     /signoff/,
@@ -78,8 +92,11 @@ const required: Record<string, RegExp[]> = {
     /Developers get no timer/,
   ],
   developer: [
-    /^# Multi-Manager: Developer/m, /only on (that|your) slice/i, /worktree/i, /never merge/i, /push/i, /raise_item/,
+    /^# Multi-Manager: Developer/m, /only on your task/i, /worktree/i, /never merge/i, /push/i, /raise_item/,
     /PAUSE item/, /commit WIP/, /resume note/, /report_paused/, /never full suites/, /relayed decision/i,
+    /Read the task file first/, /Never touch `main`/, /docs\/multi-manager\/tasks\/NNN-slug\.return\.md/,
+    /kind `done` pointing at the report/, /test command with its output lines/, /screenshots/, /gaps/,
+    /process caps/i, /never wait for "global quiet"/i, /only your own processes/i, /send-back round/i,
   ],
 };
 
@@ -88,12 +105,20 @@ for (const [role, patterns] of Object.entries(required)) {
     const text = read(role);
     for (const pattern of patterns) assert.match(text, pattern, `${role}.md is missing ${pattern}`);
     // 5600, up from 5000: room for the self-armed check-in timer (field report 2026-10-21).
-    assert.ok(text.length < 5600, `${role}.md is ${text.length} characters`);
+    // 6000, up from 5600: the repo-files-as-source-of-truth section (status, tasks, decisions, progress).
+    // The per-goal steps moved into the /multi-manager:* commands; the briefing only points at them.
+    assert.ok(text.length < 6000, `${role}.md is ${text.length} characters`);
   });
 }
 
 test('developers arm no check-in timer', () => {
   assert.doesNotMatch(read('developer'), /CronCreate/);
+});
+
+test('the architect briefing points at the workflow commands instead of repeating them', () => {
+  const text = read('architect');
+  assert.doesNotMatch(text, /git merge --squash/);
+  assert.doesNotMatch(text, /conductor\//);
 });
 
 test('the architect deletes its tick job before report_paused', () => {

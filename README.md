@@ -31,6 +31,10 @@ Then run `/multi-manager:front-desk`. Other commands: `/multi-manager:add-projec
 `multi-manager` Windows Terminal window; switch to a tab to talk to one directly. Stopping an architect
 closes its tab.
 
+Architects run a light workflow with `/multi-manager:plan-goal`, `/multi-manager:dispatch`,
+`/multi-manager:review-return` and `/multi-manager:wrap-goal`. Plans and state live in the project
+(`docs/multi-manager/`: status, numbered task files, decisions, progress), from `templates/architect/`.
+
 **Folder trust:** the first time an architect opens in a project folder Claude Code has never
 trusted, the tab shows the trust prompt and the session does not start until you accept it there.
 Folders only ever opened with `--dangerously-skip-permissions` count as never trusted.
