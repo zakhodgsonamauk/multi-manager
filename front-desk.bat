@@ -17,5 +17,9 @@ rem If started from inside another Claude Code session, drop its variables: a se
 rem them counts as a child and never registers for cross-session messaging.
 for %%V in (CLAUDECODE CLAUDE_PID CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_MESSAGING_TOKEN CLAUDE_CODE_SESSION_ATTENDED CLAUDE_CODE_SESSION_ID) do set "%%V="
 
+rem Full-screen layout for this session only, so the Multi-Manager pane docks beside the chat
+rem (in the default layout it can only open inline). Other sessions keep your normal layout.
+set "CLAUDE_CODE_NO_FLICKER=1"
+
 start "" wt.exe -w new new-tab --title mm-front-desk -d "%REPO%" claude -n mm-front-desk %REMOTE% --plugin-dir "%REPO%" --dangerously-skip-permissions "/multi-manager:front-desk"
 endlocal
