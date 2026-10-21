@@ -57,7 +57,7 @@ export interface PauseReport {
 }
 
 export const PAUSE_ITEM_TEXT =
-  'PAUSE: reach a clean point, commit WIP on your branch, write a resume note in your progress log, then call report_paused';
+  'PAUSE: delete your /multi-manager:tick timer (CronDelete) if you have one, reach a clean point, commit WIP on your branch, write a resume note in your progress log, then call report_paused';
 
 function scopeName(db: DatabaseSync, projectId: number | null): string {
   return projectId === null ? 'everything' : `project ${requireProjectById(db, projectId).name}`;

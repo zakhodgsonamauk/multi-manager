@@ -105,7 +105,7 @@ test('pause, report, finish and resume one project', async (t) => {
   const paused = await call('pause', { project: 'alpha', reason: 'dinner' });
   assert.deepEqual(paused.sessions.map((s: { name: string }) => s.name), ['mm-alpha-main', 'mm-alpha-main-dev-login']);
   const pauseItems = listItems(db, { addressedTo: dev.id });
-  assert.match(pauseItems[0].body, /^PAUSE: reach a clean point, commit WIP on your branch/);
+  assert.match(pauseItems[0].body, /^PAUSE: delete your \/multi-manager:tick timer \(CronDelete\) if you have one, reach a clean point, commit WIP on your branch/);
   assert.equal(listItems(db, { addressedTo: other.id }).length, 0);
 
   await assert.rejects(call('finish_pause', { project: 'alpha' }), /Not reported yet: mm-alpha-main, mm-alpha-main-dev-login/);

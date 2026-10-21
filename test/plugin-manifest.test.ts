@@ -35,3 +35,14 @@ test('every user command exists, has a description and names its roster tool', (
   }
   assert.match(readFileSync(join(root, 'commands', 'front-desk.md'), 'utf8'), /--dangerously-skip-permissions/);
 });
+
+test('commands/tick.md is the role-aware check-in tick', () => {
+  const path = join(root, 'commands', 'tick.md');
+  assert.ok(existsSync(path), 'missing commands/tick.md');
+  const text = readFileSync(path, 'utf8');
+  assert.match(text, /^---\ndescription: .+\n(argument-hint: .+\n)?---\n/);
+  for (const word of ['`team_health`', '`paused`', 'paused — tick skipped', '`record_nudge`', '`restart_developer`', '`check_in`', '`raise_item`', '`stop_architect`', 'all quiet', 'MM_ROLE']) {
+    assert.ok(text.includes(word), `tick.md should mention ${word}`);
+  }
+  assert.ok(text.indexOf('`team_health`') < text.indexOf('`check_in`'), 'team_health must come first');
+});

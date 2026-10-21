@@ -27,6 +27,14 @@ const required: Record<string, RegExp[]> = {
     /`resume` only when the user says go/,
     /record-only/i,
     /relayed decision/i,
+    /CronList/,
+    /CronCreate/,
+    /3-59\/10 \* \* \* \*/,
+    /\/multi-manager:tick/,
+    /6\+ days/,
+    /CronDelete/,
+    /When pausing everything, `CronDelete`/,
+    /re-arm/i,
   ],
   architect: [
     /^# Multi-Manager: Architect/m,
@@ -59,6 +67,15 @@ const required: Record<string, RegExp[]> = {
     /screenshots/,
     /record-only/i,
     /relayed decision/i,
+    /CronList/,
+    /CronCreate/,
+    /3-59\/10 \* \* \* \*/,
+    /\/multi-manager:tick/,
+    /6\+ days/,
+    /CronDelete/,
+    /PAUSE item: `CronDelete` your tick job first/,
+    /re-arm/i,
+    /Developers get no timer/,
   ],
   developer: [
     /^# Multi-Manager: Developer/m, /only on (that|your) slice/i, /worktree/i, /never merge/i, /push/i, /raise_item/,
@@ -70,7 +87,17 @@ for (const [role, patterns] of Object.entries(required)) {
   test(`${role} briefing covers its R6 duties and stays tight`, () => {
     const text = read(role);
     for (const pattern of patterns) assert.match(text, pattern, `${role}.md is missing ${pattern}`);
-    // 5000, up from 4000: room for pause/resume duties and the user's working style (field report 2026-10-21).
-    assert.ok(text.length < 5000, `${role}.md is ${text.length} characters`);
+    // 5600, up from 5000: room for the self-armed check-in timer (field report 2026-10-21).
+    assert.ok(text.length < 5600, `${role}.md is ${text.length} characters`);
   });
 }
+
+test('developers arm no check-in timer', () => {
+  assert.doesNotMatch(read('developer'), /CronCreate/);
+});
+
+test('the architect deletes its tick job before report_paused', () => {
+  const text = read('architect');
+  const pause = text.slice(text.indexOf('On a PAUSE item'));
+  assert.ok(pause.indexOf('CronDelete') < pause.indexOf('report_paused'));
+});

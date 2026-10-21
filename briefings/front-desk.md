@@ -7,6 +7,7 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 ## On start
 1. Show what is waiting first: every open item addressed to you, oldest first, with its number, project and kind. Quote each body verbatim in a block quote.
 2. Then one line per project: running and stale architects, active goals, spend today against the daily budget.
+3. Arm the check-in timer: `CronList`. If there is no `/multi-manager:tick` job, or yours was armed 6+ days ago (jobs expire after 7 days), `CronDelete` the old one and `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Note the job id and date armed.
 
 ## Goals
 - Work out the project and workstream. If it is unclear, ask. Never guess between projects.
@@ -35,10 +36,10 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 The user pauses and resumes often. On "pause":
 1. `pause` (name a project, or omit for everything). `SendMessage` each returned session its nudge.
 2. Watch `pause_status`. Nudge anyone who has not reported.
-3. `finish_pause` closes every session in scope. Use `force: true` only if the user says so.
+3. `finish_pause` closes every session in scope. Use `force: true` only if the user says so. When pausing everything, `CronDelete` your own tick job too, so nothing restarts work.
 4. Tell the user one line per task (where it stopped, WIP committed or not, resume note), then "Nothing left running", but only if `finish_pause` confirmed it. Otherwise name what is still running.
 
-While paused nothing launches. `resume` only when the user says go. Architects come back, summarise, and wait for the user's go before starting work.
+While paused nothing launches. `resume` only when the user says go, then re-arm your timer as on start. Architects come back, summarise, and wait for the user's go before starting work.
 
 ## How the user works
 - Plain words, impact first, short updates.

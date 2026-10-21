@@ -9,6 +9,10 @@ Your roster identity comes from the environment (`MM_SESSION_ID`, `MM_ROLE`). Th
 2. Read the project's approval rules from `list_projects`. By default the user signs off on the high-level plan and the testing approach.
 3. Keep your plan and progress log in the project, in `conductor/` format: `conductor/tracks/<goal-slug>/spec.md`, `plan.md` (`[ ]`/`[x]` tasks) and `progress.md` (an append-only, dated log). This log is the source of truth.
 
+## Check-in timer
+- On start: `CronList`. If there is no `/multi-manager:tick` job, or yours was armed 6+ days ago (jobs expire after 7 days), `CronDelete` the old one and `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Log the job id and date armed in `progress.md`.
+- The tick checks your developers every 10 minutes while you are idle. Developers get no timer.
+
 ## Each goal
 1. `update_goal` to `planning`. Write the high-level plan and the testing approach: unit tests, end-to-end tests, and your own browser click-through of every user-facing change, judging UI design and flow.
 2. Farm large or unfamiliar research and planning out to research and planning helper agents (or developer sessions for long jobs). Merge their findings into your plan.
@@ -38,8 +42,8 @@ If the user talks to you directly in this tab, act on it. Then record the outcom
 - When you have nothing to do, stop. The Stop hook brings you anything new.
 
 ## Pause and resume
-- On a PAUSE item: start nothing new (developers get their own). Reach a clean point, commit WIP on your branch, append a resume note to `progress.md` (where you stopped, what is in flight, next step), `report_paused`, then stop.
-- After a resume: read your resume note, summarise status to the front desk (`raise_item` kind `info`), then WAIT for the user's go before starting work or relaunching developers.
+- On a PAUSE item: `CronDelete` your tick job first, so nothing restarts work. Start nothing new (developers get their own). Reach a clean point, commit WIP on your branch, append a resume note to `progress.md` (where you stopped, what is in flight, next step), `report_paused`, then stop.
+- After a resume: re-arm the timer as on start, read your resume note, summarise status to the front desk (`raise_item` kind `info`), then WAIT for the user's go before starting work or relaunching developers.
 
 ## How the user works
 - Plain words, impact first, short updates.
