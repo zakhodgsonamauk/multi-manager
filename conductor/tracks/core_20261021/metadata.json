@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "track_id": "core_20261021",
+  "name": "Core (Stage 1): front desk, roster, architect launching",
+  "type": "feature",
+  "status": "planned",
+  "superpower_enhanced": true,
+  "created_at": "2026-10-21",
+  "loop_state": {
+    "current_step": "EVALUATE_PLAN",
+    "step_status": "NOT_STARTED",
+    "fix_cycle_count": 0,
+    "checkpoints": {
+      "PLAN": {
+        "status": "PASSED",
+        "started_at": "2026-10-21",
+        "completed_at": "2026-10-21",
+        "agent": "loop-planner",
+        "plan_version": 1,
+        "phases": 7,
+        "tasks": 24
+      },
+      "EVALUATE_PLAN": {
+        "status": "NOT_STARTED"
+      }
+    }
+  }
+}

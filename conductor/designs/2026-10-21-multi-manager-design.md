@@ -20,16 +20,18 @@ User ──► Front desk (1) ──► Architects (X, one per project workstrea
 | Topic | Decision |
 |---|---|
 | What the user sends the front desk | All of: per-project goals, cross-cutting changes across projects, status and triage, answers to escalations. Nitty-gritty detail may go straight to an architect. |
-| How architects exist | The front desk launches and stops them as Claude Code background sessions. The user can open any of them (`claude agents`) and talk directly. |
-| What a developer is | The architect decides per task: a helper agent in its own temporary copy of the project (git worktree) for small slices, or a full background session for long jobs. |
+| How architects exist | The front desk launches and stops them. Each runs as a normal interactive Claude Code session in its own visible Windows Terminal tab (window `multi-manager`); the user switches to the tab to talk directly. |
+| Headless sessions | Not by default. No Multi-Manager session runs headless or as a hidden background session until Multi-Manager has its own reliable front end. |
+| Closing sessions | A finished or stopped session closes completely — the tab disappears. Tabs use a dedicated "Multi-Manager" Windows Terminal profile with `closeOnExit: always`, and stopping kills the session's whole process tree. |
+| What a developer is | The architect decides per task: a helper agent in its own temporary copy of the project (git worktree) for small slices, or a full session in its own tab for long jobs. |
 | Large feature planning | The architect should farm large planning work out to separate research/planning helper agents or sessions, then merge the results into its own plan. |
 | Approvals | No hard-coded rules; set per user and per project via initial instructions. Default: the user signs off on (a) the high-level plan and (b) the high-level testing approach — unit tests, end-to-end tests, and the architect clicking through every user-facing change in a browser to judge UI design and flow independently. |
 | Status channels | Front desk chat, a live status web page, spoken alerts (via session-voice), and phone access (via Remote Control). Built in stages, chat first. |
 | Two architects on one project | Each owns a named workstream with its own branch; shared files are claimed before editing, otherwise the owner is messaged. |
-| Permissions | Unless a project specifies otherwise, every Claude Code instance is launched with `--dangerously-skip-permissions`. |
+| Permissions | Unless a project specifies otherwise, every Claude Code instance — including the front desk — is launched with `--dangerously-skip-permissions`. Claude Code holds cross-session messages for manual approval when sender and receiver run in different permission modes, so a project that overrides this gets a warning. |
 | Testing of the add-on | No up-front test programme; the system is proven by real use. Exception: an automated check of the watchdog's process-stopping logic, since a bug there could kill processes we do not own. |
 | Platform | Native Windows 11 first. No tmux, no WSL dependency. |
-| Foundation | Approach A: a new plugin built on Claude Code's native background sessions and cross-session messaging (chosen over extending claude-context-sync or adopting Gas Town). |
+| Foundation | Approach A: a new plugin built on Claude Code's native cross-session messaging, with sessions in Windows Terminal tabs (chosen over extending claude-context-sync or adopting Gas Town). |
 
 ### Risk accepted: skipped permissions
 
@@ -76,8 +78,11 @@ The user's normal Claude Code window, with the front-desk briefing. It:
 
 ### 4. Architects
 
-Background Claude Code sessions, one per project workstream, launched in the project folder with the
-architect briefing, voice muted, and the project's permission mode. Each:
+Interactive Claude Code sessions in their own Windows Terminal tab, one per project workstream,
+launched in the project folder with the architect briefing, voice muted, and the project's
+permission mode. Session settings (role, roster id, parent) are passed through Claude Code's
+`--settings` `env` key, because `wt.exe` does not reliably pass the caller's environment into new
+tabs. Each:
 
 - Keeps a plan and progress log inside the project in SupaConductor's format. This log is the
   source of truth, so direct conversations between the user and an architect are not lost to the
@@ -94,8 +99,8 @@ architect briefing, voice muted, and the project's permission mode. Each:
 
 ### 5. Developers
 
-Either helper agents spawned by the architect (each in its own git worktree) or full background
-sessions for long jobs. Both are registered in the roster under their architect.
+Either helper agents spawned by the architect (each in its own git worktree) or full sessions in
+their own tab for long jobs, launched the same way as architects. Both are registered in the roster under their architect.
 
 ### 6. Messaging: two channels
 
@@ -110,7 +115,7 @@ sessions for long jobs. Both are registered in the roster under their architect.
 The session-voice Stop hook currently fires for every Claude Code instance, which becomes confusing
 with many sessions. Changes needed in session-voice:
 
-- A launch setting (environment variable) to mute a session; background sessions launch muted.
+- A launch setting (environment variable) to mute a session; sessions launched by Multi-Manager start muted.
 - A `/voice off` (and on) command inside a session.
 - A roster tool to mute/unmute any session.
 
@@ -162,10 +167,10 @@ Stages 3–6 can be done in any order.
 
 ## Known unknowns
 
-- Whether a background session started by the front desk (`claude --bg`) can be messaged by the
-  front desk and also opened by the user from `claude agents`. This is the first thing to try in
-  stage 1; if it fails, the launch mechanism changes (for example, Agent SDK sessions resumed with
-  `claude --resume`).
-- Background sessions and agent view are research preview and may change.
+- Whether a session launched by the front desk in a new Windows Terminal tab is listed and
+  messageable by the front desk, receives its settings through `--settings`, and closes its tab
+  completely when its process tree is killed. This is the first thing to try in stage 1.
+- How to find a tab-launched session's process id reliably (candidate: `~/.claude/sessions/*.json`
+  matched by session name).
 - Which browser tool architects use for click-throughs (Playwright failed to connect in the
   brainstorming session; webclaw is available).
