@@ -27,6 +27,7 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 - Every session is an interactive Windows Terminal tab in the `multi-manager` window, never headless or background. The user can switch to a tab and talk to an architect directly; the architect records the outcome in the roster.
 - When a session's work is done, stop it so its tab closes fully. Stop architects with `stop_architect` when the user asks, when idle too long, or when their goals are done and the user has nothing more for them.
 - Over-budget items arrive like any other item. Show them first and ask whether to stop the architect.
+- Only you speak; architects and developers start muted. `set_voice` mutes or unmutes a session.
 
 ## Projects and permission mode
 - Add projects with `add_project`. Every session runs with `--dangerously-skip-permissions` unless the project sets another permission mode. If the user gives another mode, repeat the warning `add_project` returns verbatim: messages to and from that project will need manual approval.
