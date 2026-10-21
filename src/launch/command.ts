@@ -30,6 +30,8 @@ export interface LaunchSpec {
   worktree?: string;
   /** Optional Job process cap for the session's whole tree; unset means no cap. */
   maxProcesses?: number;
+  /** Claude Code conversation id to continue (`claude --resume <id>`); unset starts a fresh conversation. */
+  resumeId?: string;
 }
 
 export const WT_WINDOW = 'multi-manager';
@@ -63,7 +65,8 @@ export function sessionEnv(spec: LaunchSpec): Record<string, string> {
 
 /** The arguments after `claude` that the wrapper runs. */
 export function claudeArgs(spec: LaunchSpec): string[] {
-  const args = ['-n', spec.name];
+  const args = spec.resumeId === undefined ? [] : ['--resume', spec.resumeId];
+  args.push('-n', spec.name);
   if (spec.skipPermissions) args.push('--dangerously-skip-permissions');
   if (spec.worktree !== undefined) args.push('--worktree', spec.worktree);
   args.push(
@@ -107,6 +110,19 @@ export function architectPrompt(project: string, workstream: string, goalId?: nu
     return `${start} No goal yet. Call the roster tool list_items for anything addressed to you, then wait for the front desk.`;
   }
   return `${start} Your goal is roster goal #${goalId}. Call the roster tool get_goal with goal_id ${goalId} and follow your briefing.`;
+}
+
+/** What a restarted architect is told: catch up, report, and wait for the user's go. */
+export function restartPrompt(project: string, workstream: string, reason: string, restored: boolean): string {
+  const why = reason.replace(/[;\r\n]+/g, ', ').trim() || 'an unexpected stop';
+  const parts = [
+    ...(restored ? [] : [`You are the Multi-Manager architect for project ${project}, workstream ${workstream}.`]),
+    `You were restarted after ${why}.`,
+    ...(restored ? [] : ['Your earlier conversation could not be restored.']),
+    "Re-read your progress log, check_in, list_items, then summarise status to the front desk and WAIT for the user's go before starting new work.",
+    'Do not relaunch developers until then.',
+  ];
+  return parts.join(' ');
 }
 
 export function developerPrompt(project: string, workstream: string, task: string, sessionId: number): string {

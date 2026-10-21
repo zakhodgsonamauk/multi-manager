@@ -35,6 +35,9 @@ const required: Record<string, RegExp[]> = {
     /CronDelete/,
     /When pausing everything, `CronDelete`/,
     /re-arm/i,
+    /restorable_sessions/,
+    /Never restart an architect on your own/,
+    /restart_architect/,
   ],
   architect: [
     /^# Multi-Manager: Architect/m,

@@ -16,6 +16,8 @@ export interface Session {
   pid: number | null;
   /** The pwsh wrapper that holds the session's kill-on-close Job (src/launch/wrapper.ts). */
   wrapper_pid: number | null;
+  /** Claude Code's conversation id (sessionId in ~/.claude/sessions/<pid>.json), for `claude --resume`. */
+  claude_session_id: string | null;
   folder: string | null;
   state: SessionState;
   last_checkin_at: string | null;
@@ -84,6 +86,16 @@ export function setSessionPid(db: DatabaseSync, id: number, pid: number | null):
 
 export function setSessionWrapperPid(db: DatabaseSync, id: number, pid: number | null): void {
   db.prepare('UPDATE sessions SET wrapper_pid = ? WHERE id = ?').run(pid, id);
+}
+
+export function setClaudeSessionId(db: DatabaseSync, id: number, claudeSessionId: string | null): void {
+  db.prepare('UPDATE sessions SET claude_session_id = ? WHERE id = ?').run(claudeSessionId, id);
+}
+
+/** Brings a stopped session row back to running for a relaunch under the same roster id (restart after a crash). */
+export function reviveSession(db: DatabaseSync, id: number, now: Date = new Date()): Session {
+  db.prepare("UPDATE sessions SET state = 'running', pid = NULL, wrapper_pid = NULL, last_checkin_at = ? WHERE id = ?").run(iso(now), id);
+  return requireSession(db, id);
 }
 
 /** The single front-desk record; created (stopped) if missing. More than one front desk is out of scope. */

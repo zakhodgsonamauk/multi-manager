@@ -5,7 +5,7 @@ import { releaseAll } from '../roster/claims.ts';
 import { iso, many, one, tx } from '../roster/db.ts';
 import { raiseItem } from '../roster/items.ts';
 import { listLimits } from '../roster/limits.ts';
-import { frontDesk, getSession } from '../roster/sessions.ts';
+import { frontDesk, getSession, setClaudeSessionId, type Session } from '../roster/sessions.ts';
 import { realActivityReaders, type ActivityReaders } from './activity.ts';
 import { planEnforcement, type Enforcement, type MonitoredSession } from './enforce.ts';
 import { detectStuck, type StuckReport } from './health.ts';
@@ -164,6 +164,25 @@ export function detectDeaths(db: DatabaseSync, snapshot: readonly ProcessInfo[],
   return deaths;
 }
 
+/**
+ * Fills in (or follows a change of) each running session's Claude Code conversation id from its session file,
+ * so a crash or reboot can `claude --resume` it. A file naming a different session (pid reuse) is ignored.
+ */
+export function refreshConversationIds(db: DatabaseSync, readers: ActivityReaders): number {
+  const running = many<Session>(db.prepare("SELECT * FROM sessions WHERE state = 'running' AND role <> 'front-desk' AND pid IS NOT NULL").all());
+  let updated = 0;
+  for (const session of running) {
+    const file = readers.readSessionFile(session.pid as number);
+    if (file === null || typeof file !== 'object') continue;
+    const { sessionId, name } = file as Record<string, unknown>;
+    if (typeof sessionId !== 'string' || sessionId === '' || sessionId === session.claude_session_id) continue;
+    if (typeof name === 'string' && session.name !== null && name !== session.name) continue;
+    setClaudeSessionId(db, session.id, sessionId);
+    updated += 1;
+  }
+  return updated;
+}
+
 /** The pid and every ancestor of it: the monitor must never kill its own host. */
 export function ancestry(snapshot: readonly ProcessInfo[], pid: number | undefined): Set<number> {
   const result = new Set<number>();
@@ -258,6 +277,7 @@ export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult
     }
     if (deps.activity !== undefined) {
       try {
+        refreshConversationIds(db, deps.activity);
         result.stuck = detectStuck(db, deps.activity, now);
       } catch (error) {
         result.errors.push(error instanceof Error ? error.message : String(error));

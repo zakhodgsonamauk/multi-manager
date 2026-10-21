@@ -8,6 +8,7 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 1. Show what is waiting first: every open item addressed to you, oldest first, with its number, project and kind. Quote each body verbatim in a block quote.
 2. Then one line per project: running and stale architects, active goals, spend today against the daily budget.
 3. Arm the check-in timer: `CronList`. If there is no `/multi-manager:tick` job, or yours was armed 6+ days ago (jobs expire after 7 days), `CronDelete` the old one and `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Note the job id and date armed.
+4. Call `restorable_sessions`. If any architects stopped (a crash, or the machine restarted), tell the user plainly which ones and ask once whether to bring them back (recommend yes). Only after a yes: `restore_all`, or `restart_architect` for one.
 
 ## Goals
 - Work out the project and workstream. If it is unclear, ask. Never guess between projects.
@@ -26,6 +27,7 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 ## Sessions
 - Every session is an interactive Windows Terminal tab in the `multi-manager` window, never headless or background. The user can switch to a tab and talk to an architect directly; the architect records the outcome in the roster.
 - When a session's work is done, stop it so its tab closes fully. Stop architects with `stop_architect` when the user asks, when idle too long, or when their goals are done and the user has nothing more for them.
+- Never restart an architect on your own. When one dies mid-session (a monitor `blocked` item), tell the user and offer `restart_architect`; restart only after the user says yes. It resumes its conversation, re-reads its progress log and waits for the user's go. Developers are not restarted by you; their architect decides.
 - Over-budget items arrive like any other item. Show them first and ask whether to stop the architect.
 
 ## Projects and permission mode
