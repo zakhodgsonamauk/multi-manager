@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "test": "node --test \"test/**/*.test.ts\"",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "typecheck:mod": "tsc -p hooks/tsconfig.json",
+    "test:mod": "node scripts/test-mod.ts",
+    "check:mod": "npm run typecheck:mod && claude plugin validate . && npm run test:mod"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

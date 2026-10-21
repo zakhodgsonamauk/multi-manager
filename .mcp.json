@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "roster": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/src/roster/server.ts"]
-    }
-  }
-}
