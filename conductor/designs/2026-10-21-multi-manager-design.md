@@ -26,7 +26,7 @@ User ──► Front desk (1) ──► Architects (X, one per project workstrea
 | What a developer is | The architect decides per task: a helper agent in its own temporary copy of the project (git worktree) for small slices, or a full session in its own tab for long jobs. |
 | Large feature planning | The architect should farm large planning work out to separate research/planning helper agents or sessions, then merge the results into its own plan. |
 | Approvals | No hard-coded rules; set per user and per project via initial instructions. Default: the user signs off on (a) the high-level plan and (b) the high-level testing approach — unit tests, end-to-end tests, and the architect clicking through every user-facing change in a browser to judge UI design and flow independently. |
-| Status channels | Front desk chat, a live status web page, spoken alerts (via session-voice), and phone access (via Remote Control). Built in stages, chat first. |
+| Status channels | Front desk chat, a live **front desk pane** drawn inside the front desk session (decided 2026-10-21, replacing the separate status web page), spoken alerts (via session-voice), and phone access (via Remote Control, which shows the same pane). Built in stages, chat first. |
 | Two architects on one project | Each owns a named workstream with its own branch; shared files are claimed before editing, otherwise the owner is messaged. |
 | Permissions | Unless a project specifies otherwise, every Claude Code instance — including the front desk — is launched with `--dangerously-skip-permissions`. Claude Code holds cross-session messages for manual approval when sender and receiver run in different permission modes, so a project that overrides this gets a warning. |
 | Testing of the add-on | No up-front test programme; the system is proven by real use. Exception: an automated check of the watchdog's process-stopping logic, since a bug there could kill processes we do not own. |
@@ -61,7 +61,7 @@ records:
 - File claims (for shared files across workstreams) and heavy-job claims (see watchdog).
 - Status and spend per goal, per project, per day.
 
-The status page, spoken alerts and phone access all read from this same record.
+The front desk pane, spoken alerts and phone access all read from this same record.
 
 ### 3. Front desk
 
@@ -136,6 +136,29 @@ code map). The watchdog runs on a timer and:
   time.
 - Adds a resources line to the front desk's status answer.
 
+### 9. Front desk pane
+
+Decided 2026-10-21. The user-facing UI stays inside Claude Code: the plugin ships a **mod** (Claude
+Code's plugin UI layer: `hooks/hooks.json` `modules`, a `register` module drawing through
+`ui.render`). The engine draws the same tree on every surface the front desk runs on — terminal,
+desktop app, VS Code, and mobile through Remote Control — so one UI covers all of them. It is only
+active in the front desk session.
+
+- **Pane beside the chat** (`$.ui.open`, opened by a `/multi-manager:pane` command and unasked
+  only where the surface docks it as a sidebar): every project and workstream, its architect and
+  developers with state (busy / idle / stuck / dead), active goals, waiting sign-offs and
+  questions, spend today, resources against caps. Per item: the body quoted verbatim, an answer
+  field and send button (desktop/VS Code/terminal), quick-answer buttons where a surface has no
+  text input (mobile). Per architect: open its tab, stop. Global: pause / resume.
+- **Band above the prompt** and a **status-line entry**: one line — waiting sign-offs, stuck
+  sessions, architects busy.
+- **Toasts** when something new needs the user.
+- Data comes from the roster MCP tools (`status`, `team_health`, `list_items`, `resources`),
+  refreshed on a timer. Every write goes through the same tools as the chat (`answer_item` stores the
+  user's words verbatim; buttons are the user acting directly, never a relayed approval).
+- This pane is the candidate "reliable front end" that must exist before any session may run
+  headless.
+
 ## Error handling
 
 | Situation | Handling |
@@ -160,10 +183,14 @@ code map). The watchdog runs on a timer and:
 3. **Resource watchdog.**
 4. **Voice:** session-voice mute switch (launch setting, `/voice off`, roster tool); front desk
    speaks roster alerts.
-5. **Live status page** reading the roster.
-6. **Phone access** to the front desk through Remote Control.
+5. **Front desk pane** (replaces the separate live status page): pane, band, status line and
+   toasts drawn by a mod in the plugin.
+6. **Phone access** to the front desk through Remote Control (the pane comes with it).
 
-Stages 3–6 can be done in any order.
+Stages 3–6 can be done in any order. Progress as of 2026-10-21: stage 1 done; watchdog (stage 3)
+done in the form of kill-on-close sessions, the 30-second monitor, enforced caps and stuck
+detection; pause/resume, number allocation and the 10-minute check-in timers added from the
+Conflict Command field report; stage 5 (pane) in progress.
 
 ## Known unknowns
 
