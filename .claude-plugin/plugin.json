@@ -1,0 +1,7 @@
+{
+  "name": "multi-manager",
+  "version": "0.1.0",
+  "description": "One front desk session that directs architect sessions across several projects, each in its own Windows Terminal tab, through a shared roster.",
+  "author": { "name": "zakhodgsonamauk" },
+  "keywords": ["orchestration", "multi-session", "roster", "windows"]
+}

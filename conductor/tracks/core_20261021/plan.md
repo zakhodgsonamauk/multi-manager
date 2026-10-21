@@ -3552,6 +3552,7 @@ Facts used here, from the Claude Code plugin docs checked on 2026-10-21:
 - Only `name` is required in `plugin.json`, and it must be kebab-case.
 - `commands/<name>.md` is invoked as `/multi-manager:<name>`. Its frontmatter takes `description` and `argument-hint`, and `$ARGUMENTS` expands to the arguments.
 - `.mcp.json` at the plugin root is loaded, and `${CLAUDE_PLUGIN_ROOT}` expands in `args`.
+- Re-checked 2026-10-21: all of the above holds, and tools appear as `mcp__plugin_multi-manager_roster__<tool>`. The docs now call `commands/` "the older format" and recommend `skills/<name>/SKILL.md` for new plugins (same `/multi-manager:<name>` invocation, same frontmatter). `commands/` still loads and validates, so Stage 1 keeps it; moving to `skills/` (with `disable-model-invocation: true` for user-only commands) is a later cleanup.
 
 **Files:** Create `.claude-plugin/plugin.json`, `.mcp.json`, `commands/front-desk.md`, `commands/add-project.md`, `commands/status.md`, `commands/start-architect.md`, `commands/stop-architect.md`, `test/plugin-manifest.test.ts`
 
