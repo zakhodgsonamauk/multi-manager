@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { releaseAll } from '../roster/claims.ts';
 import { resolveDbPath, type Env } from '../roster/db.ts';
@@ -19,10 +19,12 @@ import {
   runningChildren,
   setSessionPid,
   setSessionState,
+  setSessionWrapperPid,
   type Session,
 } from '../roster/sessions.ts';
 import { architectPrompt, buildLaunchCommand, buildStopCommand, developerPrompt, sessionName } from './command.ts';
 import type { LaunchDeps } from './runner.ts';
+import { sessionFiles, sessionStateDir, wrapperMarker, type SessionFiles } from './wrapper.ts';
 
 export interface LaunchContext {
   db: DatabaseSync;
@@ -80,6 +82,8 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     folder: tab.project.folder,
   });
   const rosterDb = resolveDbPath(ctx.env);
+  const files = sessionFiles(sessionStateDir(rosterDb), session.id);
+  ctx.deps.removeFiles([files.wrapperPid, files.exit]);
   const command = buildLaunchCommand({
     wtPath: wtPath(ctx.env),
     name: tab.name,
@@ -88,7 +92,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     skipPermissions: warning === null,
     briefingFile: join(ctx.pluginRoot, 'briefings', `${tab.role}.md`),
     pluginDir: ctx.pluginRoot,
-    settingsPath: join(dirname(rosterDb), 'sessions', `${session.id}.settings.json`),
+    settingsPath: files.settings,
     prompt: tab.prompt(session.id),
     sessionId: session.id,
     parentId: tab.parentId,
@@ -101,6 +105,13 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
   if (result.code !== 0) {
     setSessionState(ctx.db, session.id, 'stopped');
     throw new Error(`Windows Terminal launch failed (exit ${result.code}): ${result.stderr || result.stdout}`);
+  }
+  // The wrapper writes its pid before it starts claude, so wait for it first.
+  const wrapperPid = await ctx.deps.waitForWrapperPid(files.wrapperPid);
+  if (wrapperPid === null) {
+    warnings.push(`${tab.name}'s wrapper did not report its process id yet. Stopping it will read ${files.wrapperPid} again.`);
+  } else {
+    setSessionWrapperPid(ctx.db, session.id, wrapperPid);
   }
   const pid = await ctx.deps.waitForPid(tab.name, since);
   if (pid === null) {
@@ -156,7 +167,31 @@ export async function launchDeveloper(
   });
 }
 
-/** Stops running children first, then kills this session's process tree if (and only if) it is ours. */
+/**
+ * Picks what to kill, never anything that is not provably ours: first the wrapper (a live pwsh.exe whose
+ * script carries this session's marker; killing it closes the kill-on-close Job, so the whole session
+ * goes), else the claude.exe whose session file names this session (sessions launched before the wrapper).
+ */
+async function killTarget(ctx: LaunchContext, session: Session, files: SessionFiles, warnings: string[]): Promise<number | null> {
+  const label = session.name ?? `session #${session.id}`;
+  const wrapperPid = session.wrapper_pid ?? ctx.deps.readWrapperPid(files.wrapperPid);
+  if (wrapperPid !== null) {
+    if (await ctx.deps.ownsWrapper(wrapperPid, wrapperMarker(session.id, resolveDbPath(ctx.env)))) return wrapperPid;
+    warnings.push(`Process ${wrapperPid} is not ${label}'s wrapper any more.`);
+  }
+  const pid = session.pid ?? (session.name === null ? null : await ctx.deps.findPid(session.name));
+  if (pid === null) {
+    warnings.push(`No live process id is known for ${label}. It was marked stopped without killing anything.`);
+    return null;
+  }
+  if (session.name === null || !(await ctx.deps.ownsProcess(pid, session.name))) {
+    warnings.push(`Process ${pid} is not ${label}'s claude.exe any more, so nothing was killed.`);
+    return null;
+  }
+  return pid;
+}
+
+/** Stops running children first, kills this session's process tree if (and only if) it is ours, then removes its state files. */
 export async function stopSession(ctx: LaunchContext, sessionId: number): Promise<StopResult> {
   const session = requireSession(ctx.db, sessionId);
   if (session.role === 'front-desk') throw new Error('Multi-Manager does not stop the front desk');
@@ -164,18 +199,15 @@ export async function stopSession(ctx: LaunchContext, sessionId: number): Promis
   for (const child of runningChildren(ctx.db, session.id)) {
     warnings.push(...(await stopSession(ctx, child.id)).warnings);
   }
-  const label = session.name ?? `session #${session.id}`;
+  const files = sessionFiles(sessionStateDir(resolveDbPath(ctx.env)), session.id);
   let killed = false;
-  const pid = session.pid ?? (session.name === null ? null : ctx.deps.findPid(session.name));
-  if (pid === null) {
-    warnings.push(`No process id is known for ${label}. It was marked stopped without killing anything.`);
-  } else if (session.name === null || !(await ctx.deps.ownsProcess(pid, session.name))) {
-    warnings.push(`Process ${pid} is not ${label}'s claude.exe any more, so nothing was killed.`);
-  } else {
-    const result = await ctx.deps.run(buildStopCommand(pid));
+  const target = await killTarget(ctx, session, files, warnings);
+  if (target !== null) {
+    const result = await ctx.deps.run(buildStopCommand(target));
     killed = result.code === 0;
     if (!killed) warnings.push(`taskkill exited with ${result.code}: ${result.stderr || result.stdout}`);
   }
+  ctx.deps.removeFiles([files.settings, files.wrapperPid, files.exit]);
   setSessionState(ctx.db, session.id, 'stopped');
   releaseAll(ctx.db, session.id);
   return { session: requireSession(ctx.db, session.id), killed, warnings };

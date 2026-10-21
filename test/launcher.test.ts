@@ -4,14 +4,21 @@ import { test, type TestContext } from 'node:test';
 import type { Command, SettingsFile } from '../src/launch/command.ts';
 import { launchArchitect, launchDeveloper, stopArchitect, type LaunchContext } from '../src/launch/launcher.ts';
 import type { LaunchDeps } from '../src/launch/runner.ts';
+import { decodeCommand, wrapperMarker } from '../src/launch/wrapper.ts';
 import { claim, listClaims } from '../src/roster/claims.ts';
 import { createGoal, requireGoal } from '../src/roster/goals.ts';
 import { addProject, requireWorkstream } from '../src/roster/projects.ts';
 import { requireSession, startFrontDesk } from '../src/roster/sessions.ts';
 import { tempRoster } from './helpers.ts';
 
+/** The claude arguments inside the wrapper script that wt.exe is given (last argument, base64). */
+function claudeArgsOf(command: Command): string[] {
+  const line = decodeCommand(command.args.at(-1) ?? '').split('\n').find((l) => l.startsWith('& claude ')) ?? '';
+  return [...line.matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1].replace(/''/g, "'"));
+}
+
 function fakeDeps(overrides: Partial<LaunchDeps> = {}) {
-  const calls = { run: [] as Command[], settings: [] as SettingsFile[], profile: 0 };
+  const calls = { run: [] as Command[], settings: [] as SettingsFile[], profile: 0, removed: [] as string[][], markers: [] as string[] };
   const deps: LaunchDeps = {
     run: async (command) => {
       calls.run.push(command);
@@ -21,8 +28,17 @@ function fakeDeps(overrides: Partial<LaunchDeps> = {}) {
       calls.settings.push(file);
     },
     waitForPid: async (name) => (name.includes('-dev-') ? 5151 : 4242),
-    findPid: () => null,
+    findPid: async () => null,
     ownsProcess: async () => true,
+    waitForWrapperPid: async (path) => (/[\\/]3\.wrapper\.pid$/.test(path) ? 6161 : 7272),
+    readWrapperPid: () => null,
+    ownsWrapper: async (_pid, marker) => {
+      calls.markers.push(marker);
+      return true;
+    },
+    removeFiles: (paths) => {
+      calls.removed.push(paths);
+    },
     ensureTerminalProfile: () => {
       calls.profile += 1;
     },
@@ -49,14 +65,16 @@ test('launching an architect opens a tab, stores the pid and moves the goal to p
   assert.deepEqual(result.warnings, []);
   assert.equal(result.session.name, 'mm-alpha-main');
   assert.equal(result.session.pid, 4242);
+  assert.equal(result.session.wrapper_pid, 7272);
   assert.equal(result.session.parent_id, desk.id);
   assert.equal(calls.profile, 1);
   const command = calls.run[0];
   assert.equal(command.file, join('C:\\L', 'Microsoft', 'WindowsApps', 'wt.exe'));
   assert.equal(command.args[command.args.indexOf('-d') + 1], 'C:\\work\\alpha');
-  assert.ok(command.args.includes('--dangerously-skip-permissions'));
-  assert.equal(command.args[command.args.indexOf('--append-system-prompt-file') + 1], join('I:\\mm', 'briefings', 'architect.md'));
-  assert.match(command.args.at(-1) ?? '', new RegExp(`roster goal #${goal.id}`));
+  const claude = claudeArgsOf(command);
+  assert.ok(claude.includes('--dangerously-skip-permissions'));
+  assert.equal(claude[claude.indexOf('--append-system-prompt-file') + 1], join('I:\\mm', 'briefings', 'architect.md'));
+  assert.match(claude.at(-1) ?? '', new RegExp(`roster goal #${goal.id}`));
   const rosterDb = process.env.MM_ROSTER_DB ?? '';
   assert.equal(calls.settings[0].path, join(dirname(rosterDb), 'sessions', `${result.session.id}.settings.json`));
   assert.deepEqual(JSON.parse(calls.settings[0].content).env, {
@@ -94,7 +112,7 @@ test('a project with another permission mode launches without the flag and warns
   const { deps, calls } = fakeDeps();
   const { desk, ctx } = setup(t, deps, 'default');
   const result = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
-  assert.ok(!calls.run[0].args.includes('--dangerously-skip-permissions'));
+  assert.ok(!claudeArgsOf(calls.run[0]).includes('--dangerously-skip-permissions'));
   assert.match(result.warnings[0], /held for your approval/);
 });
 
@@ -121,14 +139,18 @@ test('stopping kills the process tree, marks stopped and releases claims', async
   claim(db, project.id, 'package.json', session.id);
   const stopped = await stopArchitect(ctx, { project: 'alpha' });
   assert.equal(stopped.killed, true);
-  assert.deepEqual(calls.run[1], { file: 'taskkill', args: ['/PID', '4242', '/T', '/F'] });
+  assert.deepEqual(calls.run[1], { file: 'taskkill', args: ['/PID', '7272', '/T', '/F'] });
+  const rosterDb = process.env.MM_ROSTER_DB ?? '';
+  assert.deepEqual(calls.markers, [wrapperMarker(session.id, rosterDb)]);
+  const dir = join(dirname(rosterDb), 'sessions');
+  assert.deepEqual(calls.removed.at(-1), [`${session.id}.settings.json`, `${session.id}.wrapper.pid`, `${session.id}.exit`].map((f) => join(dir, f)));
   assert.equal(stopped.session.state, 'stopped');
   assert.deepEqual(listClaims(db, project.id), []);
   await assert.rejects(stopArchitect(ctx, { project: 'alpha' }), /No running architect for alpha\/main/);
 });
 
 test('stop never kills a process it does not own', async (t) => {
-  const { deps, calls } = fakeDeps({ ownsProcess: async () => false });
+  const { deps, calls } = fakeDeps({ ownsProcess: async () => false, ownsWrapper: async () => false });
   const { desk, ctx } = setup(t, deps);
   await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
   const stopped = await stopArchitect(ctx, { project: 'alpha' });
@@ -136,6 +158,33 @@ test('stop never kills a process it does not own', async (t) => {
   assert.equal(calls.run.length, 1);
   assert.match(stopped.warnings.join('\n'), /nothing was killed/);
   assert.equal(stopped.session.state, 'stopped');
+});
+
+test('a wrapper that is not ours falls back to the claude.exe ownership check', async (t) => {
+  const { deps, calls } = fakeDeps({ ownsWrapper: async () => false });
+  const { desk, ctx } = setup(t, deps);
+  await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  const stopped = await stopArchitect(ctx, { project: 'alpha' });
+  assert.equal(stopped.killed, true);
+  assert.deepEqual(calls.run[1].args, ['/PID', '4242', '/T', '/F']);
+  assert.match(stopped.warnings.join('\n'), /7272 is not mm-alpha-main's wrapper/);
+});
+
+test('without a recorded wrapper pid, stop reads the .wrapper.pid file', async (t) => {
+  const { deps, calls } = fakeDeps({ waitForWrapperPid: async () => null, readWrapperPid: () => 8383 });
+  const { desk, ctx } = setup(t, deps);
+  const launched = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  assert.equal(launched.session.wrapper_pid, null);
+  assert.match(launched.warnings.join('\n'), /wrapper did not report/);
+  await stopArchitect(ctx, { project: 'alpha' });
+  assert.deepEqual(calls.run[1].args, ['/PID', '8383', '/T', '/F']);
+});
+
+test('launch clears stale wrapper state files for the new session first', async (t) => {
+  const { deps, calls } = fakeDeps();
+  const { desk, ctx } = setup(t, deps);
+  const { session } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  assert.deepEqual(calls.removed[0].map((p) => p.split(/[\\/]/).at(-1)), [`${session.id}.wrapper.pid`, `${session.id}.exit`]);
 });
 
 test('architects launch developer tabs in their own worktree; stopping the architect stops them first', async (t) => {
@@ -146,9 +195,9 @@ test('architects launch developer tabs in their own worktree; stopping the archi
   assert.equal(dev.session.role, 'developer');
   assert.equal(dev.session.parent_id, architect.id);
   assert.equal(dev.session.name, 'mm-alpha-main-dev-login');
-  const devArgs = calls.run[1].args;
+  const devArgs = claudeArgsOf(calls.run[1]);
   assert.equal(devArgs[devArgs.indexOf('--worktree') + 1], 'mm-alpha-main-dev-login');
   assert.equal(devArgs[devArgs.indexOf('--append-system-prompt-file') + 1], join('I:\\mm', 'briefings', 'developer.md'));
   await stopArchitect(ctx, { project: 'alpha' });
-  assert.deepEqual(calls.run.slice(2).map((c) => c.args[1]), ['5151', '4242']);
+  assert.deepEqual(calls.run.slice(2).map((c) => c.args[1]), ['6161', '7272']);
 });

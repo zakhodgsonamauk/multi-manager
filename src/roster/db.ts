@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   workstream_id INTEGER REFERENCES workstreams(id),
   name TEXT,
   pid INTEGER,
+  wrapper_pid INTEGER,
   folder TEXT,
   state TEXT NOT NULL CHECK (state IN ('running', 'stopped')),
   last_checkin_at TEXT,
@@ -92,7 +93,18 @@ export function openRoster(path: string = resolveDbPath()): DatabaseSync {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Columns added after a table first shipped; CREATE TABLE IF NOT EXISTS does not add them to an old file. */
+const ADDED_COLUMNS: { table: string; column: string; type: string }[] = [{ table: 'sessions', column: 'wrapper_pid', type: 'INTEGER' }];
+
+export function migrate(db: DatabaseSync): void {
+  for (const { table, column, type } of ADDED_COLUMNS) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!columns.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
 }
 
 /** Runs fn inside BEGIN IMMEDIATE … COMMIT. Do not nest. */

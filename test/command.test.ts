@@ -4,11 +4,13 @@ import {
   architectPrompt,
   buildLaunchCommand,
   buildStopCommand,
+  claudeArgs,
   developerPrompt,
   escapeForWt,
   sessionName,
   type LaunchSpec,
 } from '../src/launch/command.ts';
+import { buildWrapperScript, decodeCommand } from '../src/launch/wrapper.ts';
 
 const base: LaunchSpec = {
   wtPath: 'C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
@@ -25,12 +27,29 @@ const base: LaunchSpec = {
   rosterDb: 'C:\\Users\\me\\.claude\\multi-manager\\roster.db',
 };
 
-test('architect launch: exact wt.exe arguments with skipped permissions', () => {
+test('architect launch: wt.exe opens a pwsh tab with the wrapper as an encoded command', () => {
   const command = buildLaunchCommand(base);
   assert.equal(command.file, base.wtPath);
-  assert.deepEqual(command.args, [
+  assert.deepEqual(command.args.slice(0, -1), [
     '-w', 'multi-manager', 'new-tab', '--profile', 'Multi-Manager', '--title', 'mm-alpha-main', '-d', 'C:\\work\\alpha project',
-    'claude', '-n', 'mm-alpha-main', '--dangerously-skip-permissions',
+    'pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand',
+  ]);
+  assert.match(command.args.at(-1) ?? '', /^[A-Za-z0-9+/]+=*$/);
+  assert.equal(
+    decodeCommand(command.args.at(-1) ?? ''),
+    buildWrapperScript({
+      sessionId: 7,
+      rosterDb: base.rosterDb,
+      stateDir: 'C:\\Users\\me\\.claude\\multi-manager\\sessions',
+      folder: base.folder,
+      claudeArgs: claudeArgs(base),
+    }),
+  );
+});
+
+test('claude arguments: exact, with skipped permissions', () => {
+  assert.deepEqual(claudeArgs(base), [
+    '-n', 'mm-alpha-main', '--dangerously-skip-permissions',
     '--plugin-dir', 'I:\\Dropbox (Personal)\\mm',
     '--append-system-prompt-file', 'I:\\Dropbox (Personal)\\mm\\briefings\\architect.md',
     '--settings', 'C:\\Users\\me\\.claude\\multi-manager\\sessions\\7.settings.json',
@@ -39,9 +58,8 @@ test('architect launch: exact wt.exe arguments with skipped permissions', () => 
 });
 
 test('architect launch without skipped permissions omits only that flag', () => {
-  const skipped = buildLaunchCommand(base).args;
-  const prompted = buildLaunchCommand({ ...base, skipPermissions: false }).args;
-  assert.ok(!prompted.includes('--dangerously-skip-permissions'));
+  const skipped = claudeArgs(base);
+  const prompted = claudeArgs({ ...base, skipPermissions: false });
   assert.deepEqual(prompted, skipped.filter((arg) => arg !== '--dangerously-skip-permissions'));
 });
 
@@ -59,18 +77,26 @@ test('no parent means no MM_PARENT_ID', () => {
 });
 
 test('developer sessions get the developer role and their own worktree', () => {
-  const command = buildLaunchCommand({ ...base, role: 'developer', name: 'mm-alpha-main-dev-login', worktree: 'mm-alpha-main-dev-login' });
-  const at = command.args.indexOf('--worktree');
-  assert.ok(at > command.args.indexOf('claude'));
-  assert.equal(command.args[at + 1], 'mm-alpha-main-dev-login');
-  assert.equal(JSON.parse(command.settings.content).env.MM_ROLE, 'developer');
+  const spec: LaunchSpec = { ...base, role: 'developer', name: 'mm-alpha-main-dev-login', worktree: 'mm-alpha-main-dev-login' };
+  const args = claudeArgs(spec);
+  assert.equal(args[args.indexOf('--worktree') + 1], 'mm-alpha-main-dev-login');
+  assert.equal(JSON.parse(buildLaunchCommand(spec).settings.content).env.MM_ROLE, 'developer');
 });
 
-test('semicolons are escaped so wt.exe does not split the command', () => {
+test('a process cap reaches the wrapper script', () => {
+  const script = decodeCommand(buildLaunchCommand({ ...base, maxProcesses: 40 }).args.at(-1) ?? '');
+  assert.match(script, /\[MmKillOnCloseJob\]::Enable\(40\)/);
+  assert.match(decodeCommand(buildLaunchCommand(base).args.at(-1) ?? ''), /\[MmKillOnCloseJob\]::Enable\(0\)/);
+});
+
+test('semicolons are escaped for wt.exe; the prompt travels unescaped inside the base64', () => {
   assert.equal(escapeForWt('a; b;c'), 'a\\; b\\;c');
   const command = buildLaunchCommand({ ...base, prompt: 'Plan it; then build', folder: 'C:\\odd;folder' });
-  assert.equal(command.args.at(-1), 'Plan it\\; then build');
   assert.equal(command.args[command.args.indexOf('-d') + 1], 'C:\\odd\\;folder');
+  assert.ok(command.args.every((arg) => !/(^|[^\\]);/.test(arg)));
+  const script = decodeCommand(command.args.at(-1) ?? '');
+  assert.ok(script.includes("'Plan it; then build'"));
+  assert.ok(script.includes("Set-Location -LiteralPath 'C:\\odd;folder'"));
 });
 
 test('session names are lower-case slugs', () => {
