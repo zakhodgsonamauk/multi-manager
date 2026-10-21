@@ -6,7 +6,9 @@ import { iso, many, one, tx } from '../roster/db.ts';
 import { raiseItem } from '../roster/items.ts';
 import { listLimits } from '../roster/limits.ts';
 import { frontDesk, getSession } from '../roster/sessions.ts';
+import { realActivityReaders, type ActivityReaders } from './activity.ts';
 import { planEnforcement, type Enforcement, type MonitoredSession } from './enforce.ts';
+import { detectStuck, type StuckReport } from './health.ts';
 import { snapshotProcesses, type ProcessInfo } from './processes.ts';
 
 export const DEFAULT_INTERVAL_MS = 30_000;
@@ -22,6 +24,8 @@ export interface MonitorDeps {
   log?: (message: string) => void;
   /** Loop gate: ticks do nothing (not even a snapshot) while this returns false. */
   active?: () => boolean;
+  /** Claude Code session files and transcripts, for stuck detection. Without it, stuck detection is skipped. */
+  activity?: ActivityReaders;
 }
 
 export function realMonitorDeps(): MonitorDeps {
@@ -29,6 +33,7 @@ export function realMonitorDeps(): MonitorDeps {
     snapshot: snapshotProcesses,
     kill: (pid) => runCommand(buildStopCommand(pid)),
     selfPid: process.pid,
+    activity: realActivityReaders(),
     log: (message) => process.stderr.write(`[multi-manager monitor] ${message}\n`),
   };
 }
@@ -192,6 +197,8 @@ export interface TickResult {
   sessions_checked: number;
   deaths: Death[];
   enforcements: EnforcementOutcome[];
+  /** Sessions that newly looked stuck this pass (one blocked item each). */
+  stuck: StuckReport[];
   errors: string[];
 }
 
@@ -226,11 +233,11 @@ async function enforce(db: DatabaseSync, deps: MonitorDeps, snapshot: readonly P
 
 let chain: Promise<unknown> = Promise.resolve();
 
-/** One monitor pass: death detection, then enforcement. Passes in this process never overlap. */
+/** One monitor pass: death detection, enforcement, then stuck detection. Passes in this process never overlap. */
 export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult> {
   const next = chain.then(async (): Promise<TickResult> => {
     const now = deps.now?.() ?? new Date();
-    const result: TickResult = { at: iso(now), sessions_checked: 0, deaths: [], enforcements: [], errors: [] };
+    const result: TickResult = { at: iso(now), sessions_checked: 0, deaths: [], enforcements: [], stuck: [], errors: [] };
     let snapshot: ProcessInfo[];
     try {
       snapshot = await deps.snapshot();
@@ -248,6 +255,13 @@ export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult
       result.enforcements = await enforce(db, deps, snapshot, now);
     } catch (error) {
       result.errors.push(error instanceof Error ? error.message : String(error));
+    }
+    if (deps.activity !== undefined) {
+      try {
+        result.stuck = detectStuck(db, deps.activity, now);
+      } catch (error) {
+        result.errors.push(error instanceof Error ? error.message : String(error));
+      }
     }
     return result;
   });
@@ -285,6 +299,7 @@ export function startMonitor(db: DatabaseSync, deps: MonitorDeps, intervalMs: nu
     for (const error of result.errors) deps.log?.(error);
     for (const death of result.deaths) deps.log?.(`session #${death.session_id} died (${death.reason}); item #${death.item_id}`);
     for (const e of result.enforcements) deps.log?.(`enforced: ${e.reason}`);
+    for (const s of result.stuck) deps.log?.(`session #${s.session_id} looks ${s.state}, quiet ${s.minutes_quiet} min; item #${s.item_id}`);
     return result;
   };
   const timer = setInterval(() => {
