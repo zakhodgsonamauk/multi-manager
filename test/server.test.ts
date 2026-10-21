@@ -12,7 +12,8 @@ const ALL_TOOLS = [
   'finish_pause', 'get_briefing', 'get_goal', 'get_limits', 'launch_architect', 'launch_developer', 'list_items',
   'list_projects', 'list_sessions', 'list_workstreams', 'mark_seen', 'monitor_tick', 'pause', 'pause_status',
   'raise_item', 'record_nudge', 'register_session', 'release', 'report_paused', 'report_spend', 'resources', 'restart_developer',
-  'resume', 'set_limits', 'start_front_desk', 'status', 'stop_architect', 'stop_developer', 'team_health', 'update_goal',
+  'resume', 'set_limits', 'set_voice', 'start_front_desk', 'status', 'stop_architect', 'stop_developer', 'team_health', 'update_goal',
+  'voice_status',
 ];
 
 function text(result: unknown): string {
