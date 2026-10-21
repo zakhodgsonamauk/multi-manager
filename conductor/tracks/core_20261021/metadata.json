@@ -3,26 +3,36 @@
   "track_id": "core_20261021",
   "name": "Core (Stage 1): front desk, roster, architect launching",
   "type": "feature",
-  "status": "planned",
+  "status": "in_progress",
   "superpower_enhanced": true,
   "created_at": "2026-10-21",
   "loop_state": {
-    "current_step": "EVALUATE_PLAN",
-    "step_status": "NOT_STARTED",
+    "current_step": "PLAN",
+    "step_status": "IN_PROGRESS",
     "fix_cycle_count": 0,
     "checkpoints": {
       "PLAN": {
-        "status": "PASSED",
+        "status": "IN_PROGRESS",
         "started_at": "2026-10-21",
         "completed_at": "2026-10-21",
         "agent": "loop-planner",
         "plan_version": 1,
         "phases": 7,
-        "tasks": 24
+        "tasks": 24,
+        "revision_started_at": "2026-10-21T13:52:12.958Z",
+        "revising_for": "evaluation-plan.md RF1-RF10"
       },
       "EVALUATE_PLAN": {
-        "status": "NOT_STARTED"
+        "status": "FAILED",
+        "started_at": "2026-10-21T13:42:45.830Z",
+        "completed_at": "2026-10-21T13:52:12.958Z",
+        "agent": "loop-plan-evaluator",
+        "report": "evaluation-plan.md",
+        "required_fixes": 10
       }
-    }
-  }
+    },
+    "step_started_at": "2026-10-21T13:52:12.958Z",
+    "plan_revision_count": 1
+  },
+  "mode": "human-in-the-loop (no config.json; main session imposed hard stops: R0 spike manual steps, npm install approval)"
 }

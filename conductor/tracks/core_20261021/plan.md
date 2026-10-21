@@ -8,6 +8,43 @@
 
 **Tech Stack:** Node 25 (runs `.ts` directly with type stripping, so only erasable syntax), `node:sqlite` `DatabaseSync` (WAL, busy_timeout), TypeScript 6.0 `tsc --noEmit`, ESLint 10 flat config with typescript-eslint 8, `node --test`, `@modelcontextprotocol/sdk` 1.x with `zod` 4, Windows Terminal (`wt.exe`) with a JSON fragment profile, Claude Code 2.1.306.
 
+**Plan version:** 2 (revised 2026-10-21 after `evaluation-plan.md`, plan_version 1 → 2).
+
+---
+
+## Revision 2 changelog
+
+Targeted edits for the plan evaluator's FAIL report (`conductor/tracks/core_20261021/evaluation-plan.md`, section 6). Nothing else was rewritten.
+
+| Fix | What changed | Where |
+|---|---|---|
+| RF1 | Fragment gets an explicit `guid` `{d5a290e8-6140-55ff-995f-f0c7c76ec05f}`. The spike installs the fragment **without closing Windows Terminal**, detects pickup from `state.json` / `settings.json` (read-only poll), tries a timestamp-touch reload (unverified hypothesis), then pauses for the human (Settings → Save, or a restart the user chooses). Step 3 is gated on detection. spike.md row 1 records the signal and mechanism. | 1.1 Step 1, 1.2 Part A Step 1, spike.md template |
+| RF2 | `PROFILE_GUID`, `terminalProfileStatus(env)` (`loaded` / `not-loaded` / `unknown`, packaged, Preview and unpackaged paths) and `profileWarning()` with tests. The install script prints the status and non-destructive guidance instead of "restart Windows Terminal". `LaunchDeps.terminalProfileStatus`; `launchTab` warns but still launches (new launcher test). `start_front_desk` reports the status. README no longer says to restart Terminal. | 4.3, 4.4, 4.5, 6.3, 7.1 |
+| RF3 | Stale "AC1 says four R0 steps" note removed from Task 1.2 and from the assumptions (old Assumption 10 deleted, 11 renumbered). | 1.2, Assumptions |
+| RF4 | Task 1.2 restructured into Parts A–D with an **Actor** per step. Part A (any agent with the PowerShell tool) ends by writing spike.md with the rest PENDING and **stopping**. Parts B (main session only), C (human) and D (kill and final checks) follow. The human makes GO/NO-GO. NO-GO is reported to the orchestrator and the user; the plan no longer edits `metadata.json`. | 1.2 |
+| RF5 | The main session is the default spike front desk. Its ListAgents name is read at run time (derived name, currently `multi-manager-ac`). A separate `mm-spike-desk` is the alternative. | 1.2 Part B, spike.md row 4 |
+| RF6 | Guarded kill: positive pid from the result file, not this shell's ancestors nor any other Claude session's pid, `claude.exe` with `-n mm-spike-main` in its command line. PowerShell tool for agents; `MSYS_NO_PATHCONV=1` or `//PID` in Bash. | 1.2 Part D |
+| RF7 | Workspace-trust dialog handled: human accepts it in Part C; poll raised to 240 × 500 ms (120 s); never pre-trust by editing `~/.claude.json`; spike.md note; 7.2 row 3 allows a one-time trust acceptance. | 1.1 Step 5, 1.2, 7.2 |
+| RF8 | 4.2 and 4.3 now depend on 3.1. Parallel groups, `<!-- deps -->` headers, the one-line graph and the shared-file sentence updated. | DAG, 4.2, 4.3, 4.4 headers |
+| RF9 | The AC6 throwaway project gets a trivial `.claude\check.cmd` before its first commit, so the user's global `stop-gate.mjs` Stop hook does not block the architect. Note added to e2e.md template. | 7.2 Step 1 and template |
+| RF10 | `wtSafe()` strips `;`, `"` and newlines from free text in both initial prompts; `buildLaunchCommand` refuses any argument with `"` or a newline (new test). | 4.1 |
+
+Adopted non-blocking recommendations (evaluation section 7):
+
+- **#2 front desk name auto-detection** (6.3): `start_front_desk` reads `~/.claude/sessions/<process.ppid>.json` and uses its `name` unless `name` is passed; falls back to `mm-front-desk`. Tested with a fixture; verified for real in 7.1 Step 4.
+- **#3 consent integrity** (6.3): `answer_item` and `stop_architect` are refused unless the caller's roster session has role `front-desk`. New server test.
+- **#4 spike evidence hygiene** (1.2 Step 11): `spike-launch-result.json` is trimmed to the matching candidate and the needed session-file fields before commit.
+- **#9 global hooks** (1.2 spike.md template): note whether the user's global SessionStart hooks visibly ran in the spike tab.
+
+Not adopted (recorded under Assumptions and Discovered Work): #1 `procStart` pid-reuse guard, #5 absolute `claude.exe` path, #6 `--profile` by GUID, #7 developer `--worktree` through wt, #8 parallel typecheck isolation.
+
+### Orchestrator constraints (binding for every task)
+
+- **Never close, restart, stop or kill `WindowsTerminal.exe`, any Terminal window, or any process this run did not launch.** The user's live Claude sessions, including the main session driving this run, live in Windows Terminal. The only process the plan ever kills by hand is the spike's own `claude.exe` (Task 1.2 Part D, guarded); production code kills only through `ownsProcess`.
+- **Task 1.2:** Part A is done by an agent with the PowerShell tool. That agent then writes `spike.md` with the remaining rows PENDING and **stops** for the main session and the human. The main session (which runs with bypass permissions) is the spike front desk by default. The final GO/NO-GO is the **human's**.
+- **Task 2.1:** the `npm install` is a hard confirmation point. Present the exact package list to the user and wait for approval before running it.
+- `metadata.json` belongs to the orchestrator. No task in this plan edits it.
+
 ---
 
 ## Context
@@ -53,7 +90,7 @@ dag:
   nodes:
     - { id: "1.1", name: "Spike kit (scripts and fragment)", type: "config", phase: 1, depends_on: [], estimated_duration: "20m",
         files: ["conductor/tracks/core_20261021/spike/multi-manager.json", "conductor/tracks/core_20261021/spike/spike-launch.mjs", "conductor/tracks/core_20261021/spike/spike-hook.mjs", "conductor/tracks/core_20261021/spike/spike-env-mcp.mjs", "conductor/tracks/core_20261021/spike/spike-briefing.md"] }
-    - { id: "1.2", name: "Run R0 spike, record spike.md, GO/NO-GO gate (manual)", type: "docs", phase: 1, depends_on: ["1.1"], estimated_duration: "45m",
+    - { id: "1.2", name: "Run R0 spike (Part A agent; Parts B-D main session + human), record spike.md, human GO/NO-GO gate", type: "docs", phase: 1, depends_on: ["1.1"], estimated_duration: "60m",
         files: ["conductor/tracks/core_20261021/spike.md"] }
     - { id: "2.1", name: "Tooling: package.json, tsconfig, eslint, check.cmd", type: "config", phase: 2, depends_on: ["1.2"], estimated_duration: "20m",
         files: ["package.json", "package-lock.json", "tsconfig.json", "eslint.config.js", ".gitignore", ".claude/check.cmd", "test/toolchain.test.ts"] }
@@ -66,8 +103,8 @@ dag:
     - { id: "3.7", name: "Spend and budgets", type: "code", phase: 3, depends_on: ["3.5"], files: ["src/roster/spend.ts", "test/spend.test.ts"] }
     - { id: "3.8", name: "Status summary", type: "code", phase: 3, depends_on: ["3.6", "3.7"], files: ["src/roster/status.ts", "test/status.test.ts"] }
     - { id: "4.1", name: "Launch command builder (pure)", type: "code", phase: 4, depends_on: ["2.1"], files: ["src/launch/command.ts", "test/command.test.ts"] }
-    - { id: "4.2", name: "Claude session-file pid lookup", type: "code", phase: 4, depends_on: ["2.1"], files: ["src/launch/process.ts", "test/process.test.ts"] }
-    - { id: "4.3", name: "Windows Terminal profile fragment", type: "code", phase: 4, depends_on: ["2.1"], files: ["src/launch/terminal-profile.ts", "scripts/install-terminal-profile.ts", "test/terminal-profile.test.ts"] }
+    - { id: "4.2", name: "Claude session-file pid lookup", type: "code", phase: 4, depends_on: ["3.1"], files: ["src/launch/process.ts", "test/process.test.ts"] }
+    - { id: "4.3", name: "Windows Terminal profile fragment and load status", type: "code", phase: 4, depends_on: ["3.1"], files: ["src/launch/terminal-profile.ts", "scripts/install-terminal-profile.ts", "test/terminal-profile.test.ts"] }
     - { id: "4.4", name: "Runner (execFile, wait for pid, ownsProcess)", type: "code", phase: 4, depends_on: ["4.1", "4.2", "4.3"], files: ["src/launch/runner.ts", "test/runner.test.ts"] }
     - { id: "4.5", name: "Launcher: launch/stop architect and developer", type: "code", phase: 4, depends_on: ["3.4", "3.6", "4.4"], files: ["src/launch/launcher.ts", "test/launcher.test.ts"] }
     - { id: "5.1", name: "SessionStart hook", type: "code", phase: 5, depends_on: ["3.5"], files: ["src/hooks/common.ts", "src/hooks/session-start.ts", "scripts/session-start-hook.ts", "test/session-start-hook.test.ts"] }
@@ -80,18 +117,20 @@ dag:
     - { id: "7.2", name: "Manual end-to-end (AC6), record e2e.md", type: "docs", phase: 7, depends_on: ["7.1"], files: ["conductor/tracks/core_20261021/e2e.md"] }
 
   parallel_groups:
-    - { id: "pg-1", tasks: ["3.1", "4.1", "4.2", "4.3", "6.1", "6.2"], conflict_free: true }
-    - { id: "pg-2", tasks: ["3.2", "4.4"], conflict_free: true }
-    - { id: "pg-3", tasks: ["3.3", "3.4"], conflict_free: true }
+    - { id: "pg-1", tasks: ["3.1", "4.1", "6.1", "6.2"], conflict_free: true }
+    - { id: "pg-2", tasks: ["3.2", "4.2", "4.3"], conflict_free: true }
+    - { id: "pg-3", tasks: ["3.3", "3.4", "4.4"], conflict_free: true }
     - { id: "pg-4", tasks: ["3.5", "3.6"], conflict_free: true }
     - { id: "pg-5", tasks: ["3.7", "4.5", "5.1"], conflict_free: true }
     - { id: "pg-6", tasks: ["3.8", "5.2"], conflict_free: true }
     - { id: "pg-7", tasks: ["5.3", "6.3"], conflict_free: true }
 ```
 
-One line: `1.1 → 1.2 [GATE] → 2.1 → { 3.1→3.2→(3.3 ∥ 3.4)→(3.5 ∥ 3.6)→3.7→3.8 } ∥ { 4.1 ∥ 4.2 ∥ 4.3 → 4.4 → 4.5 } ∥ { 6.1 ∥ 6.2 } → 5.1 → 5.2 → 5.3 ; 6.3 (needs 3.8, 4.5, 5.1, 6.1) → 7.1 → 7.2`.
+Topological levels after 2.1: L1 = 3.1, 4.1, 6.1, 6.2; L2 = 3.2, 4.2, 4.3; L3 = 3.3, 3.4, 4.4; L4 = 3.5, 3.6; L5 = 3.7, 4.5 (needs 3.4 L3, 3.6 L4, 4.4 L3), 5.1; L6 = 3.8, 5.2; L7 = 5.3, 6.3.
 
-No two tasks in the same parallel group touch the same file. Two files are shared, but only in sequence: `test/helpers.ts` is created in 3.1 and only read afterwards, and `src/hooks/common.ts` is created in 5.1 and only read by 5.2 and 6.3.
+One line (edges): `1.1 → 1.2 [GATE: Part A agent, Parts B–D main session + human, GO/NO-GO by the human] → 2.1 [CONFIRM npm install with the user] → (3.1 ∥ 4.1 ∥ 6.1 ∥ 6.2) ; 3.1 → (3.2 ∥ 4.2 ∥ 4.3) ; 3.2 → (3.3 ∥ 3.4) ; (4.1, 4.2, 4.3) → 4.4 ; (3.3, 3.4) → 3.5 ; 3.3 → 3.6 ; 3.5 → (3.7 ∥ 5.1) ; (3.4, 3.6, 4.4) → 4.5 ; (3.6, 3.7) → 3.8 ; 5.1 → 5.2 → 5.3 ; (3.8, 4.5, 5.1, 6.1) → 6.3 ; (5.3, 6.2, 6.3) → 7.1 → 7.2`.
+
+No two tasks in the same parallel group touch the same file. Shared files are only used in sequence: `test/helpers.ts` and `src/roster/db.ts` are created in 3.1; every task that imports them (3.2+, 4.2, 4.3, 4.4, 4.5, 5.x, 6.3) depends on 3.1 directly or transitively. `src/hooks/common.ts` is created in 5.1 and only read by 5.2 and 6.3. `src/launch/terminal-profile.ts` (4.3) and `src/launch/process.ts` (4.2) are read by 4.4 and 6.3, which depend on them transitively.
 
 ---
 
@@ -103,7 +142,7 @@ Nothing else may start until Task 1.2 records **GO**.
 
 - **Type**: config
 - **Spec**: R0 (all steps), AC1
-- **Acceptance**: the five kit files exist; `node --check` passes on each `.mjs`.
+- **Acceptance**: the five kit files exist; `node --check` passes on each `.mjs`; the fragment carries `"guid": "{d5a290e8-6140-55ff-995f-f0c7c76ec05f}"`; `spike-launch.mjs` polls up to 240 × 500 ms.
 
 **Files:**
 - Create: `conductor/tracks/core_20261021/spike/multi-manager.json`
@@ -112,12 +151,13 @@ Nothing else may start until Task 1.2 records **GO**.
 - Create: `conductor/tracks/core_20261021/spike/spike-env-mcp.mjs`
 - Create: `conductor/tracks/core_20261021/spike/spike-launch.mjs`
 
-**Step 1: Fragment** `conductor/tracks/core_20261021/spike/multi-manager.json`. Task 4.3 writes exactly this content, so keep the two identical:
+**Step 1: Fragment** `conductor/tracks/core_20261021/spike/multi-manager.json`. Task 4.3 writes exactly this content (`JSON.stringify(FRAGMENT, null, 2)` plus a trailing newline, same key order), so keep the two byte-identical. The `guid` is the value Windows Terminal itself generates for app `multi-manager` and profile `Multi-Manager` (UUIDv5 under namespace `{f65ddb7e-706b-4499-8a50-40313caf510a}`, UTF-16LE names; verified by the plan evaluator against Microsoft's published samples). Writing it explicitly makes the load check in Task 1.2 and Task 4.3 deterministic:
 
 ```json
 {
   "profiles": [
     {
+      "guid": "{d5a290e8-6140-55ff-995f-f0c7c76ec05f}",
       "name": "Multi-Manager",
       "commandline": "cmd.exe",
       "closeOnExit": "always",
@@ -211,7 +251,8 @@ const started = Date.now();
 execFile(wt, args, { windowsHide: true, timeout: 30_000 }, async (error, stdout, stderr) => {
   const result = { wt, args, exit: error ? (error.code ?? 1) : 0, error: error ? error.message : null, stdout, stderr, pid: null, sessionFile: null, candidates: [], waitedMs: 0 };
   const dir = join(homedir(), '.claude', 'sessions');
-  for (let attempt = 0; attempt < 60 && result.pid === null; attempt += 1) {
+  // 240 × 500 ms = 120 s: long enough to survive a workspace-trust dialog the human must accept (Task 1.2 Part C).
+  for (let attempt = 0; attempt < 240 && result.pid === null; attempt += 1) {
     result.candidates = [];
     for (const file of readdirSync(dir).filter((f) => /^\d+\.json$/.test(f))) {
       try {
