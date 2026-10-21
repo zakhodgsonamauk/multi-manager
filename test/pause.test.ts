@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Command } from '../src/launch/command.ts';
 import { launchArchitect, launchDeveloper, type LaunchContext } from '../src/launch/launcher.ts';
 import type { LaunchDeps } from '../src/launch/runner.ts';
+import { decodeCommand } from '../src/launch/wrapper.ts';
 import { listItems } from '../src/roster/items.ts';
 import { endPause, isPaused, startPause } from '../src/roster/pause.ts';
 import { addProject } from '../src/roster/projects.ts';
@@ -27,8 +28,13 @@ function fakeDeps() {
     },
     writeSettings: () => {},
     waitForPid: async () => (nextPid += 1),
-    findPid: () => null,
+    findPid: async () => null,
     ownsProcess: async (pid) => !killed.has(pid),
+    // No wrapper pid, so stop falls back to the claude.exe pid that this fake tracks.
+    waitForWrapperPid: async () => null,
+    readWrapperPid: () => null,
+    ownsWrapper: async () => false,
+    removeFiles: () => {},
     ensureTerminalProfile: () => {},
   };
   return { deps, runs, killed };
@@ -127,7 +133,9 @@ test('pause, report, finish and resume one project', async (t) => {
   assert.deepEqual(resumed.developers_not_relaunched, [{ name: 'mm-alpha-main-dev-login', note_path: 'conductor/tracks/login/progress.md', committed: true }]);
   const launched = fake.runs.slice(runsBefore);
   assert.equal(launched.length, 1);
-  const prompt = launched[0].args.at(-1) ?? '';
+  // The prompt now sits on the `& claude` line of the base64 wrapper script, single-quoted for PowerShell.
+  const claudeLine = decodeCommand(launched[0].args.at(-1) ?? '').split('\n').find((l) => l.startsWith('& claude ')) ?? '';
+  const prompt = claudeLine.replace(/''/g, "'");
   assert.match(prompt, /conductor\/tracks\/auth\/progress\.md/);
   assert.match(prompt, /WAIT for the user's go/);
   assert.doesNotMatch(prompt, /;/);
