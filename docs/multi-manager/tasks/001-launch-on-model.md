@@ -53,3 +53,19 @@ Known defects in the plan's tool code to fix:
 ## Evidence required
 - Each command above with its summary lines pasted verbatim.
 - A short list of every relaunch path you found and how each now carries the model.
+
+## Send-back round 1 (2026-10-23)
+1. `src/launch/launcher.ts:380-381` `changeSessionModel`: it relaunches even when the old process was not provably closed (taskkill failed, or `killTarget` returned null). The session is `running`, so the old tab is most likely still alive: two claude processes on one conversation under one roster id, and the old one can no longer be stopped. Fix: if the kill did not succeed, do not relaunch; leave the session `running` with its model unchanged and throw a clear error ("could not close <name>'s tab, model not changed").
+2. `src/launch/launcher.ts:339-345` `closeOwnProcess` passes `[]` to `killTarget`, dropping its warnings. Pass the real warnings list so the caller (and the error in 1) can say why.
+3. Kill succeeded but `launchTab` then throws: the session is left `stopped`, its row already says the new model (line ~133), claims kept, and the tool never writes the ledger. Fix: set the session's model only after a successful relaunch (or roll it back on failure), release claims on that failure, and make the error say the tab is down and needs `restart_architect` / `restart_developer`. The ledger row should match what actually happened.
+4. `src/roster/tools.ts:416` `set_session_model`: asking for the model the session already has kills and relaunches the live tab for nothing. Return "already on <model>" with no relaunch and no ledger row.
+5. `src/launch/command.ts:132` `modelChangePrompt` tells a developer to "WAIT for the user's go before starting new work": a developer stepped up mid-task would stall. Make it role-aware: a developer continues its task; an architect keeps the wait line.
+6. Tests:
+   - `test/health.test.ts` restart_developer: scores 4/2 already map to opus, so the test passes even without carrying `model`. Use scores that map elsewhere (e.g. 1/5 → haiku) with the stored model `opus`, and assert `--model opus`.
+   - A paused project refuses a running change: no taskkill, no launch.
+   - Kill fails / kill target unknown → no launch, session still `running`, model unchanged (defects 1-2).
+   - Launch fails after a successful kill → model not left on the new value (or rolled back), claims released, error names the restart tool (defect 3).
+   - Same model → no relaunch, no ledger row (defect 4).
+   - Front desk changes a developer (only architects are covered today).
+   - `modelChangePrompt` developer vs architect wording.
+Update your return report (round 2 section), then raise done again.
