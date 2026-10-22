@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `main`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-10-23 01:15
+Updated: 2026-10-23 01:25
 
 ## Current goal
 Roster goal #15: finish the local track `clusters_models_20261022` (cluster folders + model routing). State: in-progress.
@@ -18,7 +18,7 @@ Roster goal #17: close controls in the pane (waiting items, goals, workstreams, 
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
-- 003 Pane close controls (goal #17): dev session #50, tab `mm-multi-manager-main-dev-003-pane-close`, branch `worktree-mm-multi-manager-main-dev-003-pane-close`, round 1.
+- 003 Pane close controls (goal #17): `e6e001f` + review follow-up `e599c81` (hidden workstream's goals hide too) (2026-10-23).
 
 ## Queued (in order)
 - Wrap: desktop shortcut (plan task 11), full gate (task 13), outside review, click-through (task 14), by the architect.
