@@ -39,3 +39,15 @@ Already merged on `main`: `src/launch/front-desk-launch.ts` (`clusterDbPath`, `f
 ## Evidence required
 - Each command with its summary lines pasted verbatim.
 - A screenshot of the pop-up (opened and judged: layout, labels, buttons fit).
+
+## Send-back round 1 (2026-10-23)
+1. **No way back to the shared roster.** The live team on this PC runs on the global roster (`%USERPROFILE%\.claude\multi-manager\roster.db`). With the pop-up always using `<folder>\.multi-manager\roster.db`, once today's front desk closes the user cannot reopen it on that team (and `restore_all` needs it). Add a clear choice in the pop-up, e.g. a "Use my main team (no folder)" option (radio or checkbox) that opens the front desk exactly as the old bat did: no `MM_ROSTER_DB` set, folder = the plugin folder. The remembered choice should cover it too. README: describe both choices. Test: `frontDeskCommand` with no cluster folder sets no `MM_ROSTER_DB` (and still clears/sets the other variables).
+2. `.multi-manager` shows as untracked when the cluster folder is a git repo. In `scripts/front-desk-launch.ts` (or a tested helper in `src/launch/front-desk-launch.ts`), create `<folder>\.multi-manager\` and write a `.gitignore` containing `*` with flag `wx` (ignore "already exists"). Never touch the user's own `.gitignore`. Unit test it.
+3. `src/launch/wrapper.ts` `psQuote`: PowerShell also treats curly single quotes (U+2018, U+2019, U+201A, U+201B) as quotes, so `C:\Zak’s folder` breaks the tab script (architect tabs too). Double each of them as well as `'`. Test with a curly apostrophe in the folder.
+4. Clear `MM_ROLE`, `MM_SESSION_ID`, `MM_PARENT_ID`, `MM_VOICE` in the front desk tab script too (a picker started from a managed session's shell must not inherit its identity). Test.
+5. `scripts/front-desk-launch.ts:33`: `launchEnv()` strips every `CLAUDE_CODE_*`, which contradicts your logged decision to keep the user's own settings. Pass the environment with only the 8 inherited variables (and the 4 `MM_*` above) removed. Make the runner testable (injected spawn) and unit test: missing folder exits 1, spawn gets `detached` + `stdio: 'ignore'` + the cleaned environment, spawn error exits 1 with the reason.
+6. `scripts/front-desk-launch.ts:35`: it only waits for the `wt.exe` stub to spawn. Wait for `wt.exe` to exit and treat a non-zero exit as a failure (as the architect launch does with its exit code). Fix the wording in decisions.md to match.
+7. `front-desk-picker.ps1:132`: `Set-Content` in Windows PowerShell 5.1 writes ANSI; use `-Encoding UTF8` (and read it back the same way). If only the remember-write fails, do not report "Could not open the front desk": the desk did open.
+8. `docs/multi-manager/tasks/002-shots/popup-pasted-path-remote.png` shows the Windows user name in a temp path. Retake it with a neutral path (e.g. `C:\work\Team (Alpha) one`), or crop it.
+9. README: one line warning that a cluster folder inside Dropbox (or any synced folder) syncs a live database; use it from one PC only, or pick a folder outside sync.
+Update your return report (round 2 section), then raise done again.
