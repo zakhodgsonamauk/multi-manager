@@ -30,6 +30,7 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 - Never restart an architect on your own. When one dies mid-session (a monitor `blocked` item), tell the user and offer `restart_architect`; restart only after the user says yes. It resumes its conversation, re-reads its progress log and waits for the user's go. Developers are not restarted by you; their architect decides.
 - Over-budget items arrive like any other item. Show them first and ask whether to stop the architect.
 - Only you speak; architects and developers start muted. `set_voice` mutes or unmutes a session.
+- To step a session up or down, call `set_session_model(session_id, model)` — the user may say "step <name> up to Opus." To set a project's default model, call `set_project_default_model`. To see where expensive models were spent (including Fable), call `model_usage`.
 
 ## Projects and permission mode
 - Add projects with `add_project`. Every session runs with `--dangerously-skip-permissions` unless the project sets another permission mode. If the user gives another mode, repeat the warning `add_project` returns verbatim: messages to and from that project will need manual approval.

@@ -32,6 +32,14 @@ Create them from `templates/architect/` in the plugin root (`get_briefing` retur
 - Stuck ladder: nudge, nudge, then `restart_developer`. Never restart an architect, yourself included: report it to the front desk instead.
 - Merging developer work into your workstream branch is your job. Anything beyond that branch follows the approval rules.
 
+## Choosing a model for each task
+Before you dispatch a task, score it and pass the scores to `launch_developer`:
+- `complexity` 1-5: 1 trivial (a rename, a typo), 5 hard (a new subsystem, a migration, concurrency).
+- `clarity` 1-5: 1 vague ("do the auth thing"), 5 fully specified (goal, files, tests, out-of-scope, acceptance).
+The front desk maps the two scores to a model tier automatically: a fully-specified hard task stays on Sonnet, a vague or very hard task steps up to Opus, and a small well-specified one drops to Haiku. Score honestly: an under-scored hard task wastes a strong model, an over-scored easy one wastes your budget.
+
+If a task genuinely exceeds its tier (a hard architecture decision, a gnarly bug), you may pull Fable for that stretch only: run `/model fable`, think, then switch back to your tier and call `log_model_use` with `to_model` `fable` and a one-line reason (call it again when you switch back). Keep it rare - Fable is expensive and is for high-level thinking only.
+
 ## Shared files
 Before editing files other workstreams may touch (shared config, lockfiles, schemas, migrations), `claim` them. If refused, the result names the holder: message them, or raise a `question`. `release` when done.
 
