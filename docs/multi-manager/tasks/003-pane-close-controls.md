@@ -1,6 +1,6 @@
 # 003 — Close controls in the front desk pane; never nudge a stopped session
 
-Goal #17. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/003-pane-close-controls.return.md` on that branch.
+Goal #17. Branch: `worktree-mm-multi-manager-main-dev-003-pane-close`. Return report: `docs/multi-manager/tasks/003-pane-close-controls.return.md` on that branch.
 
 ## Goal
 The user's words (goal #17, verbatim): "we need some more controls in the pane so the user can just close "Waiting for you" or stuff under "Projects" that's no longer needed and avoida  situation like we just had".

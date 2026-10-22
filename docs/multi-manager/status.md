@@ -19,7 +19,7 @@ Roster goal #17: close controls in the pane (waiting items, goals, workstreams, 
 
 ## Merged
 - (none yet)
-- 003 Pane close controls (goal #17): dev session (see progress.md), branch `worktree-mm-multi-manager-main-dev-003-pane-close`, round 1.
+- 003 Pane close controls (goal #17): dev session #50, tab `mm-multi-manager-main-dev-003-pane-close`, branch `worktree-mm-multi-manager-main-dev-003-pane-close`, round 1.
 
 ## Queued (in order)
 - Wrap: desktop shortcut (plan task 11), full gate (task 13), outside review, click-through (task 14), by the architect.
