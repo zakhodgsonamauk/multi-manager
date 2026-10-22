@@ -130,6 +130,15 @@ test('modelChangePrompt names the new model and, when restored, says the convers
   assert.match(restored, /conversation was preserved/);
 });
 
+test('modelChangePrompt: a developer carries on with its task, an architect waits for the go', () => {
+  const developer = modelChangePrompt('developer', 'opus', true);
+  assert.match(developer, /continue your task where you stopped/);
+  assert.doesNotMatch(developer, /WAIT/);
+  const architect = modelChangePrompt('architect', 'opus', false);
+  assert.match(architect, /could not be restored/);
+  assert.match(architect, /WAIT for the user's go/);
+});
+
 test('initial prompts name the roster goal or session and contain no semicolons', () => {
   assert.match(architectPrompt('alpha', 'main', 3), /roster goal #3/);
   assert.match(architectPrompt('alpha', 'main'), /No goal yet/);

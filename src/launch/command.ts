@@ -128,12 +128,22 @@ export function restartPrompt(project: string, workstream: string, reason: strin
   return parts.join(' ');
 }
 
-/** What a relaunched session is told when its model changed. */
+/**
+ * What a relaunched session is told when its model changed. A developer carries on with its task (it was
+ * stepped mid-task, so waiting would stall it); an architect waits for the user's go, like after a restart.
+ */
 export function modelChangePrompt(role: 'architect' | 'developer', model: string, restored: boolean): string {
+  const start = `Your model was changed to ${model}. You were relaunched on it.`;
+  if (role === 'developer') {
+    const state = restored
+      ? 'Your earlier conversation was preserved.'
+      : 'Your earlier conversation could not be restored, so this is a fresh one: check your branch and worktree for earlier work first.';
+    return `${start} ${state} check_in and continue your task where you stopped.`;
+  }
   const state = restored
     ? 'Your earlier conversation was preserved.'
     : 'Your earlier conversation could not be restored, so this is a fresh one: re-read your state files and progress log.';
-  return `Your model was changed to ${model}. You were relaunched on it. ${state} Re-read your state, check_in, and continue where you stopped. WAIT for the user's go before starting new work or relaunching developers.`;
+  return `${start} ${state} Re-read your state, check_in, and continue where you stopped. WAIT for the user's go before starting new work or relaunching developers.`;
 }
 
 export function developerPrompt(project: string, workstream: string, task: string, sessionId: number): string {

@@ -118,7 +118,15 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
         if (stored === undefined) throw new Error(`No stored task for session #${session_id}. Launch a new developer with launch_developer instead.`);
         const stopped = await stopSession(ctx.launch, session_id);
         closeHealthItems(db, session_id);
-        const result = await launchDeveloper(ctx.launch, { architectId: caller.id, task: `${stored.task} ${RESTART_LINE}`, label: stored.label });
+        // Same model and scores as before: a restart is not a reason to change tier.
+        const result = await launchDeveloper(ctx.launch, {
+          architectId: caller.id,
+          task: `${stored.task} ${RESTART_LINE}`,
+          label: stored.label,
+          model: target.model ?? undefined,
+          complexity: target.complexity ?? undefined,
+          clarity: target.clarity ?? undefined,
+        });
         // Keep the original task, so a second restart does not repeat the restart line.
         saveSessionTask(db, result.session.id, stored.label, stored.task);
         return { session: result.session, replaced_session_id: session_id, warnings: [...stopped.warnings, ...result.warnings] };

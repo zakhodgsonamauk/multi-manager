@@ -200,6 +200,7 @@ export function registerPauseTools(server: McpServer, ctx: ToolContext): void {
             workstream: requireWorkstreamById(db, old.workstream_id).name,
             parentId: desk.id,
             extraPrompt: text,
+            model: old.model ?? undefined,
           });
           if (result.existing) {
             const item = raiseItem(db, { kind: 'info', body: text, raisedBy: desk.id, addressedTo: result.session.id });

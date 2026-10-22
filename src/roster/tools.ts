@@ -5,12 +5,22 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { sessionIdFromEnv } from '../hooks/common.ts';
-import { launchArchitect, launchDeveloper, permissionWarning, stopArchitect, stopSession, type LaunchContext } from '../launch/launcher.ts';
+import {
+  changeSessionModel,
+  launchArchitect,
+  launchDeveloper,
+  permissionWarning,
+  stopArchitect,
+  stopSession,
+  type LaunchContext,
+} from '../launch/launcher.ts';
 import { claim, release } from './claims.ts';
 import type { Env } from './db.ts';
 import { GOAL_STATES, createGoal, goalWithPlace, updateGoal } from './goals.ts';
 import { ITEM_KINDS, ITEM_STATES, answerItem, closeItem, listItems, markSeen, raiseItem } from './items.ts';
-import { addProject, addWorkstream, listProjects, listWorkstreams, requireProject, requireWorkstream } from './projects.ts';
+import { listModelUsage, recordModelChange } from './model-ledger.ts';
+import { WORK_MODELS } from './models.ts';
+import { addProject, addWorkstream, listProjects, listWorkstreams, requireProject, requireWorkstream, setProjectDefaultModel } from './projects.ts';
 import {
   FRONT_DESK_NAME,
   ROLES,
@@ -358,10 +368,19 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'launch_developer',
     {
-      description: 'Architects only: open a full developer session in its own tab and git worktree for a long job. Already registered under you.',
-      inputSchema: { task: z.string().min(1), label: z.string().min(1).describe('Short name, used in the tab and worktree name') },
+      description:
+        'Architects only: open a full developer session in its own tab and git worktree for a long job. Already registered under you. Score the task with complexity and clarity (both 1-5) and it runs on the model they map to; unscored, it runs on the project default.',
+      inputSchema: {
+        task: z.string().min(1),
+        label: z.string().min(1).describe('Short name, used in the tab and worktree name'),
+        complexity: z.number().int().min(1).max(5).optional().describe('1 trivial .. 5 hard'),
+        clarity: z.number().int().min(1).max(5).optional().describe('1 vague .. 5 fully specified'),
+      },
     },
-    (a) => guard(() => launchDeveloper(ctx.launch, { architectId: me(ctx).id, task: a.task, label: a.label })),
+    (a) =>
+      guard(() =>
+        launchDeveloper(ctx.launch, { architectId: me(ctx).id, task: a.task, label: a.label, complexity: a.complexity, clarity: a.clarity }),
+      ),
   );
 
   server.registerTool(
@@ -376,6 +395,71 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
         }
         return stopSession(ctx.launch, session_id);
       }),
+  );
+
+  server.registerTool(
+    'set_session_model',
+    {
+      description:
+        "Step a session's model up or down (haiku, sonnet, opus). Front desk: any architect or developer. Architect: only your own developers. Never your own session or the front desk. A running tab is relaunched on the new model with its conversation kept; a stopped one records it for its next launch. Logged in model_usage.",
+      inputSchema: { session_id: z.number().int().positive(), model: z.enum(WORK_MODELS) },
+    },
+    (a) =>
+      guard(async () => {
+        const caller = me(ctx);
+        const target = requireSession(db, a.session_id);
+        if (target.role === 'front-desk') throw new Error("Multi-Manager does not change the front desk's model");
+        // Relaunching yourself would kill this very call before it could answer.
+        if (target.id === caller.id) throw new Error("You cannot change your own session's model: ask the front desk (or your architect)");
+        const allowed = caller.role === 'front-desk' || (caller.role === 'architect' && target.role === 'developer' && target.parent_id === caller.id);
+        if (!allowed) throw new Error(`Session #${a.session_id} is not yours to change`);
+        // Relaunching a live tab onto the model it already runs on would interrupt it for nothing.
+        if (target.model === a.model) return { session: target, relaunched: false, resumed: false, warnings: [], note: `already on ${a.model}` };
+        const result = await changeSessionModel(ctx.launch, { sessionId: target.id, model: a.model });
+        recordModelChange(db, { sessionId: target.id, fromModel: target.model, toModel: a.model, reason: 'set_session_model' });
+        return result;
+      }),
+  );
+
+  server.registerTool(
+    'set_project_default_model',
+    {
+      description: "Front desk only: the model a project's tabs run on when a task has no scores (haiku, sonnet or opus); null clears it (then sonnet).",
+      inputSchema: { project: z.string(), model: z.enum(WORK_MODELS).nullable() },
+    },
+    (a) =>
+      guard(() => {
+        if (me(ctx).role !== 'front-desk') throw new Error("Only the front desk can set a project's default model");
+        const project = requireProject(db, a.project);
+        setProjectDefaultModel(db, project.id, a.model);
+        return { project: project.name, default_model: a.model };
+      }),
+  );
+
+  server.registerTool(
+    'log_model_use',
+    {
+      description:
+        'Architects only: record that you switched your own tab to another model (e.g. `/model fable`) for a stretch of thinking, with a one-line reason. Call it again when you switch back.',
+      inputSchema: { to_model: z.string().min(1), reason: z.string().min(1) },
+    },
+    (a) =>
+      guard(() => {
+        const caller = me(ctx);
+        if (caller.role !== 'architect') throw new Error('Only an architect can log a model pull');
+        const change = recordModelChange(db, { sessionId: caller.id, fromModel: caller.model, toModel: a.to_model, reason: a.reason });
+        return { logged: change.id, note: 'Fable is expensive: keep these pulls rare and for high-level thinking only.' };
+      }),
+  );
+
+  server.registerTool(
+    'model_usage',
+    {
+      description: 'Where models were changed: set_session_model steps and Fable pulls, newest first. Optionally for one project.',
+      inputSchema: { project: z.string().optional(), limit: z.number().int().positive().max(100).optional() },
+    },
+    (a) =>
+      guard(() => listModelUsage(db, { projectId: a.project === undefined ? undefined : requireProject(db, a.project).id, limit: a.limit })),
   );
 
   registerPauseTools(server, ctx);

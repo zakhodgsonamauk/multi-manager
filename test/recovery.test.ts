@@ -14,8 +14,8 @@ import type { ProcessInfo } from '../src/monitor/processes.ts';
 import { openRoster, SCHEMA } from '../src/roster/db.ts';
 import { listItems } from '../src/roster/items.ts';
 import { startPause } from '../src/roster/pause.ts';
-import { addProject } from '../src/roster/projects.ts';
-import { registerSession, requireSession, setClaudeSessionId, startFrontDesk } from '../src/roster/sessions.ts';
+import { addProject, setProjectDefaultModel } from '../src/roster/projects.ts';
+import { registerSession, requireSession, setClaudeSessionId, setSessionModel, startFrontDesk } from '../src/roster/sessions.ts';
 import { registerRecoveryTools } from '../src/roster/tools-recovery.ts';
 import type { ToolContext } from '../src/roster/tools.ts';
 import { tempDir, tempRoster } from './helpers.ts';
@@ -228,4 +228,37 @@ test('restarts are refused while paused; restore_all skips a paused project', as
   await assert.rejects(call('restore_all'), /everything is paused/);
   assert.equal(fake.runs.length, before + 1);
   assert.equal(requireSession(db, alpha.id).state, 'stopped');
+});
+
+test('restart_architect and restore_all relaunch on the architect\'s recorded model', async (t) => {
+  const { db, desk, launch, fake, call } = setup(t);
+  const alpha = (await launchArchitect(launch, { project: 'alpha', parentId: desk.id })).session;
+  const beta = (await launchArchitect(launch, { project: 'beta', parentId: desk.id })).session;
+  setSessionModel(db, alpha.id, 'opus');
+  setSessionModel(db, beta.id, 'haiku');
+  const modelOf = (c: Command) => {
+    const args = claudeArgsOf(c);
+    return args[args.indexOf('--model') + 1];
+  };
+  await call('restart_architect', { session_id: alpha.id });
+  assert.equal(modelOf(fake.runs.at(-1)!), 'opus');
+  assert.equal(requireSession(db, alpha.id).model, 'opus');
+
+  // The fake process list still shows no architect alive, so restore_all brings back both.
+  const before = fake.runs.length;
+  const restored = await call('restore_all');
+  assert.deepEqual(restored.restored.map((r: { session_id: number }) => r.session_id), [alpha.id, beta.id]);
+  assert.deepEqual(fake.runs.slice(before).map(modelOf), ['opus', 'haiku']);
+  assert.deepEqual([requireSession(db, alpha.id).model, requireSession(db, beta.id).model], ['opus', 'haiku']);
+});
+
+test('an architect restarted with no recorded model falls back to the project default', async (t) => {
+  const { db, desk, launch, fake, call } = setup(t);
+  const alpha = (await launchArchitect(launch, { project: 'alpha', parentId: desk.id })).session;
+  setSessionModel(db, alpha.id, null);
+  setProjectDefaultModel(db, alpha.project_id!, 'opus');
+  await call('restart_architect', { session_id: alpha.id });
+  const args = claudeArgsOf(fake.runs.at(-1)!);
+  assert.equal(args[args.indexOf('--model') + 1], 'opus');
+  assert.equal(requireSession(db, alpha.id).model, 'opus');
 });

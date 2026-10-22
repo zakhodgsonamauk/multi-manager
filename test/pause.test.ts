@@ -8,7 +8,7 @@ import { decodeCommand } from '../src/launch/wrapper.ts';
 import { listItems } from '../src/roster/items.ts';
 import { endPause, isPaused, startPause } from '../src/roster/pause.ts';
 import { addProject } from '../src/roster/projects.ts';
-import { requireSession, startFrontDesk } from '../src/roster/sessions.ts';
+import { requireSession, setSessionModel, startFrontDesk } from '../src/roster/sessions.ts';
 import { registerPauseTools } from '../src/roster/tools-pause.ts';
 import type { ToolContext } from '../src/roster/tools.ts';
 import { tempRoster } from './helpers.ts';
@@ -180,4 +180,21 @@ test('only the front desk can pause, finish or resume; report_paused needs a pau
   as(desk.id);
   assert.deepEqual((await call('pause_status', { project: 'alpha' })).not_reported, []);
   await assert.rejects(call('resume'), /No active pause for everything/);
+});
+
+test('resume relaunches an architect on its recorded model', async (t) => {
+  const { db, desk, launch, fake, as, call } = setup(t);
+  const { session: arch } = await launchArchitect(launch, { project: 'alpha', parentId: desk.id });
+  setSessionModel(db, arch.id, 'opus');
+  await call('pause', { project: 'alpha' });
+  as(arch.id);
+  await call('report_paused', { note_path: 'p.md', summary: 's', committed: true });
+  as(desk.id);
+  await call('finish_pause', { project: 'alpha' });
+  const runsBefore = fake.runs.length;
+  const resumed = await call('resume', { project: 'alpha' });
+  assert.equal(resumed.architects[0].relaunched, true);
+  const line = decodeCommand(fake.runs.slice(runsBefore)[0].args.at(-1) ?? '').split('\n').find((l) => l.startsWith('& claude ')) ?? '';
+  assert.match(line, /'--model' 'opus'/);
+  assert.equal(requireSession(db, resumed.architects[0].session_id).model, 'opus');
 });

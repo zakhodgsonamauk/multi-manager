@@ -17,7 +17,7 @@ import { DEFAULT_STALL_MINUTES, getStallMinutes, setLimits } from '../src/roster
 import { endPause, startPause } from '../src/roster/pause.ts';
 import { addProject } from '../src/roster/projects.ts';
 import { getSessionTask } from '../src/roster/session-tasks.ts';
-import { requireSession, startFrontDesk } from '../src/roster/sessions.ts';
+import { requireSession, setSessionModel, setSessionScores, startFrontDesk } from '../src/roster/sessions.ts';
 import { registerHealthTools } from '../src/roster/tools-health.ts';
 import type { ToolContext } from '../src/roster/tools.ts';
 import { tempDir, tempRoster } from './helpers.ts';
@@ -310,4 +310,18 @@ test('watcher: architects stall on unfinished goals and are reported to the fron
   assert.equal(toDesk.length, 1);
   assert.match(toDesk[0].body, /looks stuck: idle with goals still in planning or in progress, quiet 60 min/);
   assert.deepEqual((await runTick(db, deps)).stuck, []);
+});
+
+test('restart_developer relaunches on the developer\'s recorded model and keeps its scores', async (t) => {
+  const { db, dev, fake, call } = await setup(t);
+  // Scores 1/5 map to haiku: only the stored model (stepped up to opus) can put it on opus.
+  setSessionModel(db, dev.id, 'opus');
+  setSessionScores(db, dev.id, 1, 5);
+  const runsBefore = fake.runs.length;
+  const restarted = await call('restart_developer', { session_id: dev.id });
+  const launched = fake.runs.slice(runsBefore).filter((c) => c.file !== 'taskkill');
+  const line = decodeCommand(launched[0].args.at(-1) ?? '').split('\n').find((l) => l.startsWith('& claude ')) ?? '';
+  assert.match(line, /'--model' 'opus'/);
+  const row = requireSession(db, restarted.session.id);
+  assert.deepEqual([row.model, row.complexity, row.clarity], ['opus', 1, 5]);
 });

@@ -2,11 +2,13 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { releaseAll } from '../roster/claims.ts';
 import { assertNotPaused } from '../roster/pause.ts';
-import { saveSessionTask } from '../roster/session-tasks.ts';
+import { getSessionTask, saveSessionTask } from '../roster/session-tasks.ts';
+import { isWorkModel, resolveLaunchModel } from '../roster/models.ts';
 import { resolveDbPath, type Env } from '../roster/db.ts';
 import { requireGoal, updateGoal } from '../roster/goals.ts';
 import {
   DEFAULT_PERMISSION_MODE,
+  getProjectDefaultModel,
   requireProject,
   requireProjectById,
   requireWorkstream,
@@ -21,12 +23,22 @@ import {
   runningArchitect,
   runningChildren,
   setClaudeSessionId,
+  setSessionModel,
   setSessionPid,
+  setSessionScores,
   setSessionState,
   setSessionWrapperPid,
   type Session,
 } from '../roster/sessions.ts';
-import { architectPrompt, buildLaunchCommand, buildStopCommand, developerPrompt, restartPrompt, sessionName } from './command.ts';
+import {
+  architectPrompt,
+  buildLaunchCommand,
+  buildStopCommand,
+  developerPrompt,
+  modelChangePrompt,
+  restartPrompt,
+  sessionName,
+} from './command.ts';
 import type { LaunchDeps } from './runner.ts';
 import { sessionFiles, sessionStateDir, wrapperMarker, type SessionFiles } from './wrapper.ts';
 
@@ -61,6 +73,8 @@ interface TabSpec {
   reuse?: Session;
   /** Continue this Claude Code conversation (`claude --resume`). */
   resumeId?: string;
+  /** The model the tab runs on; recorded on the session row once it is launched. */
+  model: string;
 }
 
 export interface RestartResult extends LaunchResult {
@@ -82,6 +96,22 @@ export function permissionWarning(project: Project): string | null {
     'Claude Code holds cross-session messages between sessions in different permission modes, ' +
     'so messages to and from its sessions will be held for your approval.'
   );
+}
+
+/** The model a new tab runs on: an explicit model, else the task scores (developers), else the project default, else sonnet. */
+function modelFor(
+  ctx: LaunchContext,
+  role: 'architect' | 'developer',
+  projectId: number,
+  input: { model?: string | null; complexity?: number | null; clarity?: number | null },
+): string {
+  return resolveLaunchModel({
+    role,
+    modelOverride: input.model ?? null,
+    complexity: input.complexity ?? null,
+    clarity: input.clarity ?? null,
+    projectDefaultModel: getProjectDefaultModel(ctx.db, projectId),
+  });
 }
 
 async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult> {
@@ -118,6 +148,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     rosterDb,
     worktree: tab.worktree,
     resumeId: tab.resumeId,
+    model: tab.model,
   });
   ctx.deps.writeSettings(command.settings);
   const since = Date.now() - 1000;
@@ -126,6 +157,8 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     setSessionState(ctx.db, session.id, 'stopped');
     throw new Error(`Windows Terminal launch failed (exit ${result.code}): ${result.stderr || result.stdout}`);
   }
+  // Recorded only once the tab is open, so a failed launch leaves the session's model as it was.
+  setSessionModel(ctx.db, session.id, tab.model);
   // The wrapper writes its pid before it starts claude, so wait for it first.
   const wrapperPid = await ctx.deps.waitForWrapperPid(files.wrapperPid);
   if (wrapperPid === null) {
@@ -147,7 +180,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
 
 export async function launchArchitect(
   ctx: LaunchContext,
-  input: { project: string; workstream?: string; goalId?: number; parentId: number | null; extraPrompt?: string },
+  input: { project: string; workstream?: string; goalId?: number; parentId: number | null; extraPrompt?: string; model?: string },
 ): Promise<LaunchResult> {
   const project = requireProject(ctx.db, input.project);
   assertNotPaused(ctx.db, project.id);
@@ -163,6 +196,7 @@ export async function launchArchitect(
     workstream,
     name: sessionName(project.name, workstream.name),
     parentId: input.parentId,
+    model: modelFor(ctx, 'architect', project.id, { model: input.model }),
     prompt: () => [architectPrompt(project.name, workstream.name, input.goalId), input.extraPrompt].filter(Boolean).join(' '),
   });
   if (input.goalId !== undefined) updateGoal(ctx.db, input.goalId, { state: 'planning' });
@@ -171,7 +205,7 @@ export async function launchArchitect(
 
 export async function launchDeveloper(
   ctx: LaunchContext,
-  input: { architectId: number; task: string; label: string },
+  input: { architectId: number; task: string; label: string; complexity?: number; clarity?: number; model?: string },
 ): Promise<LaunchResult> {
   const architect = requireSession(ctx.db, input.architectId);
   if (architect.role !== 'architect' || architect.project_id === null || architect.workstream_id === null) {
@@ -187,11 +221,15 @@ export async function launchDeveloper(
     workstream,
     name,
     parentId: architect.id,
+    model: modelFor(ctx, 'developer', project.id, input),
     prompt: (sessionId) => developerPrompt(project.name, workstream.name, input.task, sessionId),
     worktree: name,
   });
   saveSessionTask(ctx.db, result.session.id, input.label, input.task);
-  return result;
+  if (input.complexity !== undefined || input.clarity !== undefined) {
+    setSessionScores(ctx.db, result.session.id, input.complexity ?? null, input.clarity ?? null);
+  }
+  return { ...result, session: requireSession(ctx.db, result.session.id) };
 }
 
 /**
@@ -267,15 +305,13 @@ export async function restartArchitect(ctx: LaunchContext, input: { sessionId: n
     throw new Error(`Architect #${other.id} (${other.name ?? 'unnamed'}) is already running for ${project.name}/${workstream.name}. Talk to it, or stop it first.`);
   }
   const warnings: string[] = [];
-  const files = sessionFiles(sessionStateDir(resolveDbPath(ctx.env)), old.id);
-  // Leftovers: kill only a wrapper or claude.exe that is provably this session's. Most often there is none.
-  const target = await killTarget(ctx, old, files, []);
-  if (target !== null) {
-    const result = await ctx.deps.run(buildStopCommand(target));
-    warnings.push(result.code === 0 ? `Closed ${old.name ?? `session #${old.id}`}'s leftover process ${target}.` : `taskkill of leftover ${target} exited with ${result.code}.`);
+  // Leftovers: kill only a wrapper or claude.exe that is provably this session's. Most often there is none,
+  // so "nothing to kill" is not worth a warning here.
+  const closed = await killOwnProcess(ctx, old, []);
+  if (closed !== null) {
+    warnings.push(closed.code === 0 ? `Closed ${old.name ?? `session #${old.id}`}'s leftover process ${closed.target}.` : `taskkill of leftover ${closed.target} exited with ${closed.code}.`);
   }
-  ctx.deps.removeFiles([files.settings, files.wrapperPid, files.exit]);
-  setSessionState(ctx.db, old.id, 'stopped');
+  markClosed(ctx, old);
   releaseAll(ctx.db, old.id);
   const id = old.claude_session_id;
   const resumed = id !== null && CONVERSATION_ID.test(id) && (ctx.deps.conversationExists?.(id) ?? true);
@@ -293,9 +329,109 @@ export async function restartArchitect(ctx: LaunchContext, input: { sessionId: n
     workstream,
     name: old.name ?? sessionName(project.name, workstream.name),
     parentId: old.parent_id,
+    // Keep the model it ran on; a session from before models were recorded gets the project default.
+    model: modelFor(ctx, 'architect', project.id, { model: old.model }),
     prompt: () => restartPrompt(project.name, workstream.name, input.reason, resumed),
     reuse: old,
     resumeId: resumed ? (id ?? undefined) : undefined,
   });
   return { ...result, warnings: [...warnings, ...result.warnings], resumed };
+}
+
+/** Kills this session's own process tree, never anything not provably its own. Null if there was nothing to kill (see warnings). */
+async function killOwnProcess(ctx: LaunchContext, session: Session, warnings: string[]): Promise<{ target: number; code: number } | null> {
+  const files = sessionFiles(sessionStateDir(resolveDbPath(ctx.env)), session.id);
+  const target = await killTarget(ctx, session, files, warnings);
+  if (target === null) return null;
+  return { target, code: (await ctx.deps.run(buildStopCommand(target))).code };
+}
+
+/** Removes a closed session's state files and marks it stopped. */
+function markClosed(ctx: LaunchContext, session: Session): void {
+  const files = sessionFiles(sessionStateDir(resolveDbPath(ctx.env)), session.id);
+  ctx.deps.removeFiles([files.settings, files.wrapperPid, files.exit]);
+  setSessionState(ctx.db, session.id, 'stopped');
+}
+
+export interface ChangeModelResult {
+  session: Session;
+  /** True if a running tab was closed and relaunched on the new model; false if the model was only recorded. */
+  relaunched: boolean;
+  /** True if the relaunch continued the earlier conversation. */
+  resumed: boolean;
+  warnings: string[];
+}
+
+/**
+ * Steps an architect or developer up or down to a new model. A running tab is closed and relaunched under the
+ * same roster id on the new model, continuing its conversation (`--resume`); if that cannot be restored it starts
+ * fresh with its role (and a developer's original task). It keeps its claims and its children keep running.
+ * If its process cannot be provably closed, nothing is relaunched and the model is not changed (two tabs on one
+ * conversation would be worse). If the relaunch fails after the close, the tab is down: the model stays as it was,
+ * its claims are released and the error names the restart tool.
+ * A stopped session just records the model for its next launch. The caller writes the model ledger.
+ */
+export async function changeSessionModel(ctx: LaunchContext, input: { sessionId: number; model: string }): Promise<ChangeModelResult> {
+  const old = requireSession(ctx.db, input.sessionId);
+  if (old.role === 'front-desk') throw new Error("Multi-Manager does not change the front desk's model");
+  if (!isWorkModel(input.model)) throw new Error(`Unknown work model "${input.model}": use haiku, sonnet or opus`);
+  if (old.project_id === null || old.workstream_id === null) throw new Error(`Session #${old.id} has no project workstream to relaunch`);
+  if (old.state !== 'running') {
+    setSessionModel(ctx.db, old.id, input.model);
+    return { session: requireSession(ctx.db, old.id), relaunched: false, resumed: false, warnings: [] };
+  }
+  const project = requireProjectById(ctx.db, old.project_id);
+  assertNotPaused(ctx.db, project.id);
+  const workstream = requireWorkstreamById(ctx.db, old.workstream_id);
+  const role = old.role;
+  // A developer's name is its worktree, so it cannot be guessed.
+  if (role === 'developer' && old.name === null) throw new Error(`Developer #${old.id} has no name, so its worktree is unknown`);
+  const name = old.name ?? sessionName(project.name, workstream.name);
+  const why: string[] = [];
+  const closed = await killOwnProcess(ctx, old, why);
+  if (closed !== null && closed.code !== 0) why.push(`taskkill of process ${closed.target} exited with ${closed.code}.`);
+  if (closed === null || closed.code !== 0) throw new Error(`Multi-Manager could not close ${name}'s tab, model not changed. ${why.join(' ')}`.trim());
+  markClosed(ctx, old);
+  const warnings: string[] = [];
+  const id = old.claude_session_id;
+  const resumed = id !== null && CONVERSATION_ID.test(id) && (ctx.deps.conversationExists?.(id) ?? true);
+  const change = modelChangePrompt(role, input.model, resumed);
+  let prompt = change;
+  if (!resumed) {
+    setClaudeSessionId(ctx.db, old.id, null);
+    warnings.push(
+      id === null
+        ? `No saved conversation id for ${name}, so it starts a fresh conversation.`
+        : `Conversation ${id} could not be found, so ${name} starts a fresh conversation.`,
+    );
+    if (role === 'architect') {
+      prompt = `You are the Multi-Manager architect for project ${project.name}, workstream ${workstream.name}. ${change}`;
+    } else {
+      const task = getSessionTask(ctx.db, old.id);
+      if (task === undefined) warnings.push(`No stored task for ${name}, so it is relaunched without its task: tell it again.`);
+      prompt = task === undefined ? change : `${developerPrompt(project.name, workstream.name, task.task, old.id)} ${change}`;
+    }
+  }
+  let result: LaunchResult;
+  try {
+    result = await launchTab(ctx, {
+      role,
+      project,
+      workstream,
+      name,
+      parentId: old.parent_id,
+      model: input.model,
+      prompt: () => prompt,
+      worktree: role === 'developer' ? name : undefined,
+      reuse: old,
+      resumeId: resumed ? (id ?? undefined) : undefined,
+    });
+  } catch (error) {
+    // The tab is down and nobody works on its files now; launchTab already marked it stopped.
+    releaseAll(ctx.db, old.id);
+    const restart = role === 'architect' ? 'restart_architect (front desk)' : 'restart_developer (its architect)';
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`${name}'s tab was closed but could not be relaunched on ${input.model}: ${reason}. It is down and still on ${old.model ?? 'no recorded model'}: bring it back with ${restart}.`, { cause: error });
+  }
+  return { session: result.session, relaunched: true, resumed, warnings: [...warnings, ...result.warnings] };
 }
