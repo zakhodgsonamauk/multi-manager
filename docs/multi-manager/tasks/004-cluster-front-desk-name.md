@@ -1,6 +1,6 @@
 # 004 — Each cluster's front desk gets its own session name
 
-Goal #15. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/004-cluster-front-desk-name.return.md` on that branch.
+Goal #15. Branch: `worktree-mm-multi-manager-main-dev-004-desk-name`. Return report: `docs/multi-manager/tasks/004-cluster-front-desk-name.return.md` on that branch.
 
 ## Goal
 Messages between sessions are addressed by session name. Today every front desk is named `mm-front-desk`, so as soon as two front desks are open (the main team plus a cluster, or two clusters), a message to `mm-front-desk` fails with "2 agents are named 'mm-front-desk'". Architects nudge the front desk after every item they raise, so with clusters this breaks routinely. (It already happened on this PC tonight.)

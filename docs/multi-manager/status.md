@@ -14,7 +14,7 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane (waiting items, goals, workstreams, projects); never nudge a stopped session. State: in-progress. No sign-off (same rule as #15).
 
 ## In flight
-- 004 Cluster front desk gets its own session name (goal #15): dispatching.
+- 004 Cluster front desk gets its own session name (goal #15): dev session #52, tab `mm-multi-manager-main-dev-004-desk-name`, branch `worktree-mm-multi-manager-main-dev-004-desk-name`, round 1.
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).

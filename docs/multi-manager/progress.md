@@ -24,3 +24,4 @@ Folder: `docs/multi-manager`. Task numbers seeded at 1 with `allocate_number`.
 - 2026-10-23 01:55 002 round 2 (item #134): screenshots opened (main-team choice clear, no user name). Re-review: items 1-9 fixed but new defect: unref'd child + top-level await -> Node exits 13 before wt.exe exits, so every successful launch shows 'Could not open the front desk'. Round 2 send-back appended; dev #48 told.
 - 2026-10-23 02:05 002 round 3 (item #136): checked the diff myself (unref removed, real-process test). Squash-merged c954d27 (decisions.md: kept both sides). Full npm run check 237/237. Dev #48 stopped, copy (no links) and branch removed. All developers done; next: wrap.
 - 2026-10-23 02:10 Finding F2 (front desk name collision across clusters). Planned task 004 (goal #15).
+- 2026-10-23 02:12 Dispatched 004 to dev #52 (told to fast-forward to main first).
