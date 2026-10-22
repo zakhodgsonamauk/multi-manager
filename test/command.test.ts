@@ -7,6 +7,7 @@ import {
   claudeArgs,
   developerPrompt,
   escapeForWt,
+  modelChangePrompt,
   sessionName,
   type LaunchSpec,
 } from '../src/launch/command.ts';
@@ -107,6 +108,26 @@ test('session names are lower-case slugs', () => {
 test('stop kills the whole process tree', () => {
   assert.deepEqual(buildStopCommand(4242), { file: 'taskkill', args: ['/PID', '4242', '/T', '/F'] });
   assert.throws(() => buildStopCommand(0), /Invalid process id/);
+});
+
+test('a model reaches claude as --model, after the session name', () => {
+  const args = claudeArgs({ ...base, model: 'sonnet' });
+  assert.deepEqual(args.slice(0, 4), ['-n', 'mm-alpha-main', '--model', 'sonnet']);
+});
+
+test('no model means no --model flag (existing launches are unchanged)', () => {
+  assert.ok(!claudeArgs(base).includes('--model'));
+});
+
+test('a resume launch keeps --resume before -n and still carries --model', () => {
+  const args = claudeArgs({ ...base, model: 'opus', resumeId: 'abc-123' });
+  assert.deepEqual(args.slice(0, 6), ['--resume', 'abc-123', '-n', 'mm-alpha-main', '--model', 'opus']);
+});
+
+test('modelChangePrompt names the new model and, when restored, says the conversation was kept', () => {
+  const restored = modelChangePrompt('developer', 'opus', true);
+  assert.match(restored, /model was changed to opus/);
+  assert.match(restored, /conversation was preserved/);
 });
 
 test('initial prompts name the roster goal or session and contain no semicolons', () => {
