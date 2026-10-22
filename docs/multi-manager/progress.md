@@ -25,3 +25,4 @@ Folder: `docs/multi-manager`. Task numbers seeded at 1 with `allocate_number`.
 - 2026-10-23 02:05 002 round 3 (item #136): checked the diff myself (unref removed, real-process test). Squash-merged c954d27 (decisions.md: kept both sides). Full npm run check 237/237. Dev #48 stopped, copy (no links) and branch removed. All developers done; next: wrap.
 - 2026-10-23 02:10 Finding F2 (front desk name collision across clusters). Planned task 004 (goal #15).
 - 2026-10-23 02:12 Dispatched 004 to dev #52 (told to fast-forward to main first).
+- 2026-10-23 02:15 Outside review started (second-opinion pre_merge_review, glm-5.3, job 20261023-004958-d228) over 9fcaaed..main. Desktop shortcut (plan task 11): two already exist, both point at front-desk.bat; no new one made. The '(phone)' one passes 'remote', which the new bat ignored: added to task 004 as an addendum (pre-tick the phone box).
