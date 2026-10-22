@@ -68,9 +68,7 @@ Folders only ever opened with `--dangerously-skip-permissions` count as never tr
 If one was first opened from a polluted environment (tabs not appearing in the front desk's agent
 list), stop all its tabs and close it before launching again.
 
-The roster lives at `~/.claude/multi-manager/roster.db` (override with `MM_ROSTER_DB`).
+Everything Multi-Manager records (projects, sessions, sign-offs, limits) lives only on your own PC, in
+`~/.claude/multi-manager/roster.db` (override with `MM_ROSTER_DB`). Nothing personal is stored in this repo.
 `node scripts/dump-roster.ts` prints it.
 
-- Vision: [`conductor/designs/2026-10-21-multi-manager-vision.md`](conductor/designs/2026-10-21-multi-manager-vision.md)
-- Prior-art research: [`conductor/designs/2026-10-21-prior-art-research.md`](conductor/designs/2026-10-21-prior-art-research.md)
-- Design: [`conductor/designs/2026-10-21-multi-manager-design.md`](conductor/designs/2026-10-21-multi-manager-design.md)

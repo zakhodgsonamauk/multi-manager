@@ -50,7 +50,7 @@ export function psQuote(text: string): string {
   return `'${text.replace(/'/g, "''")}'`;
 }
 
-/** C# for the kill-on-close Job (after conflict-command tools/job.ps1). Returns "" on success, else why not. */
+/** C# for the kill-on-close Job. Returns "" on success, else why not. */
 const JOB_TYPE = `
 using System;
 using System.Runtime.InteropServices;

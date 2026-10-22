@@ -18,8 +18,8 @@ const base: LaunchSpec = {
   folder: 'C:\\work\\alpha project',
   role: 'architect',
   skipPermissions: true,
-  briefingFile: 'I:\\Dropbox (Personal)\\mm\\briefings\\architect.md',
-  pluginDir: 'I:\\Dropbox (Personal)\\mm',
+  briefingFile: 'C:\\tools\\mm\\briefings\\architect.md',
+  pluginDir: 'C:\\tools\\mm',
   settingsPath: 'C:\\Users\\me\\.claude\\multi-manager\\sessions\\7.settings.json',
   prompt: 'You are the architect. Start with goal #3.',
   sessionId: 7,
@@ -50,8 +50,8 @@ test('architect launch: wt.exe opens a pwsh tab with the wrapper as an encoded c
 test('claude arguments: exact, with skipped permissions', () => {
   assert.deepEqual(claudeArgs(base), [
     '-n', 'mm-alpha-main', '--dangerously-skip-permissions',
-    '--plugin-dir', 'I:\\Dropbox (Personal)\\mm',
-    '--append-system-prompt-file', 'I:\\Dropbox (Personal)\\mm\\briefings\\architect.md',
+    '--plugin-dir', 'C:\\tools\\mm',
+    '--append-system-prompt-file', 'C:\\tools\\mm\\briefings\\architect.md',
     '--settings', 'C:\\Users\\me\\.claude\\multi-manager\\sessions\\7.settings.json',
     'You are the architect. Start with goal #3.',
   ]);

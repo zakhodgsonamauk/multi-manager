@@ -4,3 +4,6 @@ node_modules/
 *.db-shm
 .claude/worktrees/
 .claude-plugin/types/
+
+# Local build notes: design docs, research, plans. Kept on this PC only.
+conductor/
