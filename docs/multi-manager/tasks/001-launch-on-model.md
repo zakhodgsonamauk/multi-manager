@@ -1,6 +1,6 @@
 # 001 — Launch every tab on its chosen model, and let a running tab change model
 
-Goal #15. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/001-launch-on-model.return.md` on that branch.
+Goal #15. Branch: `worktree-mm-multi-manager-main-dev-001-launch-model`. Return report: `docs/multi-manager/tasks/001-launch-on-model.return.md` on that branch.
 
 ## Goal
 Today a launched architect or developer tab runs on whatever model Claude Code defaults to. After this task:

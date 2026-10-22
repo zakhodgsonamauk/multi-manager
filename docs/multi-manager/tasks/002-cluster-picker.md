@@ -1,6 +1,6 @@
 # 002 — Open the front desk in a chosen folder, from a pop-up
 
-Goal #15. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/002-cluster-picker.return.md` on that branch.
+Goal #15. Branch: `worktree-mm-multi-manager-main-dev-002-picker`. Return report: `docs/multi-manager/tasks/002-cluster-picker.return.md` on that branch.
 
 ## Goal
 Double-clicking `front-desk.bat` opens a small pop-up: pick (browse or paste) a "cluster" folder, optionally tick "Reachable from my phone", OK. A new Windows Terminal tab opens the front desk in that folder, and that front desk (and every architect and developer it launches) keeps its whole roster in `<folder>\.multi-manager\roster.db`, so two folders are two fully separate teams. The pop-up remembers the last folder. No command line needed.
