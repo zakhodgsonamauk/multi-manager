@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `main`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-10-23 01:25
+Updated: 2026-10-23 02:05
 
 ## Current goal
 Roster goal #15: finish the local track `clusters_models_20261022` (cluster folders + model routing). State: in-progress.
@@ -14,10 +14,11 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane (waiting items, goals, workstreams, projects); never nudge a stopped session. State: in-progress. No sign-off (same rule as #15).
 
 ## In flight
-- 002 Cluster folder pop-up: dev session #48, tab `mm-multi-manager-main-dev-002-picker`, branch `worktree-mm-multi-manager-main-dev-002-picker`, round 3 (sent back again: a successful launch reported as failed).
+- (none)
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
+- 002 Cluster folder pop-up: `c954d27` (2026-10-23, 3 rounds).
 - 003 Pane close controls (goal #17): `e6e001f` + review follow-up `e599c81` (hidden workstream's goals hide too) (2026-10-23).
 
 ## Queued (in order)
@@ -30,4 +31,4 @@ Roster goal #17: close controls in the pane (waiting items, goals, workstreams, 
 - F1: developer copies start from the old remote version (9fcaaed), not this workstream's latest `main`; both developers told to pull in `main` first. Local `main` is ahead of the remote (unpushed). Tool bug worth a task later.
 
 ## Next
-Wait for done reports from #47 and #48; review and merge.
+Wrap both goals: desktop shortcut, outside review of the whole change, click-through in a throwaway cluster folder (pop-up, isolated roster, model on launched tabs, pane Close/Hide).
