@@ -12,6 +12,7 @@ import {
   setWorkstreamArchived,
 } from '../src/roster/projects.ts';
 import { registerSession, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
+import { createGoal } from '../src/roster/goals.ts';
 import { statusSummary } from '../src/roster/status.ts';
 import { tempDir, tempRoster } from './helpers.ts';
 
@@ -80,4 +81,16 @@ test('an old roster without archived_at columns gains them on open', (t) => {
   } finally {
     db.close();
   }
+});
+
+test("a hidden workstream's open goals hide with it", (t) => {
+  const { db } = setup(t);
+  const shop = listProjects(db).find((p) => p.name === 'shop');
+  assert.ok(shop !== undefined);
+  createGoal(db, { workstreamId: requireWorkstream(db, shop.id, 'ui').id, text: 'restyle the cart' });
+  createGoal(db, { workstreamId: requireWorkstream(db, shop.id, 'main').id, text: 'fix checkout' });
+  const goals = () => statusSummary(db).projects.find((p) => p.name === 'shop')?.active_goals.map((g) => g.text);
+  assert.deepEqual(goals(), ['restyle the cart', 'fix checkout']);
+  setWorkstreamArchived(db, 'shop', 'ui', true);
+  assert.deepEqual(goals(), ['fix checkout']);
 });

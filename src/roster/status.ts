@@ -103,6 +103,8 @@ function shownWorkstreams(db: DatabaseSync, project: Project): { workstream: Wor
 }
 
 function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter: number): ProjectStatus {
+  const shown = shownWorkstreams(db, project);
+  const shownNames = new Set(shown.map(({ workstream }) => workstream.name.toLowerCase()));
   return {
     name: project.name,
     folder: project.folder,
@@ -110,19 +112,22 @@ function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter
     idle_stop_minutes: project.idle_stop_minutes,
     daily_budget_usd: project.daily_budget_usd,
     spend_today_usd: spendToday(db, project.id, now),
-    workstreams: shownWorkstreams(db, project).map(({ workstream, architect }) => ({
+    workstreams: shown.map(({ workstream, architect }) => ({
       name: workstream.name,
       branch: workstream.branch,
       architect: architectStatus(architect, now, staleAfter),
     })),
-    active_goals: activeGoals(db, project.id).map((g) => ({
-      id: g.id,
-      workstream: g.workstream,
-      text: g.text,
-      state: g.state,
-      budget_usd: g.budget_usd,
-      spent_usd: spendForGoal(db, g.id),
-    })),
+    // A hidden workstream's goals hide with it.
+    active_goals: activeGoals(db, project.id)
+      .filter((g) => shownNames.has(g.workstream.toLowerCase()))
+      .map((g) => ({
+        id: g.id,
+        workstream: g.workstream,
+        text: g.text,
+        state: g.state,
+        budget_usd: g.budget_usd,
+        spent_usd: spendForGoal(db, g.id),
+      })),
     open_items: itemRows(db, "WHERE i.state <> 'closed' AND (w.project_id = ? OR (i.goal_id IS NULL AND r.project_id = ?))", [
       project.id,
       project.id,
