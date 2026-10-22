@@ -158,7 +158,7 @@ test('when its process is not provably its own, the tab is not relaunched and th
   const before = runs.length;
   await assert.rejects(
     changeSessionModel(launch, { sessionId: developer.id, model: 'opus' }),
-    /could not close mm-alpha-main-dev-login's tab, model not changed.*is not mm-alpha-main-dev-login's claude\.exe any more/,
+    /could not close mm-alpha-main-dev-login's tab, model not changed.*is not mm-alpha-main-dev-login's claude\.exe any more.*stop it \(stop_developer\)/,
   );
   assert.equal(runs.length, before, 'nothing killed, nothing launched');
   const row = requireSession(db, developer.id);
@@ -195,6 +195,16 @@ test('when the relaunch fails after the kill, the old model stays, claims are re
 
   await assert.rejects(changeSessionModel(launch, { sessionId: architect.id, model: 'opus' }), /restart_architect/);
   assert.equal(requireSession(db, architect.id).model, 'sonnet');
+});
+
+test('when the relaunch throws before Terminal is asked (settings file), the session is marked stopped, not left running', async (t) => {
+  const { db, launch, developer, deps } = await setup(t);
+  deps.writeSettings = () => {
+    throw new Error('disk full');
+  };
+  await assert.rejects(changeSessionModel(launch, { sessionId: developer.id, model: 'opus' }), /could not be relaunched on opus.*disk full.*restart_developer/);
+  const row = requireSession(db, developer.id);
+  assert.deepEqual([row.state, row.model], ['stopped', 'sonnet']);
 });
 
 /** The roster tools with a fake MCP server; `as` switches who is calling. */
@@ -300,4 +310,15 @@ test('set_project_default_model, log_model_use and model_usage', async (t) => {
   ]);
   const alpha = await call('model_usage', { project: 'alpha' });
   assert.deepEqual(alpha.map((r: { session_name: string; from_model: string }) => [r.session_name, r.from_model]), [[architect.name, 'sonnet']]);
+});
+
+test('only the front desk can hide or show projects and workstreams', async (t) => {
+  const { db, desk, launch, architect, developer } = await setup(t);
+  const { as, call } = tools(db, launch, developer.id);
+  await assert.rejects(call('archive_project', { project: 'beta', archived: true }), /Only the front desk/);
+  as(architect.id);
+  await assert.rejects(call('archive_workstream', { project: 'beta', workstream: 'main', archived: true }), /Only the front desk/);
+  as(desk.id);
+  assert.notEqual((await call('archive_project', { project: 'beta', archived: true })).archived_at, null);
+  assert.equal((await call('archive_workstream', { project: 'beta', workstream: 'main', archived: false })).archived_at, null);
 });

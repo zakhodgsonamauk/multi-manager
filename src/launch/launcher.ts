@@ -390,7 +390,13 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
   const why: string[] = [];
   const closed = await killOwnProcess(ctx, old, why);
   if (closed !== null && closed.code !== 0) why.push(`taskkill of process ${closed.target} exited with ${closed.code}.`);
-  if (closed === null || closed.code !== 0) throw new Error(`Multi-Manager could not close ${name}'s tab, model not changed. ${why.join(' ')}`.trim());
+  if (closed === null || closed.code !== 0) {
+    const stop = role === 'architect' ? 'stop_architect' : 'stop_developer';
+    throw new Error(
+      `Multi-Manager could not close ${name}'s tab, model not changed. ${why.join(' ')} ` +
+        `If its tab is already gone, stop it (${stop}) and change the model again: a stopped session just records it.`,
+    );
+  }
   markClosed(ctx, old);
   const warnings: string[] = [];
   const id = old.claude_session_id;
@@ -427,7 +433,9 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
       resumeId: resumed ? (id ?? undefined) : undefined,
     });
   } catch (error) {
-    // The tab is down and nobody works on its files now; launchTab already marked it stopped.
+    // The tab is down and nobody works on its files now. launchTab marks it stopped when Terminal refuses the tab,
+    // but not when it throws earlier (settings file, terminal profile), so say so here too.
+    setSessionState(ctx.db, old.id, 'stopped');
     releaseAll(ctx.db, old.id);
     const restart = role === 'architect' ? 'restart_architect (front desk)' : 'restart_developer (its architect)';
     const reason = error instanceof Error ? error.message : String(error);

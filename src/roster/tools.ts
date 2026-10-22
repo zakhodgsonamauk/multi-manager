@@ -74,7 +74,7 @@ async function guard(fn: () => unknown): Promise<CallToolResult> {
   }
 }
 
-function me(ctx: ToolContext): Session {
+export function me(ctx: ToolContext): Session {
   if (ctx.identity.sessionId === null) {
     throw new Error(
       'This session is not registered with the roster. Front desk: run /multi-manager:front-desk first. ' +
