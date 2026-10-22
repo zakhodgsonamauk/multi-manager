@@ -33,3 +33,6 @@ After this task:
 
 ## Evidence required
 Each command with its summary lines pasted verbatim.
+
+## Addendum (2026-10-23, before return)
+The user's desktop has a "Multi-Manager Front Desk (phone)" shortcut that runs `front-desk.bat remote`. The new bat ignores the argument, so the pop-up opens with the phone box unticked. Make `front-desk.bat remote` pass a switch to `front-desk-picker.ps1` that pre-ticks "Reachable from my phone" (the user can still untick it). Without the argument, behaviour is unchanged (remembered choice). PowerShell parse check on the picker; no test harness needed beyond that. Files: `front-desk.bat`, `front-desk-picker.ps1`.
