@@ -15,6 +15,12 @@ test('parseSnapshot reads Windows PowerShell and PowerShell 7 output', () => {
   assert.ok(Number.isNaN(parseCreationDate(null)));
 });
 
+test('parseSnapshot survives a raw control character in a command line', () => {
+  // Windows PowerShell 5.1 leaves some control characters unescaped, e.g. a code-page "->" that became U+001A.
+  const raw = '[{"ProcessId":12,"ParentProcessId":4,"Name":"git.exe","CreationDate":null,"CommandLine":"git commit -m \\"A \u001a B\\""}]';
+  assert.deepEqual(parseSnapshot(raw).map((p) => [p.pid, p.commandLine]), [[12, 'git commit -m "A \u001a B"']]);
+});
+
 test('sessionTree returns nested descendants, not the root or unrelated processes', () => {
   const snap = [
     proc(1, 0, 'wt.exe', 100),

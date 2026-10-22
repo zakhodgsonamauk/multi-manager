@@ -34,7 +34,12 @@ interface RawProcess {
 export function parseSnapshot(json: string): ProcessInfo[] {
   const trimmed = json.trim();
   if (trimmed === '') return [];
-  const parsed = JSON.parse(trimmed) as RawProcess | RawProcess[];
+  // Windows PowerShell 5.1 leaves some control characters raw inside strings (seen: U+001A from a code-page
+  // conversion in another program's command line), and one such process would fail the whole snapshot.
+  // Compressed output has no raw control characters between tokens, so escaping them all is safe.
+  // eslint-disable-next-line no-control-regex
+  const escaped = trimmed.replace(/[\u0000-\u001f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  const parsed = JSON.parse(escaped) as RawProcess | RawProcess[];
   const rows = Array.isArray(parsed) ? parsed : [parsed];
   return rows.flatMap((row) => {
     const pid = Number(row.ProcessId);
