@@ -45,9 +45,9 @@ export function wrapperMarker(sessionId: number, rosterDb: string): string {
   return `# multi-manager wrapper session=${sessionId} roster=${roster}`;
 }
 
-/** A PowerShell single-quoted literal. */
+/** A PowerShell single-quoted literal. PowerShell also ends the string at a curly single quote (U+2018-U+201B), so those are doubled too. */
 export function psQuote(text: string): string {
-  return `'${text.replace(/'/g, "''")}'`;
+  return `'${text.replace(/['‘’‚‛]/g, '$&$&')}'`;
 }
 
 /** C# for the kill-on-close Job. Returns "" on success, else why not. */

@@ -79,3 +79,29 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 - Context: answering an item whose raiser had stopped produced a nudge to a dead session.
 - Decision: the nudge goes to the item's new addressee only if that session is on the roster and running. Otherwise `nudge: null` with a plain `note` ("Answer saved. mm-x is stopped, so nobody was told."). An item with no raiser still goes back to its addressee (the front desk), as before. The logic lives in `answerReply` in items.ts so it is tested without the tool server.
 - Who: the developer.
+## 2026-10-23 — Front desk picker details (task 002)
+
+- Context: task 002 left the picker's detail to the developer.
+- Decision:
+  - OK only closes the pop-up once the folder exists (a bad path shows a message and keeps the pop-up open); the result is read from the form's DialogResult, so no click-handler variable is involved. Enter is OK, Esc is Cancel.
+  - A pasted path wrapped in quotes (Explorer's "Copy as path") is accepted.
+  - The last folder is remembered only after a successful launch, in `%LOCALAPPDATA%\multi-manager\last-cluster.txt`.
+  - The tab clears exactly the eight variables today's `front-desk.bat` cleared, not every `CLAUDE_CODE_*` variable as the architect wrapper does, so a user's own `CLAUDE_CODE_*` settings still reach the front desk.
+  - The front desk tab does not join a kill-on-close Job or record pid/exit files like architect tabs: it is not a roster session that the launcher stops or restarts.
+  - `front-desk.bat` starts the picker with `start "" powershell -WindowStyle Hidden`, so no console window stays open behind the pop-up, and strips the trailing backslash from its folder (a `"C:\path\"` argument would swallow the closing quote).
+  - The runner waits for `wt.exe` to exit and treats a non-zero exit as a failure (as the architect launch does); it exits 1 with the reason on stderr (missing folder, wt.exe not found, wt.exe failed), and the picker shows that text in a message box.
+- Alternatives: the plan's `$confirmed` flag (never set, because of PowerShell scope); clearing all `CLAUDE_CODE_*` (drops user settings).
+- Who: developer #48.
+
+## 2026-10-23 — Front desk picker, round 2 (task 002 send-back)
+
+- Context: the architect's send-back asked for a way back to the main (shared) roster, and for the tab and runner to drop a managed session's identity while keeping the user's own Claude Code settings.
+- Decision:
+  - The pop-up has two choices: "My main team (no folder)" and "A cluster folder". The main team opens in the plugin folder with no `MM_ROSTER_DB`, as the old bat did. The remembered choice is the word `main` or the folder's absolute path (UTF-8). Nothing remembered means the main team, since that is the team already running on this PC.
+  - The tab script clears `MM_ROSTER_DB` as well as the eight Claude variables and `MM_ROLE`/`MM_SESSION_ID`/`MM_PARENT_ID`/`MM_VOICE`, then sets it only for a cluster. Otherwise a picker started from a cluster session's shell would open the "main team" on that cluster. Cost: a user-set global `MM_ROSTER_DB` no longer applies to the pop-up's main team (the README says so).
+  - The environment handed to `wt.exe` drops only those eight Claude variables and four `MM_*` identity variables (names compared case-insensitively, as Windows does); other `CLAUDE_CODE_*` settings pass through. Supersedes the use of `launchEnv` in the runner.
+  - The runner logic moved into `src/launch/front-desk-launch.ts` (`runFrontDeskLaunch`, injected spawn) so it is unit tested; `scripts/front-desk-launch.ts` only wires it to the real spawn. `--main` and `--folder` are mutually exclusive and one is required.
+  - A cluster folder gets `.multi-manager\.gitignore` containing `*` (written with `wx`, never overwritten); the folder's own `.gitignore` is never touched.
+  - If only remembering the choice fails after a successful launch, the picker says nothing: the front desk did open.
+- Alternatives: leave an inherited `MM_ROSTER_DB` alone for the main team (risks opening a cluster by mistake).
+- Who: developer #48, from the architect's send-back round 1.

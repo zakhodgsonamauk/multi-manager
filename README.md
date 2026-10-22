@@ -36,12 +36,26 @@ otherwise try to run the Node suites in `test/` too.
 
 ## Use
 
-Start the front desk. It must use the same permission mode as the architects, or cross-session
-messages are held for approval:
+Double-click `front-desk.bat` in this repo. A pop-up asks which team to open, and remembers your last
+choice:
 
-    claude -n mm-front-desk --plugin-dir "<path to this repo>" --dangerously-skip-permissions
+- **My main team (no folder)**: the shared roster on this PC (`~/.claude/multi-manager/roster.db`),
+  opened in this repo's folder. This is the team the old command line opened.
+- **A cluster folder**: browse for it, or paste the path. Each cluster folder is a separate team: its
+  front desk, and every architect and developer that front desk launches, keep their roster in
+  `<folder>\.multi-manager\roster.db` (with a `.gitignore`, so a git repo does not see it). Two folders
+  never see each other's projects, sessions or sign-offs, nor the main team's.
 
-Then run `/multi-manager:front-desk`. Other commands: `/multi-manager:pane`, `/multi-manager:add-project`, `/multi-manager:status`,
+Tick "Reachable from my phone" for Remote Control. OK opens the front desk in its own Windows Terminal
+window; Cancel opens nothing. It needs Node and PowerShell 7 (`pwsh`), and says so in a message box if
+either is missing or the launch fails.
+
+A cluster folder inside Dropbox (or any synced folder) syncs a live database: use it from one PC only,
+or pick a folder outside sync.
+
+The front desk tab runs with `--dangerously-skip-permissions`, the same permission mode as the
+architects (otherwise cross-session messages are held for approval), and with the full-screen layout so
+the pane docks beside the chat. It already runs `/multi-manager:front-desk`. Other commands: `/multi-manager:pane`, `/multi-manager:add-project`, `/multi-manager:status`,
 `/multi-manager:start-architect`, `/multi-manager:stop-architect`. Architects open as tabs in the
 `multi-manager` Windows Terminal window; switch to a tab to talk to one directly. Stopping an architect
 closes its tab.
@@ -68,7 +82,8 @@ Folders only ever opened with `--dangerously-skip-permissions` count as never tr
 If one was first opened from a polluted environment (tabs not appearing in the front desk's agent
 list), stop all its tabs and close it before launching again.
 
-Everything Multi-Manager records (projects, sessions, sign-offs, limits) lives only on your own PC, in
-`~/.claude/multi-manager/roster.db` (override with `MM_ROSTER_DB`). Nothing personal is stored in this repo.
+Everything Multi-Manager records (projects, sessions, sign-offs, limits) lives only on your own PC: in
+the cluster folder's `.multi-manager\roster.db` for a cluster front desk, otherwise (the main team) in
+`~/.claude/multi-manager/roster.db` (override with `MM_ROSTER_DB`; the pop-up's main team always uses this default). Nothing personal is stored in this repo.
 `node scripts/dump-roster.ts` prints it.
 

@@ -61,6 +61,12 @@ test('psQuote doubles single quotes', () => {
   assert.equal(psQuote("a'b"), "'a''b'");
 });
 
+test('psQuote doubles the curly single quotes PowerShell also treats as quotes', () => {
+  assert.equal(psQuote('C:\\Zak\u2019s folder'), "'C:\\Zak\u2019\u2019s folder'");
+  assert.equal(psQuote('\u2018a\u201Ab\u201B'), "'\u2018\u2018a\u201A\u201Ab\u201B\u201B'");
+  assert.equal(psQuote("mixed '\u2019"), "'mixed ''\u2019\u2019'");
+});
+
 test('encodeCommand is base64 of UTF-16LE and round-trips', () => {
   assert.equal(encodeCommand('hi'), Buffer.from('h\0i\0', 'latin1').toString('base64'));
   const script = buildWrapperScript(spec);
