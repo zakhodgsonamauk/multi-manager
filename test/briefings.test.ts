@@ -111,7 +111,8 @@ for (const [role, patterns] of Object.entries(required)) {
     // 5600, up from 5000: room for the self-armed check-in timer (field report 2026-10-21).
     // 6000, up from 5600: the repo-files-as-source-of-truth section (status, tasks, decisions, progress).
     // The per-goal steps moved into the /multi-manager:* commands; the briefing only points at them.
-    assert.ok(text.length < 6000, `${role}.md is ${text.length} characters`);
+    // 7000, up from 6000: the task-scoring rubric and the Fable rule (model routing, 2026-10-23).
+    assert.ok(text.length < 7000, `${role}.md is ${text.length} characters`);
   });
 }
 
