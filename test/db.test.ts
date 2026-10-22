@@ -36,7 +36,7 @@ test('the schema has every roster table and a second open is harmless', (t) => {
   const db = tempRoster(t);
   openRoster().close();
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((row) => row.name);
-  assert.deepEqual(tables, ['claims', 'goals', 'items', 'projects', 'sessions', 'spend', 'workstreams']);
+  assert.deepEqual(tables, ['claims', 'goals', 'items', 'model_ledger', 'projects', 'sessions', 'spend', 'workstreams']);
 });
 
 test('an old roster without sessions.wrapper_pid gains it on open, once', (t) => {

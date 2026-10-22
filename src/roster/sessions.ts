@@ -18,6 +18,12 @@ export interface Session {
   wrapper_pid: number | null;
   /** Claude Code's conversation id (sessionId in ~/.claude/sessions/<pid>.json), for `claude --resume`. */
   claude_session_id: string | null;
+  /** The model this session runs on (haiku/sonnet/opus, or a manual Fable pull); null until set. */
+  model: string | null;
+  /** The architect's task score, 1..5: 1 trivial .. 5 hard. Null until scored. */
+  complexity: number | null;
+  /** The architect's task score, 1..5: 1 vague .. 5 fully specified. Null until scored. */
+  clarity: number | null;
   folder: string | null;
   state: SessionState;
   last_checkin_at: string | null;
@@ -90,6 +96,14 @@ export function setSessionWrapperPid(db: DatabaseSync, id: number, pid: number |
 
 export function setClaudeSessionId(db: DatabaseSync, id: number, claudeSessionId: string | null): void {
   db.prepare('UPDATE sessions SET claude_session_id = ? WHERE id = ?').run(claudeSessionId, id);
+}
+
+export function setSessionModel(db: DatabaseSync, id: number, model: string | null): void {
+  db.prepare('UPDATE sessions SET model = ? WHERE id = ?').run(model, id);
+}
+
+export function setSessionScores(db: DatabaseSync, id: number, complexity: number | null, clarity: number | null): void {
+  db.prepare('UPDATE sessions SET complexity = ?, clarity = ? WHERE id = ?').run(complexity, clarity, id);
 }
 
 /** Brings a stopped session row back to running for a relaunch under the same roster id (restart after a crash). */

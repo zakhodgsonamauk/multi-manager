@@ -16,6 +16,8 @@ export interface Project {
   idle_stop_minutes: number;
   daily_budget_usd: number | null;
   created_at: string;
+  /** The model this project's tabs default to when a task has no scores; null means not set. */
+  default_model: string | null;
 }
 
 export interface Workstream {
@@ -69,8 +71,8 @@ export function addProject(db: DatabaseSync, input: ProjectInput, now: Date = ne
   return tx(db, () => {
     const result = db
       .prepare(
-        `INSERT INTO projects (name, folder, permission_mode, approval_rules, idle_stop_minutes, daily_budget_usd, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (name, folder, permission_mode, approval_rules, idle_stop_minutes, daily_budget_usd, created_at, default_model)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.name,
@@ -80,6 +82,7 @@ export function addProject(db: DatabaseSync, input: ProjectInput, now: Date = ne
         input.idleStopMinutes ?? DEFAULT_IDLE_STOP_MINUTES,
         input.dailyBudgetUsd ?? null,
         iso(now),
+        null,
       );
     const projectId = Number(result.lastInsertRowid);
     const extra = input.workstreams ?? [];
@@ -90,6 +93,15 @@ export function addProject(db: DatabaseSync, input: ProjectInput, now: Date = ne
     }
     return requireProjectById(db, projectId);
   });
+}
+
+export function getProjectDefaultModel(db: DatabaseSync, projectId: number): string | null {
+  const row = one<{ default_model: string | null }>(db.prepare('SELECT default_model FROM projects WHERE id = ?').get(projectId));
+  return row?.default_model ?? null;
+}
+
+export function setProjectDefaultModel(db: DatabaseSync, projectId: number, model: string | null): void {
+  db.prepare('UPDATE projects SET default_model = ? WHERE id = ?').run(model, projectId);
 }
 
 export function getWorkstream(db: DatabaseSync, projectId: number, name: string): Workstream | undefined {

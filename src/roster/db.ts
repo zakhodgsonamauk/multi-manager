@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   pid INTEGER,
   wrapper_pid INTEGER,
   claude_session_id TEXT,
+  model TEXT,
+  complexity INTEGER,
+  clarity INTEGER,
   folder TEXT,
   state TEXT NOT NULL CHECK (state IN ('running', 'stopped')),
   last_checkin_at TEXT,
@@ -79,6 +82,14 @@ CREATE TABLE IF NOT EXISTS spend (
   usd REAL NOT NULL,
   at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS model_ledger (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER REFERENCES sessions(id),
+  from_model TEXT,
+  to_model TEXT,
+  reason TEXT,
+  at TEXT NOT NULL
+);
 `;
 
 export function resolveDbPath(env: Env = process.env): string {
@@ -102,6 +113,10 @@ export function openRoster(path: string = resolveDbPath()): DatabaseSync {
 const ADDED_COLUMNS: { table: string; column: string; type: string }[] = [
   { table: 'sessions', column: 'wrapper_pid', type: 'INTEGER' },
   { table: 'sessions', column: 'claude_session_id', type: 'TEXT' },
+  { table: 'sessions', column: 'model', type: 'TEXT' },
+  { table: 'sessions', column: 'complexity', type: 'INTEGER' },
+  { table: 'sessions', column: 'clarity', type: 'INTEGER' },
+  { table: 'projects', column: 'default_model', type: 'TEXT' },
 ];
 
 export function migrate(db: DatabaseSync): void {
