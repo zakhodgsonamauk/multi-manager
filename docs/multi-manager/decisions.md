@@ -105,3 +105,10 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
   - If only remembering the choice fails after a successful launch, the picker says nothing: the front desk did open.
 - Alternatives: leave an inherited `MM_ROSTER_DB` alone for the main team (risks opening a cluster by mistake).
 - Who: developer #48, from the architect's send-back round 1.
+
+## 2026-10-23 — Cluster front desks get their own name (task 004)
+
+- Context: messages are addressed by session name; every front desk was `mm-front-desk`, so two open front desks make every nudge to the front desk fail as ambiguous.
+- Decision: the main team keeps `mm-front-desk`; a cluster front desk is `mm-front-desk-<folder slug>`, passed to the roster through `MM_FRONT_DESK_NAME`.
+- Alternatives: number them (unstable across reopenings); leave as is (breaks routinely with clusters).
+- Who: the architect.
