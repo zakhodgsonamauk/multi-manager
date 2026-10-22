@@ -14,7 +14,7 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane (waiting items, goals, workstreams, projects); never nudge a stopped session. State: in-progress. No sign-off (same rule as #15).
 
 ## In flight
-- 001 Launch on chosen model + change model: dev session #47, tab `mm-multi-manager-main-dev-001-launch-model`, branch `worktree-mm-multi-manager-main-dev-001-launch-model`, round 1.
+- 001 Launch on chosen model + change model: dev session #47, tab `mm-multi-manager-main-dev-001-launch-model`, branch `worktree-mm-multi-manager-main-dev-001-launch-model`, round 2 (sent back: model change could relaunch without closing the old tab).
 - 002 Cluster folder pop-up: dev session #48, tab `mm-multi-manager-main-dev-002-picker`, branch `worktree-mm-multi-manager-main-dev-002-picker`, round 1.
 
 ## Merged
