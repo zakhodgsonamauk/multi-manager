@@ -51,3 +51,8 @@ Already merged on `main`: `src/launch/front-desk-launch.ts` (`clusterDbPath`, `f
 8. `docs/multi-manager/tasks/002-shots/popup-pasted-path-remote.png` shows the Windows user name in a temp path. Retake it with a neutral path (e.g. `C:\work\Team (Alpha) one`), or crop it.
 9. README: one line warning that a cluster folder inside Dropbox (or any synced folder) syncs a live database; use it from one PC only, or pick a folder outside sync.
 Update your return report (round 2 section), then raise done again.
+
+## Send-back round 2 (2026-10-23)
+1. `src/launch/front-desk-launch.ts` `runFrontDeskLaunch`: it calls `child.unref()` and then waits for the child's `exit`. With nothing else holding Node open, `scripts/front-desk-launch.ts`'s top-level `await` never settles: Node quits with exit code 13 ("unsettled top-level await", silent under `--no-warnings`) before `wt.exe` exits. The picker then reports "Could not open the front desk" with an empty reason and does not remember the choice, on every successful launch. (Reproduced by the reviewer with a harmless child that lives 800 ms: `exit=13`.) Fix: drop `unref()` (`detached` already keeps Terminal independent of Node).
+2. Tests: `test/front-desk-launch.test.ts:186-195` asserts `unref` IS called, which locks the bug in: assert it is not. Add a test that runs a small top-level-await script through the real runner with a real short-lived child (e.g. `process.execPath -e "setTimeout(()=>{},300)"` as the program) and asserts exit code 0. Also run the real `scripts/front-desk-launch.ts` once with a stand-in for `wt.exe` that succeeds after a short delay, and paste the exit code.
+Update your return report (round 3 section), then raise done again.
