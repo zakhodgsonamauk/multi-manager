@@ -35,3 +35,10 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 - Context: restart-architect, restart-developer and restore-after-reboot relaunch tabs; without the model they would fall back to the Claude default.
 - Decision: every relaunch passes the session's stored model.
 - Who: the architect.
+
+## 2026-10-23 — Pane "close" means hide, never delete (goal #17)
+
+- Context: the user wants to close waiting items and things under Projects that are no longer needed.
+- Decision: items get closed (existing close_item); goals get marked done or cancelled; workstreams and projects get an `archived_at` flag that hides them from the pane and status but keeps them in the roster and listings, and can be undone. Hiding is refused while an architect for it runs. Answering an item whose raiser is stopped records the answer and nudges nobody.
+- Alternatives: deleting rows (loses history, breaks foreign keys); a single "dismiss" that answers with a canned text (still tries to nudge).
+- Who: the architect.
