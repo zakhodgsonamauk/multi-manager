@@ -117,6 +117,8 @@ const ADDED_COLUMNS: { table: string; column: string; type: string }[] = [
   { table: 'sessions', column: 'complexity', type: 'INTEGER' },
   { table: 'sessions', column: 'clarity', type: 'INTEGER' },
   { table: 'projects', column: 'default_model', type: 'TEXT' },
+  { table: 'projects', column: 'archived_at', type: 'TEXT' },
+  { table: 'workstreams', column: 'archived_at', type: 'TEXT' },
 ];
 
 export function migrate(db: DatabaseSync): void {

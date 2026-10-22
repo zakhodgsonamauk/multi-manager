@@ -10,6 +10,8 @@ export type PaneItem = {
   kind: string;
   body: string;
   raisedBy: string | null;
+  /** True when the session that raised it has stopped: an answer would reach nobody. */
+  isRaiserStopped: boolean;
   minutesAgo: number | null;
 };
 
@@ -59,8 +61,15 @@ export type PaneView = {
   fetchedAt: number;
 };
 
-/** A two-step button waiting for its second press: pause everything, or stop one architect. */
-export type PaneConfirm = { kind: 'pause' } | { kind: 'stop'; project: string; workstream: string; name: string } | null;
+/** A two-step button waiting for its second press: pause everything, stop one architect, close or hide something. */
+export type PaneConfirm =
+  | { kind: 'pause' }
+  | { kind: 'stop'; project: string; workstream: string; name: string }
+  | { kind: 'close-item'; id: number }
+  | { kind: 'close-goal'; id: number }
+  | { kind: 'hide-workstream'; project: string; workstream: string }
+  | { kind: 'hide-project'; project: string }
+  | null;
 
 declare module 'claude-code' {
   interface PluginState {

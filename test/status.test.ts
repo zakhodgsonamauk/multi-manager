@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createGoal, updateGoal } from '../src/roster/goals.ts';
 import { closeItem, raiseItem } from '../src/roster/items.ts';
 import { addProject, requireWorkstream } from '../src/roster/projects.ts';
-import { checkIn, registerSession, startFrontDesk } from '../src/roster/sessions.ts';
+import { checkIn, registerSession, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
 import { reportSpend } from '../src/roster/spend.ts';
 import { statusSummary } from '../src/roster/status.ts';
 import { minutesBefore, tempRoster } from './helpers.ts';
@@ -49,4 +49,19 @@ test('a recently checked-in architect is not stale', (t) => {
   const arch = registerSession(db, { role: 'architect', projectId: p.id, workstreamId: main.id, name: 'mm-alpha-main' });
   checkIn(db, arch.id, minutesBefore(now, 5));
   assert.equal(statusSummary(db, now).projects[0].workstreams[0].architect?.stale, false);
+});
+
+test('each waiting item says whether its raiser is still running', (t) => {
+  const db = tempRoster(t);
+  const desk = startFrontDesk(db);
+  const p = addProject(db, { name: 'alpha', folder: 'C:\\a', workstreams: [{ name: 'ui', branch: 'ui' }] });
+  const mainId = requireWorkstream(db, p.id, 'main').id;
+  const uiId = requireWorkstream(db, p.id, 'ui').id;
+  const main = registerSession(db, { role: 'architect', parentId: desk.id, projectId: p.id, workstreamId: mainId, name: 'mm-alpha-main' });
+  const ui = registerSession(db, { role: 'architect', parentId: desk.id, projectId: p.id, workstreamId: uiId, name: 'mm-alpha-ui' });
+  raiseItem(db, { kind: 'question', body: 'Still here?', raisedBy: main.id });
+  raiseItem(db, { kind: 'done', body: 'Finished', raisedBy: ui.id });
+  setSessionState(db, ui.id, 'stopped');
+  const waiting = statusSummary(db).waiting_for_user;
+  assert.deepEqual(waiting.map((i) => [i.raised_by, i.raised_by_running]), [['mm-alpha-main', true], ['mm-alpha-ui', false]]);
 });

@@ -8,7 +8,7 @@ import { tempDir } from './helpers.ts';
 const serverPath = join(import.meta.dirname, '..', 'src', 'roster', 'server.ts');
 
 const ALL_TOOLS = [
-  'add_project', 'add_workstream', 'allocate_number', 'answer_item', 'check_in', 'claim', 'close_item', 'create_goal',
+  'add_project', 'add_workstream', 'allocate_number', 'answer_item', 'archive_project', 'archive_workstream', 'check_in', 'claim', 'close_item', 'create_goal',
   'finish_pause', 'get_briefing', 'get_goal', 'get_limits', 'launch_architect', 'launch_developer', 'list_items',
   'list_projects', 'list_sessions', 'list_workstreams', 'log_model_use', 'mark_seen', 'model_usage', 'monitor_tick', 'pause',
   'pause_status', 'raise_item', 'record_nudge', 'register_session', 'release', 'report_paused', 'report_spend', 'resources',

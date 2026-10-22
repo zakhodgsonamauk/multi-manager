@@ -36,7 +36,7 @@ const BAND = {
   },
 } as const
 
-type Item = { id: number; kind: string; body: string; raised_by: string | null; created_at: string }
+type Item = { id: number; kind: string; body: string; raised_by: string | null; raised_by_running?: boolean; created_at: string }
 
 const SIGN_OFF: Item = {
   id: 12,
@@ -59,6 +59,10 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     toasts: [] as string[],
     status: [] as (string | undefined)[],
     prompts: [] as string[],
+    /** What answer_item hands back: a nudge, or null with a note when the raiser is stopped. */
+    answerReply: null as null | { nudge: null; note: string },
+    /** Tools that answer with this error instead (a refusal). */
+    refuse: {} as Record<string, string>,
   }
   const answer = (tool: string, args: Record<string, unknown>): unknown => {
     switch (tool) {
@@ -66,7 +70,7 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
         return {
           generated_at: '2026-10-21T10:05:00.000Z',
           stale_after_minutes: 30,
-          waiting_for_user: roster.items,
+          waiting_for_user: roster.items.map(i => ({ raised_by_running: true, ...i })),
           projects: roster.projects
             ? [
                 {
@@ -74,8 +78,20 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
                   folder: 'C:/code/shop',
                   spend_today_usd: 3.2,
                   daily_budget_usd: 20,
-                  workstreams: [{ name: 'main', branch: 'main', architect: { session_id: 2, name: 'mm-arch-shop', minutes_since_checkin: 1, stale: false } }],
+                  workstreams: [
+                    { name: 'main', branch: 'main', architect: { session_id: 2, name: 'mm-arch-shop', minutes_since_checkin: 1, stale: false } },
+                    { name: 'ui', branch: 'feature/ui', architect: null },
+                  ],
                   active_goals: [{ id: 3, workstream: 'main', text: 'Build checkout', state: 'active', spent_usd: 1.25, budget_usd: 5 }],
+                  open_items: [],
+                },
+                {
+                  name: 'blog',
+                  folder: 'C:/code/blog',
+                  spend_today_usd: 0,
+                  daily_budget_usd: null,
+                  workstreams: [{ name: 'main', branch: 'main', architect: null }],
+                  active_goals: [],
                   open_items: [],
                 },
               ]
@@ -108,7 +124,17 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
           ? [{ session_id: 2, name: 'mm-arch-shop', role: 'architect', process_count: 12, max_processes: 40, over_max: false, binaries: [] }]
           : []
       case 'answer_item':
-        return { item: { id: args.item_id, state: 'answered', answer: args.answer }, nudge: { to: 'mm-arch-shop', message: `check roster item #${String(args.item_id)}` } }
+        return {
+          item: { id: args.item_id, state: 'answered', answer: args.answer },
+          ...(roster.answerReply ?? { nudge: { to: 'mm-arch-shop', message: `check roster item #${String(args.item_id)}` } }),
+        }
+      case 'close_item':
+        return { id: args.item_id, state: 'closed' }
+      case 'update_goal':
+        return { id: args.goal_id, state: args.state }
+      case 'archive_workstream':
+      case 'archive_project':
+        return { archived_at: args.archived === true ? '2026-10-21T10:06:00.000Z' : null }
       case 'pause':
         return { pause: { id: 1 }, sessions: [{ session_id: 2, name: 'mm-arch-shop', role: 'architect', item_id: 40, nudge: 'check roster item #40' }] }
       default:
@@ -119,6 +145,8 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     on('mcp.connect', () => ({ value: { isConnected: true, server: 'plugin:multi-manager:roster' } }))
     on('mcp.call', (_, e) => {
       roster.calls.push({ tool: e.tool, args: e.args })
+      const refusal = roster.refuse[e.tool]
+      if (refusal !== undefined) return { value: { content: [{ type: 'text', text: refusal }], isError: true } }
       return { value: { content: [{ type: 'text', text: JSON.stringify(answer(e.tool, e.args)) }], isError: false } }
     })
     on('session.send', (_, e) => {
@@ -395,4 +423,125 @@ test('/multi-manager:pane in an architect session says where the pane lives', as
   const answered = await $.command.run({ command: 'multi-manager:pane', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
   expect(answered.text).toContain('belongs to the front desk session')
   expect(fake.roster.calls).toEqual([])
+})
+
+test('Close on a waiting item asks first, then closes it without answering or telling anyone', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'close-12' })
+  expect((await ui.find({ type: 'Text', text: /^Close #12/ }))?.text).toBe('Close #12 without answering?')
+  await ui.press({ key: 'close-no-12' })
+  expect(await ui.find({ type: 'Button', key: 'close-yes-12' })).toBeUndefined()
+  expect(fake.toolCalls('close_item')).toHaveLength(0)
+
+  await ui.press({ key: 'close-12' })
+  await ui.press({ key: 'close-yes-12' })
+  await ui.unmount()
+  expect(fake.toolCalls('close_item').map(c => c.args)).toEqual([{ item_id: 12 }])
+  expect(fake.toolCalls('answer_item')).toHaveLength(0)
+  expect(fake.roster.sent).toEqual([])
+  expect(fake.roster.prompts).toEqual([])
+  expect(fake.roster.toasts).toContain('Closed #12.')
+})
+
+test('an item whose raiser has stopped is labelled, and answering it tells nobody', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster({
+    items: [{ id: 14, kind: 'done', body: 'Done: cart page', raised_by: 'mm-arch-old', raised_by_running: false, created_at: '2026-10-21T10:00:00.000Z' }],
+  })
+  fake.install(on)
+  fake.roster.answerReply = { nudge: null, note: 'Answer saved. mm-arch-old is stopped, so nobody was told.' }
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^#14/ }))?.text).toContain('#14 done report from mm-arch-old (stopped)')
+  await ui.input({ key: 'answer-14', text: 'Thanks, merge it.' })
+  await ui.unmount()
+  expect(fake.toolCalls('answer_item').map(c => c.args)).toEqual([{ item_id: 14, answer: 'Thanks, merge it.' }])
+  expect(fake.roster.sent).toEqual([])
+  expect(fake.roster.prompts).toEqual([])
+  expect(fake.roster.toasts).toContain('Answer saved. mm-arch-old is stopped, so nobody was told.')
+})
+
+test('a running raiser is not labelled stopped', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /^#12/ }))?.text).not.toContain('(stopped)')
+  await ui.unmount()
+})
+
+test('Close on a goal offers Done, Cancelled and Keep', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'goal-close-3' })
+  expect(await ui.find({ type: 'Text', text: /Close goal #3\?/ })).toBeDefined()
+  await ui.press({ key: 'goal-keep-3' })
+  expect(fake.toolCalls('update_goal')).toHaveLength(0)
+  await ui.press({ key: 'goal-close-3' })
+  await ui.press({ key: 'goal-done-3' })
+  await ui.press({ key: 'goal-close-3' })
+  await ui.press({ key: 'goal-cancelled-3' })
+  await ui.unmount()
+  expect(fake.toolCalls('update_goal').map(c => c.args)).toEqual([
+    { goal_id: 3, state: 'done' },
+    { goal_id: 3, state: 'cancelled' },
+  ])
+  expect(fake.roster.sent).toEqual([])
+})
+
+test('Hide shows only where no architect runs, asks first, and calls the hiding tools', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  // shop/main has a running architect: it gets Stop, not Hide, and shop gets no Hide project.
+  expect(await ui.find({ type: 'Button', key: 'hide-ws-shop-main' })).toBeUndefined()
+  expect(await ui.find({ type: 'Button', key: 'hide-project-shop' })).toBeUndefined()
+
+  await ui.press({ key: 'hide-ws-shop-ui' })
+  expect(fake.toolCalls('archive_workstream')).toHaveLength(0)
+  await ui.press({ key: 'hide-ws-yes-shop-ui' })
+  expect(fake.toolCalls('archive_workstream').map(c => c.args)).toEqual([{ project: 'shop', workstream: 'ui', archived: true }])
+
+  await ui.press({ key: 'hide-project-blog' })
+  await ui.press({ key: 'hide-project-no-blog' })
+  expect(fake.toolCalls('archive_project')).toHaveLength(0)
+  await ui.press({ key: 'hide-project-blog' })
+  await ui.press({ key: 'hide-project-yes-blog' })
+  await ui.unmount()
+  expect(fake.toolCalls('archive_project').map(c => c.args)).toEqual([{ project: 'blog', archived: true }])
+  expect(fake.roster.sent).toEqual([])
+})
+
+test('a refused hide says why', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.refuse.archive_project = 'mm-arch-blog is still running for blog/main: stop it first, then hide it.'
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'hide-project-blog' })
+  await ui.press({ key: 'hide-project-yes-blog' })
+  await ui.unmount()
+  expect(fake.roster.toasts).toContain('That did not work: mm-arch-blog is still running for blog/main: stop it first, then hide it.')
 })

@@ -21,7 +21,8 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 
 ## Items and answers
 - When nudged ("check roster item #N"), read the item with `list_items` and show it to the user, quoting the body verbatim. Never summarise or paraphrase architects.
-- When the user answers, call `answer_item` with the user's words verbatim: no edits, no tidying, no added context. Then `SendMessage` the architect: "check roster item #N".
+- When the user answers, call `answer_item` with the user's words verbatim: no edits, no tidying, no added context. Then `SendMessage` the returned nudge ("check roster item #N"). If the nudge is null the raiser has stopped: send nothing and tell the user its note.
+- Tidying: "close #N" is `close_item`. "Hide X" is `archive_workstream` or `archive_project` (`archived: false` shows it again); both refuse while an architect runs there.
 - Never answer a sign-off or question yourself.
 
 ## Sessions

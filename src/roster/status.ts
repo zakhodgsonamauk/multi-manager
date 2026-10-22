@@ -2,7 +2,7 @@ import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { iso, many } from './db.ts';
 import { activeGoals } from './goals.ts';
 import type { ItemKind, ItemState } from './items.ts';
-import { listProjects, listWorkstreams, type Project } from './projects.ts';
+import { listProjects, listWorkstreams, type Project, type Workstream } from './projects.ts';
 import { frontDesk, runningArchitect, type Session } from './sessions.ts';
 import { spendForGoal, spendToday } from './spend.ts';
 
@@ -40,6 +40,8 @@ export interface ItemStatus {
   answer: string | null;
   goal_id: number | null;
   raised_by: string | null;
+  /** Whether the raiser's session is still running: answering a stopped one reaches nobody. */
+  raised_by_running: boolean;
   addressed_to: string | null;
   seen: boolean;
   created_at: string;
@@ -65,7 +67,7 @@ export interface StatusSummary {
 }
 
 const ITEM_SELECT = `SELECT i.id, i.kind, i.state, i.body, i.answer, i.goal_id, i.seen, i.created_at,
-    r.name AS raised_by, a.name AS addressed_to
+    r.name AS raised_by, CASE WHEN r.state = 'running' THEN 1 ELSE 0 END AS raised_by_running, a.name AS addressed_to
   FROM items i
   LEFT JOIN goals g ON g.id = i.goal_id
   LEFT JOIN workstreams w ON w.id = g.workstream_id
@@ -73,10 +75,10 @@ const ITEM_SELECT = `SELECT i.id, i.kind, i.state, i.body, i.answer, i.goal_id, 
   LEFT JOIN sessions a ON a.id = i.addressed_to`;
 
 function itemRows(db: DatabaseSync, where: string, params: SQLInputValue[]): ItemStatus[] {
-  const rows = many<Omit<ItemStatus, 'seen'> & { seen: number }>(
+  const rows = many<Omit<ItemStatus, 'seen' | 'raised_by_running'> & { seen: number; raised_by_running: number }>(
     db.prepare(`${ITEM_SELECT} ${where} ORDER BY i.created_at, i.id`).all(...params),
   );
-  return rows.map((row) => ({ ...row, seen: row.seen === 1 }));
+  return rows.map((row) => ({ ...row, seen: row.seen === 1, raised_by_running: row.raised_by_running === 1 }));
 }
 
 function architectStatus(session: Session | undefined, now: Date, staleAfter: number): ArchitectStatus | null {
@@ -93,6 +95,13 @@ function architectStatus(session: Session | undefined, now: Date, staleAfter: nu
   };
 }
 
+/** Hidden workstreams drop out, unless an architect runs there again: a running architect is never hidden. */
+function shownWorkstreams(db: DatabaseSync, project: Project): { workstream: Workstream; architect: Session | undefined }[] {
+  return listWorkstreams(db, project.name)
+    .map((workstream) => ({ workstream, architect: runningArchitect(db, workstream.id) }))
+    .filter(({ workstream, architect }) => workstream.archived_at === null || architect !== undefined);
+}
+
 function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter: number): ProjectStatus {
   return {
     name: project.name,
@@ -101,10 +110,10 @@ function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter
     idle_stop_minutes: project.idle_stop_minutes,
     daily_budget_usd: project.daily_budget_usd,
     spend_today_usd: spendToday(db, project.id, now),
-    workstreams: listWorkstreams(db, project.name).map((w) => ({
-      name: w.name,
-      branch: w.branch,
-      architect: architectStatus(runningArchitect(db, w.id), now, staleAfter),
+    workstreams: shownWorkstreams(db, project).map(({ workstream, architect }) => ({
+      name: workstream.name,
+      branch: workstream.branch,
+      architect: architectStatus(architect, now, staleAfter),
     })),
     active_goals: activeGoals(db, project.id).map((g) => ({
       id: g.id,
@@ -127,6 +136,8 @@ export function statusSummary(db: DatabaseSync, now: Date = new Date(), staleAft
     generated_at: iso(now),
     stale_after_minutes: staleAfterMinutes,
     waiting_for_user: itemRows(db, "WHERE i.addressed_to = ? AND i.state = 'open'", [desk.id]),
-    projects: listProjects(db).map((project) => projectStatus(db, project, now, staleAfterMinutes)),
+    projects: listProjects(db)
+      .filter((project) => project.archived_at === null || shownWorkstreams(db, project).some((w) => w.architect !== undefined))
+      .map((project) => projectStatus(db, project, now, staleAfterMinutes)),
   };
 }

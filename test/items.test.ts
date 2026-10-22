@@ -3,6 +3,7 @@ import { test, type TestContext } from 'node:test';
 import { createGoal } from '../src/roster/goals.ts';
 import {
   answerItem,
+  answerReply,
   closeItem,
   formatItem,
   listItems,
@@ -12,7 +13,7 @@ import {
   unseenItemsFor,
 } from '../src/roster/items.ts';
 import { addProject, requireWorkstream } from '../src/roster/projects.ts';
-import { registerSession, startFrontDesk } from '../src/roster/sessions.ts';
+import { registerSession, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
 import { tempRoster } from './helpers.ts';
 
 function setup(t: TestContext) {
@@ -69,4 +70,25 @@ test('formatItem shows id, kind, state, goal, body and the verbatim answer', (t)
   const item = raiseItem(db, { kind: 'signoff', body: 'Plan v1', goalId: goal.id, raisedBy: arch.id });
   const text = formatItem(answerItem(db, item.id, 'Yes, but no new deps.'));
   assert.equal(text, `#${item.id} [signoff, answered, goal #${goal.id}] Plan v1\n  Answer (verbatim): Yes, but no new deps.`);
+});
+
+test('answering an item whose raiser is stopped keeps the words and nudges nobody', (t) => {
+  const { db, arch, goal } = setup(t);
+  const item = raiseItem(db, { kind: 'done', body: 'Done: login page', goalId: goal.id, raisedBy: arch.id });
+  setSessionState(db, arch.id, 'stopped');
+  const words = '  Thanks — merge it.\n';
+  const answered = answerItem(db, item.id, words);
+  assert.equal(answered.state, 'answered');
+  assert.equal(answered.answer, words);
+  assert.deepEqual(answerReply(db, answered), {
+    nudge: null,
+    note: 'Answer saved. mm-alpha-main is stopped, so nobody was told.',
+  });
+});
+
+test('answering an item whose raiser is running nudges it as before', (t) => {
+  const { db, arch, goal } = setup(t);
+  const item = raiseItem(db, { kind: 'question', body: 'A or B?', goalId: goal.id, raisedBy: arch.id });
+  const answered = answerItem(db, item.id, 'A');
+  assert.deepEqual(answerReply(db, answered), { nudge: { to: 'mm-alpha-main', message: `check roster item #${item.id}` } });
 });

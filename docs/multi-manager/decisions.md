@@ -66,3 +66,16 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 - Context: the architect asked for `git merge main` to get the send-back round. The developer rules forbid merging, and by then the branch had its own commits.
 - Decision: read the round with `git show main:<task file>` and did not merge. The architect's squash-merge brings in the rest.
 - Who: developer #47.
+
+## 2026-10-23 — A hidden workstream or project with a running architect shows again (task 003)
+
+- Context: hiding is refused while an architect runs, but an architect can still be launched into a hidden workstream later (the launcher is task 001's file, so it does not un-hide).
+- Decision: `status` skips a hidden workstream only while no architect runs there, and a hidden project only while none of its shown workstreams has one. A running architect is never hidden from the user; the flag stays set and drops it again once the architect stops.
+- Alternatives: un-hide on launch (touches the launcher, out of scope); hide regardless (a running architect could vanish from the pane, with no Stop button).
+- Who: the developer.
+
+## 2026-10-23 — answer_item's "nobody to tell" rule (task 003)
+
+- Context: answering an item whose raiser had stopped produced a nudge to a dead session.
+- Decision: the nudge goes to the item's new addressee only if that session is on the roster and running. Otherwise `nudge: null` with a plain `note` ("Answer saved. mm-x is stopped, so nobody was told."). An item with no raiser still goes back to its addressee (the front desk), as before. The logic lives in `answerReply` in items.ts so it is tested without the tool server.
+- Who: the developer.

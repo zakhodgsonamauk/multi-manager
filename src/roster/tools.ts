@@ -17,7 +17,7 @@ import {
 import { claim, release } from './claims.ts';
 import type { Env } from './db.ts';
 import { GOAL_STATES, createGoal, goalWithPlace, updateGoal } from './goals.ts';
-import { ITEM_KINDS, ITEM_STATES, answerItem, closeItem, listItems, markSeen, raiseItem } from './items.ts';
+import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, closeItem, listItems, markSeen, raiseItem } from './items.ts';
 import { listModelUsage, recordModelChange } from './model-ledger.ts';
 import { WORK_MODELS } from './models.ts';
 import { addProject, addWorkstream, listProjects, listWorkstreams, requireProject, requireWorkstream, setProjectDefaultModel } from './projects.ts';
@@ -41,6 +41,7 @@ import { registerMonitorTools } from './tools-monitor.ts';
 import { registerHealthTools } from './tools-health.ts';
 import { registerVoiceTools } from './tools-voice.ts';
 import { registerRecoveryTools } from './tools-recovery.ts';
+import { registerTidyTools } from './tools-tidy.ts';
 
 export interface Identity {
   sessionId: number | null;
@@ -253,13 +254,14 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'answer_item',
     {
-      description: 'Record the user\'s answer EXACTLY as the user wrote it (verbatim, unedited). The item goes back to whoever raised it. Then SendMessage the returned nudge.',
+      description:
+        'Record the user\'s answer EXACTLY as the user wrote it (verbatim, unedited). The item goes back to whoever raised it. Then SendMessage the returned nudge; if nudge is null (the raiser is stopped), send nothing and tell the user the note.',
       inputSchema: { item_id: z.number().int().positive(), answer: z.string() },
     },
     (a) =>
       guard(() => {
         const item = answerItem(db, a.item_id, a.answer);
-        return { item, nudge: nudge(ctx, item.addressed_to, item.id) };
+        return { item, ...answerReply(db, item) };
       }),
   );
 
@@ -467,4 +469,5 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   registerHealthTools(server, ctx);
   registerVoiceTools(server, ctx);
   registerRecoveryTools(server, ctx);
+  registerTidyTools(server, ctx);
 }

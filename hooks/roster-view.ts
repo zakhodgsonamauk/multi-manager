@@ -27,7 +27,7 @@ export type RosterStatus = {
     }[]
     active_goals: { id: number; workstream: string; text: string; spent_usd: number; budget_usd: number | null }[]
   }[]
-  waiting_for_user: (RosterItem & { raised_by: string | null })[]
+  waiting_for_user: (RosterItem & { raised_by: string | null; raised_by_running?: boolean })[]
 }
 
 export type RosterHealth = {
@@ -52,6 +52,9 @@ export type RosterResources = {
 }[]
 
 export type RosterNudge = { to: string | null; message: string }
+
+/** What answer_item hands back: a nudge to deliver, or null with a note when the raiser has stopped. */
+export type RosterAnswerReply = { nudge: RosterNudge | null; note?: string }
 
 /** The text of an MCP result, parsed as the roster's JSON. A tool error throws with the roster's words. */
 export function rosterJson(result: { content: readonly { type: string; text?: string }[]; isError: boolean }): unknown {
@@ -116,6 +119,8 @@ export function buildView(
   const health = new Map(input.health.sessions.map(s => [s.session_id, s]))
   const resources = new Map(input.resources.map(r => [r.session_id, r]))
   const raisedBy = new Map(input.status.waiting_for_user.map(i => [i.id, i.raised_by]))
+  // An older roster sends no raised_by_running: count its raisers as running, as before.
+  const stopped = new Set(input.status.waiting_for_user.filter(i => i.raised_by !== null && i.raised_by_running === false).map(i => i.id))
 
   const projects: PaneProject[] = input.status.projects.map(p => ({
     name: p.name,
@@ -149,6 +154,7 @@ export function buildView(
         kind: i.kind,
         body: i.body,
         raisedBy: named ?? (typeof i.raised_by === 'string' ? i.raised_by : null),
+        isRaiserStopped: stopped.has(i.id),
         minutesAgo: minutesSince(i.created_at, now),
       }
     })

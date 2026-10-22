@@ -23,6 +23,7 @@ import {
   quote,
   rosterJson,
   summaryLine,
+  type RosterAnswerReply,
   type RosterHealth,
   type RosterItem,
   type RosterNudge,
@@ -159,9 +160,11 @@ const answer = async ($: Engine, itemId: number, text: string): Promise<void> =>
   await update($, sendingItems, ids => [...ids, itemId])
   try {
     // The user's words exactly as typed: no trimming, no rewording.
-    const result = (await roster($, 'answer_item', { item_id: itemId, answer: text })) as { nudge: RosterNudge }
+    const result = (await roster($, 'answer_item', { item_id: itemId, answer: text })) as RosterAnswerReply
     drafts.delete(itemId)
-    await deliver($, [result.nudge], `answer sent for item #${itemId}`)
+    // The raiser has stopped: the answer is on record, but there is nobody to nudge and nothing to queue.
+    if (result.nudge === null) $.ui.toast(result.note ?? `Answer saved for #${itemId}. Its raiser is stopped, so nobody was told.`)
+    else await deliver($, [result.nudge], `answer sent for item #${itemId}`)
   } catch (error) {
     $.ui.toast(`Could not send the answer: ${oneLine(message(error), 120)}`)
   } finally {
@@ -199,6 +202,33 @@ const stopArchitect = ($: Engine, project: string, workstream: string, name: str
   act($, async () => {
     await roster($, 'stop_architect', { project, workstream })
     $.ui.toast(`Stopped ${name}.`)
+  })
+
+/** Closes a waiting item without answering it: nothing else is recorded and nobody is nudged. */
+const closeItem = ($: Engine, id: number) =>
+  act($, async () => {
+    await roster($, 'close_item', { item_id: id })
+    drafts.delete(id)
+    $.ui.toast(`Closed #${id}.`)
+  })
+
+const closeGoal = ($: Engine, id: number, state: 'done' | 'cancelled') =>
+  act($, async () => {
+    await roster($, 'update_goal', { goal_id: id, state })
+    $.ui.toast(`Goal #${id} marked ${state}.`)
+  })
+
+/** Hiding is refused by the roster while an architect runs there; act() shows its words. */
+const hideWorkstream = ($: Engine, project: string, workstream: string) =>
+  act($, async () => {
+    await roster($, 'archive_workstream', { project, workstream, archived: true })
+    $.ui.toast(`Hid ${project}/${workstream}. Ask the front desk to show it again.`)
+  })
+
+const hideProject = ($: Engine, project: string) =>
+  act($, async () => {
+    await roster($, 'archive_project', { project, archived: true })
+    $.ui.toast(`Hid ${project}. Ask the front desk to show it again.`)
   })
 
 const openPane = ($: Engine) => $.ui.open({ id: PANE, title: TITLE })
@@ -278,9 +308,18 @@ export const register: Register = on => {
     if (view === null) return <Box flexDirection="column">{notice ?? <Text dimColor>Loading from the roster…</Text>}</Box>
 
     const waiting = view.waiting.map(item => {
-      const from = item.raisedBy === null ? '' : ` from ${item.raisedBy}`
+      const from = item.raisedBy === null ? '' : ` from ${item.raisedBy}${item.isRaiserStopped ? ' (stopped)' : ''}`
       const age = item.minutesAgo === null ? '' : ` · ${item.minutesAgo} min ago`
       const isSending = sending.includes(item.id)
+      const isConfirmingClose = confirm?.kind === 'close-item' && confirm.id === item.id
+      const close = (
+        <Button
+          key={`close-${item.id}`}
+          label="Close"
+          dimColor
+          onPress={() => void update($, confirmAtom, (): PaneConfirm => ({ kind: 'close-item', id: item.id }))}
+        />
+      )
       return (
         <Box key={`item-${item.id}`} flexDirection="column" marginBottom={1}>
           <Text bold>
@@ -291,6 +330,12 @@ export const register: Register = on => {
           <Markdown key={`body-${item.id}`} text={quote(item.body)} />
           {isSending ? (
             <Text dimColor>Sending…</Text>
+          ) : isConfirmingClose ? (
+            <Box flexDirection="row" gap={1}>
+              <Text>Close #{item.id} without answering?</Text>
+              <Button key={`close-yes-${item.id}`} label="Yes, close" variant="primary" onPress={() => void closeItem($, item.id)} />
+              <Button key={`close-no-${item.id}`} label="Cancel" onPress={cancel} />
+            </Box>
           ) : Input !== undefined ? (
             <Box flexDirection="row" gap={1}>
               <Input
@@ -302,11 +347,13 @@ export const register: Register = on => {
                 onSubmit={value => void answer($, item.id, value)}
               />
               <Button key={`send-${item.id}`} label="Send" variant="primary" onPress={() => void answer($, item.id, drafts.get(item.id) ?? '')} />
+              {close}
             </Box>
           ) : (
             <Box flexDirection="row" gap={1}>
               <Button key={`approve-${item.id}`} label="Approve" variant="primary" onPress={() => void answer($, item.id, 'Approve')} />
               <Button key={`reject-${item.id}`} label="Reject" onPress={() => void answer($, item.id, 'Reject')} />
+              {close}
             </Box>
           )}
         </Box>
@@ -315,15 +362,66 @@ export const register: Register = on => {
 
     const projects = view.projects.map(project => {
       const budget = project.dailyBudgetUsd === null ? '' : ` of ${money(project.dailyBudgetUsd)}`
+      // Hiding is offered only where nothing runs; the roster refuses it anyway while an architect does.
+      const isIdle = project.workstreams.every(ws => ws.architect === null)
+      const isConfirmingHide = confirm?.kind === 'hide-project' && confirm.project === project.name
       return (
         <Box key={`project-${project.name}`} flexDirection="column" marginBottom={1}>
-          <Text bold>
-            {project.name} <Text dimColor>· spent today {money(project.spendTodayUsd)}{budget}</Text>
-          </Text>
+          <Box flexDirection="row" gap={1}>
+            <Text bold>
+              {project.name} <Text dimColor>· spent today {money(project.spendTodayUsd)}{budget}</Text>
+            </Text>
+            {isIdle && !isConfirmingHide && (
+              <Button
+                key={`hide-project-${project.name}`}
+                label="Hide project"
+                dimColor
+                onPress={() => void update($, confirmAtom, (): PaneConfirm => ({ kind: 'hide-project', project: project.name }))}
+              />
+            )}
+          </Box>
+          {isConfirmingHide && (
+            <Box flexDirection="row" gap={1}>
+              <Text>  Hide project {project.name}? Nothing is deleted.</Text>
+              <Button key={`hide-project-yes-${project.name}`} label="Yes, hide it" variant="primary" onPress={() => void hideProject($, project.name)} />
+              <Button key={`hide-project-no-${project.name}`} label="Cancel" onPress={cancel} />
+            </Box>
+          )}
           {project.workstreams.map(ws => {
             const a = ws.architect
             const place = `${ws.name} (branch ${ws.branch})`
-            if (a === null) return <Text dimColor>  {place}: no architect running</Text>
+            if (a === null) {
+              const isConfirmingHideWs = confirm?.kind === 'hide-workstream' && confirm.project === project.name && confirm.workstream === ws.name
+              return (
+                <Box key={`ws-${project.name}-${ws.name}`} flexDirection="column">
+                  <Box flexDirection="row" gap={1}>
+                    <Text dimColor>  {place}: no architect running</Text>
+                    {!isConfirmingHideWs && (
+                      <Button
+                        key={`hide-ws-${project.name}-${ws.name}`}
+                        label="Hide"
+                        dimColor
+                        onPress={() =>
+                          void update($, confirmAtom, (): PaneConfirm => ({ kind: 'hide-workstream', project: project.name, workstream: ws.name }))
+                        }
+                      />
+                    )}
+                  </Box>
+                  {isConfirmingHideWs && (
+                    <Box flexDirection="row" gap={1}>
+                      <Text>    Hide {ws.name} in {project.name}? Nothing is deleted.</Text>
+                      <Button
+                        key={`hide-ws-yes-${project.name}-${ws.name}`}
+                        label="Yes, hide it"
+                        variant="primary"
+                        onPress={() => void hideWorkstream($, project.name, ws.name)}
+                      />
+                      <Button key={`hide-ws-no-${project.name}-${ws.name}`} label="Cancel" onPress={cancel} />
+                    </Box>
+                  )}
+                </Box>
+              )
+            }
             const quiet = a.minutesQuiet === null ? '' : `, quiet ${a.minutesQuiet} min`
             const processes = a.processes === null ? '' : `, ${a.processes}`
             const isConfirming = confirm?.kind === 'stop' && confirm.project === project.name && confirm.workstream === ws.name
@@ -356,12 +454,35 @@ export const register: Register = on => {
               </Box>
             )
           })}
-          {project.goals.map(goal => (
-            <Text dimColor wrap="wrap">
-              {'  '}Goal #{goal.id} ({goal.workstream}): {oneLine(goal.text, 100)} · {money(goal.spentUsd)}
-              {goal.budgetUsd === null ? '' : ` of ${money(goal.budgetUsd)}`}
-            </Text>
-          ))}
+          {project.goals.map(goal => {
+            const isConfirmingGoal = confirm?.kind === 'close-goal' && confirm.id === goal.id
+            return (
+              <Box key={`goal-${goal.id}`} flexDirection="column">
+                <Box flexDirection="row" gap={1}>
+                  <Text dimColor wrap="wrap">
+                    {'  '}Goal #{goal.id} ({goal.workstream}): {oneLine(goal.text, 100)} · {money(goal.spentUsd)}
+                    {goal.budgetUsd === null ? '' : ` of ${money(goal.budgetUsd)}`}
+                  </Text>
+                  {!isConfirmingGoal && (
+                    <Button
+                      key={`goal-close-${goal.id}`}
+                      label="Close"
+                      dimColor
+                      onPress={() => void update($, confirmAtom, (): PaneConfirm => ({ kind: 'close-goal', id: goal.id }))}
+                    />
+                  )}
+                </Box>
+                {isConfirmingGoal && (
+                  <Box flexDirection="row" gap={1}>
+                    <Text>    Close goal #{goal.id}?</Text>
+                    <Button key={`goal-done-${goal.id}`} label="Done" variant="primary" onPress={() => void closeGoal($, goal.id, 'done')} />
+                    <Button key={`goal-cancelled-${goal.id}`} label="Cancelled" onPress={() => void closeGoal($, goal.id, 'cancelled')} />
+                    <Button key={`goal-keep-${goal.id}`} label="Keep" onPress={cancel} />
+                  </Box>
+                )}
+              </Box>
+            )
+          })}
         </Box>
       )
     })

@@ -1,6 +1,6 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { iso, many, one } from './db.ts';
-import { frontDesk, requireSession } from './sessions.ts';
+import { frontDesk, getSession, requireSession } from './sessions.ts';
 
 export const ITEM_KINDS = ['signoff', 'question', 'blocked', 'done', 'info'] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
@@ -78,6 +78,21 @@ export function answerItem(db: DatabaseSync, id: number, answer: string, now: Da
     `UPDATE items SET state = 'answered', answer = ?, answered_at = ?, updated_at = ?, addressed_to = ?, seen = 0 WHERE id = ?`,
   ).run(answer, iso(now), iso(now), item.raised_by ?? item.addressed_to, id);
   return requireItem(db, id);
+}
+
+export interface AnswerReply {
+  nudge: { to: string | null; message: string } | null;
+  /** Set when nobody is nudged: why, in plain words. */
+  note?: string;
+}
+
+/** Who to tell about an answered item: its new addressee if that session is running, otherwise nobody. */
+export function answerReply(db: DatabaseSync, item: Item): AnswerReply {
+  const to = getSession(db, item.addressed_to);
+  if (to === undefined) return { nudge: null, note: `Answer saved. Session #${item.addressed_to} is not on the roster, so nobody was told.` };
+  const name = to.name ?? `session #${to.id}`;
+  if (to.state !== 'running') return { nudge: null, note: `Answer saved. ${name} is stopped, so nobody was told.` };
+  return { nudge: { to: to.name, message: `check roster item #${item.id}` } };
 }
 
 export function closeItem(db: DatabaseSync, id: number, now: Date = new Date()): Item {
