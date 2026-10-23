@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, win32 } from 'node:path';
 
 /** The fields we rely on in Claude Code's ~/.claude/sessions/<pid>.json (verified 2026-10-21; see spike.md). */
 export interface ClaudeSessionFile {
@@ -30,13 +30,29 @@ export function readSessionFile(pid: number, dir: string = claudeSessionsDir()):
   }
 }
 
+function windowsPath(path: string): string {
+  return win32.normalize(path).replace(/\\+$/, '').toLowerCase();
+}
+
+/**
+ * True if cwd is folder or somewhere under it, compared as Windows paths (case, `/` vs `\` and trailing
+ * separators ignored). `C:\work\alpha2` is not under `C:\work\alpha`. A missing or blank path is never within.
+ */
+export function cwdWithin(cwd: unknown, folder: string): boolean {
+  if (typeof cwd !== 'string' || cwd.trim() === '' || folder.trim() === '') return false;
+  const path = windowsPath(cwd);
+  const root = windowsPath(folder);
+  return path === root || path.startsWith(`${root}\\`);
+}
+
 /**
  * The newest session file named `name`. Claude Code leaves stale files behind after a kill (spike step 7),
  * so callers pass `isLive` (e.g. "is a running claude.exe") to skip entries whose process is gone.
+ * `within` also requires the file's cwd inside that folder: two clusters can each have a tab of the same name.
  */
 export function findSessionPid(
   name: string,
-  options: { since?: number; dir?: string; isLive?: (pid: number) => boolean } = {},
+  options: { since?: number; dir?: string; isLive?: (pid: number) => boolean; within?: string } = {},
 ): number | null {
   const dir = options.dir ?? claudeSessionsDir();
   let entries: string[];
@@ -55,6 +71,7 @@ export function findSessionPid(
       continue;
     }
     if (sessionFileName(file) !== name || typeof file.pid !== 'number') continue;
+    if (options.within !== undefined && !cwdWithin(file.cwd, options.within)) continue;
     if (options.isLive !== undefined && !options.isLive(file.pid)) continue;
     const started = file.startedAt ?? 0;
     if (options.since !== undefined && started < options.since) continue;

@@ -31,7 +31,8 @@ export interface LaunchDeps {
   writeSettings: (file: SettingsFile) => void;
   /** claude.exe pid from its session file, skipping stale files of dead processes. */
   waitForPid: (name: string, since: number) => Promise<number | null>;
-  findPid: (name: string) => Promise<number | null>;
+  /** Live claude.exe pid by session name; with `within`, only one whose session file's cwd is inside that folder. */
+  findPid: (name: string, within?: string) => Promise<number | null>;
   ownsProcess: (pid: number, name: string) => Promise<boolean>;
   /** The wrapper's own pid from <id>.wrapper.pid: waited for after launch, read once on stop. */
   waitForWrapperPid: (path: string) => Promise<number | null>;
@@ -94,9 +95,9 @@ export async function claudePids(): Promise<Set<number>> {
   return parseTasklistPids(result.stdout);
 }
 
-export async function findLivePid(name: string, options: WaitOptions & { since?: number } = {}): Promise<number | null> {
+export async function findLivePid(name: string, options: WaitOptions & { since?: number; within?: string } = {}): Promise<number | null> {
   const live = await (options.livePids ?? claudePids)();
-  return findSessionPid(name, { since: options.since, dir: options.dir, isLive: (pid) => live.has(pid) });
+  return findSessionPid(name, { since: options.since, dir: options.dir, within: options.within, isLive: (pid) => live.has(pid) });
 }
 
 export async function waitForPid(name: string, since: number, options: WaitOptions = {}): Promise<number | null> {
@@ -154,7 +155,7 @@ export function realDeps(): LaunchDeps {
     run: runCommand,
     writeSettings: writeSettingsFile,
     waitForPid: (name, since) => waitForPid(name, since),
-    findPid: (name) => findLivePid(name),
+    findPid: (name, within) => findLivePid(name, { within }),
     ownsProcess: (pid, name) => ownsProcess(pid, name),
     waitForWrapperPid: (path) => waitForPidFile(path),
     readWrapperPid: readPidFile,

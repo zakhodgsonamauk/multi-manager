@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Command } from '../src/launch/command.ts';
+import { cwdWithin } from '../src/launch/process.ts';
 import { changeSessionModel, launchArchitect, launchDeveloper, type LaunchContext } from '../src/launch/launcher.ts';
 import type { LaunchDeps } from '../src/launch/runner.ts';
 import { decodeCommand } from '../src/launch/wrapper.ts';
@@ -9,7 +10,7 @@ import { claim, listClaims } from '../src/roster/claims.ts';
 import { listModelUsage } from '../src/roster/model-ledger.ts';
 import { startPause } from '../src/roster/pause.ts';
 import { addProject, getProjectDefaultModel } from '../src/roster/projects.ts';
-import { registerSession, requireSession, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
+import { registerSession, requireSession, setClaudeSessionId, setSessionPid, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
 import { registerRosterTools, type ToolContext } from '../src/roster/tools.ts';
 import { tempRoster } from './helpers.ts';
 
@@ -93,6 +94,46 @@ test('stepping a running developer up relaunches it on the new model with its co
   assert.deepEqual([row.state, row.model], ['running', 'opus']);
   assert.notEqual(row.pid, developer.pid);
   assert.deepEqual(listModelUsage(db), [], 'the function itself does not write the ledger');
+});
+
+test('a tab whose pid and conversation were never recorded is found by name, its conversation read before the close, and resumed', async (t) => {
+  const { db, launch, developer, deps, runs, killed } = await setup(t);
+  // The launch wait gave up (e.g. a "trust this folder?" prompt held claude back), so nothing was recorded.
+  setSessionPid(db, developer.id, null);
+  setClaudeSessionId(db, developer.id, null);
+  const live = 4999;
+  // Its tab runs in its worktree, under the project folder.
+  const cwd = `c:/WORK/alpha/.claude/worktrees/${developer.name}`;
+  deps.findPid = async (name, within) => (name === developer.name && within !== undefined && cwdWithin(cwd, within) ? live : null);
+  deps.readClaudeSessionId = (pid) => (pid === live && !killed.includes(live) ? CONVERSATION : null);
+  const before = runs.length;
+  const result = await changeSessionModel(launch, { sessionId: developer.id, model: 'opus' });
+  assert.deepEqual([result.relaunched, result.resumed], [true, true]);
+  assert.deepEqual(killed, [live], 'the process found by name is the one closed');
+  assert.ok(!result.warnings.some((w) => /fresh conversation/.test(w)), result.warnings.join('\n'));
+  const args = claudeArgsOf(runs.slice(before).find((c) => c.file !== 'taskkill')!);
+  assert.equal(after(args, '--resume'), CONVERSATION);
+  assert.equal(after(args, '--model'), 'opus');
+});
+
+test("a same-named tab in another cluster's folder is neither read nor closed: the model is not changed", async (t) => {
+  const { db, launch, developer, deps, runs } = await setup(t);
+  setSessionPid(db, developer.id, null);
+  setClaudeSessionId(db, developer.id, null);
+  const other = 4999;
+  // Another cluster also has a project alpha, so its tab has the same name; any lookup without a folder finds it.
+  deps.findPid = async (name, within) => (name === developer.name && (within === undefined || cwdWithin('D:\\cluster-b\\alpha', within)) ? other : null);
+  const read: number[] = [];
+  deps.readClaudeSessionId = (pid) => {
+    read.push(pid);
+    return CONVERSATION;
+  };
+  const before = runs.length;
+  await assert.rejects(changeSessionModel(launch, { sessionId: developer.id, model: 'opus' }), /could not close mm-alpha-main-dev-login's tab, model not changed/);
+  assert.deepEqual(read, [], "the other cluster's conversation is never read");
+  assert.equal(runs.length, before, 'nothing killed, nothing launched');
+  const row = requireSession(db, developer.id);
+  assert.deepEqual([row.state, row.model, row.claude_session_id], ['running', 'sonnet', null]);
 });
 
 test('changing a stopped session records the model and launches nothing', async (t) => {

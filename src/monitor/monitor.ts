@@ -1,11 +1,12 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { buildStopCommand } from '../launch/command.ts';
+import { findSessionPid } from '../launch/process.ts';
 import { runCommand, type RunResult } from '../launch/runner.ts';
 import { releaseAll } from '../roster/claims.ts';
 import { iso, many, one, tx } from '../roster/db.ts';
 import { raiseItem } from '../roster/items.ts';
 import { listLimits } from '../roster/limits.ts';
-import { frontDesk, getSession, setClaudeSessionId, type Session } from '../roster/sessions.ts';
+import { frontDesk, getSession, setClaudeSessionId, setSessionPid, type Session } from '../roster/sessions.ts';
 import { realActivityReaders, type ActivityReaders } from './activity.ts';
 import { planEnforcement, type Enforcement, type MonitoredSession } from './enforce.ts';
 import { detectStuck, type StuckReport } from './health.ts';
@@ -26,6 +27,12 @@ export interface MonitorDeps {
   active?: () => boolean;
   /** Claude Code session files and transcripts, for stuck detection. Without it, stuck detection is skipped. */
   activity?: ActivityReaders;
+  /**
+   * The newest Claude Code session file naming this session, with its cwd inside `within`, whose pid passes isLive
+   * (findSessionPid's rules). Used to pick up sessions whose launch gave up waiting for the process. Without it,
+   * they stay pid-less.
+   */
+  findSessionPid?: (name: string, isLive: (pid: number) => boolean, within: string) => number | null;
 }
 
 export function realMonitorDeps(): MonitorDeps {
@@ -34,6 +41,7 @@ export function realMonitorDeps(): MonitorDeps {
     kill: (pid) => runCommand(buildStopCommand(pid)),
     selfPid: process.pid,
     activity: realActivityReaders(),
+    findSessionPid: (name, isLive, within) => findSessionPid(name, { isLive, within }),
     log: (message) => process.stderr.write(`[multi-manager monitor] ${message}\n`),
   };
 }
@@ -183,6 +191,40 @@ export function refreshConversationIds(db: DatabaseSync, readers: ActivityReader
   return updated;
 }
 
+/**
+ * Records the claude.exe pid of each running architect or developer that has none (its launch gave up waiting,
+ * e.g. behind Claude Code's "trust this folder?" prompt), so death detection and the conversation-id refresh
+ * cover it. Only a live claude.exe whose session file names the session and whose cwd is inside the session's
+ * folder counts (another cluster can have a tab of the same name), and never a pid another running session holds.
+ */
+export function adoptLatePids(
+  db: DatabaseSync,
+  snapshot: readonly ProcessInfo[],
+  find: (name: string, isLive: (pid: number) => boolean, within: string) => number | null,
+): number {
+  const claude = new Set(snapshot.filter((p) => p.name.toLowerCase() === 'claude.exe').map((p) => p.pid));
+  // A developer's worktree lives under its project folder, so the project folder covers both roles.
+  const pidless = many<{ id: number; name: string; folder: string }>(
+    db
+      .prepare(
+        `SELECT s.id, s.name, COALESCE(s.folder, p.folder) AS folder FROM sessions s LEFT JOIN projects p ON p.id = s.project_id
+         WHERE s.state = 'running' AND s.role <> 'front-desk' AND s.pid IS NULL AND s.name IS NOT NULL
+           AND COALESCE(s.folder, p.folder) IS NOT NULL ORDER BY s.id`,
+      )
+      .all(),
+  );
+  let adopted = 0;
+  for (const session of pidless) {
+    const pid = find(session.name, (p) => claude.has(p), session.folder);
+    if (pid === null) continue;
+    const taken = one(db.prepare("SELECT id FROM sessions WHERE state = 'running' AND pid = ? AND id <> ?").get(pid, session.id));
+    if (taken !== undefined) continue;
+    setSessionPid(db, session.id, pid);
+    adopted += 1;
+  }
+  return adopted;
+}
+
 /** The pid and every ancestor of it: the monitor must never kill its own host. */
 export function ancestry(snapshot: readonly ProcessInfo[], pid: number | undefined): Set<number> {
   const result = new Set<number>();
@@ -252,7 +294,7 @@ async function enforce(db: DatabaseSync, deps: MonitorDeps, snapshot: readonly P
 
 let chain: Promise<unknown> = Promise.resolve();
 
-/** One monitor pass: death detection, enforcement, then stuck detection. Passes in this process never overlap. */
+/** One monitor pass: late pid pickup, death detection, enforcement, then stuck detection. Passes in this process never overlap. */
 export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult> {
   const next = chain.then(async (): Promise<TickResult> => {
     const now = deps.now?.() ?? new Date();
@@ -269,6 +311,7 @@ export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult
       return result;
     }
     try {
+      if (deps.findSessionPid !== undefined) adoptLatePids(db, snapshot, deps.findSessionPid);
       result.sessions_checked = monitoredSessions(db).length;
       result.deaths = detectDeaths(db, snapshot, now);
       result.enforcements = await enforce(db, deps, snapshot, now);

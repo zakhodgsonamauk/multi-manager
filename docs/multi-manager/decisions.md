@@ -119,3 +119,19 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 - The roster reads the name in `frontDeskNameFromEnv` (`src/roster/sessions.ts`): `MM_FRONT_DESK_NAME`, blank counts as unset, else `mm-front-desk`. An explicit `name` argument to `start_front_desk` still wins.
 - `MM_FRONT_DESK_NAME` joins the variables the front desk tab clears first, so the main team never inherits a cluster's name. It is not added to the list dropped from wt.exe's environment: the tab clears it anyway.
 - Picker: `front-desk.bat remote` passes `-Remote`, which only pre-ticks the phone box. A cluster folder handed to node loses a trailing backslash, and a bare drive root goes as `D:\.`. On this PC the old picker passed `X:\` through intact (Windows PowerShell only quotes arguments with spaces), so this is a guard for the reported case rather than a reproduced fix.
+
+## 2026-10-23 — Picking up a tab's process after the launch gave up (task 005, developer #53)
+
+- The monitor's lookup is injected as `MonitorDeps.findSessionPid(name, isLive)`; the real one is `findSessionPid` from `src/launch/process.ts`, the same rule `findLivePid` uses. "Live" comes from the monitor's own process snapshot (a `claude.exe` with that pid), so the tick makes no extra process listing call.
+- The pickup (`adoptLatePids`) runs first in each tick, before death detection, so a session found this tick is death-checked and gets its conversation id from the existing refresh in the same tick.
+- A pid already recorded for another running session is never given to a second one, even if a session file names the pid-less session.
+- `changeSessionModel` reads the conversation id only after `ownsProcess(pid, name)` confirms the process is this session's `claude.exe`, using the recorded pid or, if none, `findPid(name)`. It saves the id on the row before the close, so it survives even if the close or relaunch then fails.
+- Alternatives: have the monitor call `findLivePid` (one extra tasklist call per pid-less session per tick).
+
+## 2026-10-23 — Late pid pickup must stay inside the session's folder (task 005 round 2, developer #53)
+
+- One helper, `cwdWithin(cwd, folder)` in `src/launch/process.ts`: Windows paths, case-insensitive, `/` and `\` alike, `..` resolved, trailing separators ignored; "within" is equal or under (`C:\work\alpha2` is not under `C:\work\alpha`); a missing or blank path is never within. `findSessionPid` takes an optional `within` folder that uses it, and `findLivePid` / `LaunchDeps.findPid` pass it through.
+- The folder is the session row's `folder`, falling back to its project's folder (both are the project folder today; a developer's worktree lives under it).
+- Monitor: a pid-less session with no folder is skipped, never matched by name alone.
+- Model change: the conversation is read from a process found by name only if it runs inside the session's folder. The close (`killTarget`, shared by stop, restart and model change) now applies the same folder rule when it looks a process up by name, so a model change never closes another cluster's same-named tab. It refuses with its usual "could not close" message instead. Without a folder on the row it still matches by name, as before.
+- Not changed: the launch's own wait (`waitForPid`) and the voice tool's lookup still match by name only.

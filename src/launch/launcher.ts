@@ -235,7 +235,8 @@ export async function launchDeveloper(
 /**
  * Picks what to kill, never anything that is not provably ours: first the wrapper (a live pwsh.exe whose
  * script carries this session's marker; killing it closes the kill-on-close Job, so the whole session
- * goes), else the claude.exe whose session file names this session (sessions launched before the wrapper).
+ * goes), else the claude.exe whose session file names this session (sessions launched before the wrapper) and,
+ * when looked up by name, runs inside its folder (another cluster can have a tab of the same name).
  */
 async function killTarget(ctx: LaunchContext, session: Session, files: SessionFiles, warnings: string[]): Promise<number | null> {
   const label = session.name ?? `session #${session.id}`;
@@ -244,7 +245,7 @@ async function killTarget(ctx: LaunchContext, session: Session, files: SessionFi
     if (await ctx.deps.ownsWrapper(wrapperPid, wrapperMarker(session.id, resolveDbPath(ctx.env)))) return wrapperPid;
     warnings.push(`Process ${wrapperPid} is not ${label}'s wrapper any more.`);
   }
-  const pid = session.pid ?? (session.name === null ? null : await ctx.deps.findPid(session.name));
+  const pid = session.pid ?? (session.name === null ? null : await ctx.deps.findPid(session.name, session.folder ?? undefined));
   if (pid === null) {
     warnings.push(`No live process id is known for ${label}. It was marked stopped without killing anything.`);
     return null;
@@ -346,6 +347,20 @@ async function killOwnProcess(ctx: LaunchContext, session: Session, warnings: st
   return { target, code: (await ctx.deps.run(buildStopCommand(target))).code };
 }
 
+/**
+ * The conversation id of a session's live claude.exe (found by name if its pid was never recorded), saved on its
+ * row, or null. Only a process whose session file names this session, with its cwd inside the session's folder,
+ * counts: another cluster can have a tab of the same name.
+ */
+async function readLiveConversation(ctx: LaunchContext, session: Session, name: string): Promise<string | null> {
+  if (ctx.deps.readClaudeSessionId === undefined) return null;
+  const pid = session.pid ?? (session.folder === null ? null : await ctx.deps.findPid(name, session.folder));
+  if (pid === null || !(await ctx.deps.ownsProcess(pid, name))) return null;
+  const id = ctx.deps.readClaudeSessionId(pid);
+  if (id !== null) setClaudeSessionId(ctx.db, session.id, id);
+  return id;
+}
+
 /** Removes a closed session's state files and marks it stopped. */
 function markClosed(ctx: LaunchContext, session: Session): void {
   const files = sessionFiles(sessionStateDir(resolveDbPath(ctx.env)), session.id);
@@ -387,6 +402,8 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
   // A developer's name is its worktree, so it cannot be guessed.
   if (role === 'developer' && old.name === null) throw new Error(`Developer #${old.id} has no name, so its worktree is unknown`);
   const name = old.name ?? sessionName(project.name, workstream.name);
+  // Read before the close: a launch that gave up waiting for the process recorded no conversation id.
+  const id = old.claude_session_id ?? (await readLiveConversation(ctx, old, name));
   const why: string[] = [];
   const closed = await killOwnProcess(ctx, old, why);
   if (closed !== null && closed.code !== 0) why.push(`taskkill of process ${closed.target} exited with ${closed.code}.`);
@@ -399,7 +416,6 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
   }
   markClosed(ctx, old);
   const warnings: string[] = [];
-  const id = old.claude_session_id;
   const resumed = id !== null && CONVERSATION_ID.test(id) && (ctx.deps.conversationExists?.(id) ?? true);
   const change = modelChangePrompt(role, input.model, resumed);
   let prompt = change;
