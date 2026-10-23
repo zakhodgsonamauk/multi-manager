@@ -1,10 +1,10 @@
 # Status
 
 Live handover for workstream `main`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-10-23 03:30
+Updated: 2026-10-23 04:00
 
 ## Current goal
-Roster goal #15: finish the local track `clusters_models_20261022` (cluster folders + model routing). State: in-progress.
+Roster goal #15: finish the local track `clusters_models_20261022` (cluster folders + model routing). State: done.
 Plan sign-off: not needed. The user's words in goal #15: "proceed without user input as far as possible."
 
 ## Already done before this goal (earlier session, on `main`)
@@ -14,11 +14,12 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 
 ## In flight
-- 005 Pick up a late process id and conversation (found in click-through): dev session #53, tab `mm-multi-manager-main-dev-005-late-pid`, branch `worktree-mm-multi-manager-main-dev-005-late-pid`, round 2 (sent back: match by folder too, not just name).
+- (none)
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
 - 002 Cluster folder pop-up: `c954d27` (2026-10-23, 3 rounds).
+- 005 Pick up a late process id and conversation: `915f03e` (2026-10-23, 2 rounds).
 - 004 Cluster front desk gets its own name: `1f3b817` (2026-10-23).
 - Outside-review follow-ups: `c52696b`; process snapshot fix `160bb6f`; briefing cap `5b6a1b7`.
 - 003 Pane close controls (goal #17): `e6e001f` + review follow-up `e599c81` (hidden workstream's goals hide too) (2026-10-23).
@@ -37,4 +38,4 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - F5: pane polish: with every project hidden it says "No projects yet"; an answered item can stay listed until the next 15 s refresh. Cosmetic.
 
 ## Next
-Goal #15: review and merge 005, then raise done.
+Both goals done. Nothing queued. Findings F1-F5 recorded for the user to pick from; start nothing without the user's go.
