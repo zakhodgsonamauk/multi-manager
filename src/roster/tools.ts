@@ -26,6 +26,7 @@ import {
   ROLES,
   checkIn,
   frontDesk,
+  frontDeskNameFromEnv,
   getSession,
   registerSession,
   requireSession,
@@ -103,11 +104,13 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     {
       description:
         'Make this session the Multi-Manager front desk (reuses the single front-desk record), install the Windows Terminal profile, and return the front-desk briefing plus the status with waiting items first.',
-      inputSchema: { name: z.string().optional().describe('This session\'s -n name; default mm-front-desk') },
+      inputSchema: {
+        name: z.string().optional().describe('This session\'s -n name; default MM_FRONT_DESK_NAME (a cluster front desk), else mm-front-desk'),
+      },
     },
     ({ name }) =>
       guard(() => {
-        const desk = startFrontDesk(db, name ?? FRONT_DESK_NAME);
+        const desk = startFrontDesk(db, name ?? frontDeskNameFromEnv());
         ctx.identity = { sessionId: desk.id, role: 'front-desk' };
         ctx.launch.deps.ensureTerminalProfile();
         return [

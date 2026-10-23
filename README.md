@@ -46,8 +46,9 @@ choice:
   `<folder>\.multi-manager\roster.db` (with a `.gitignore`, so a git repo does not see it). Two folders
   never see each other's projects, sessions or sign-offs, nor the main team's.
 
-Tick "Reachable from my phone" for Remote Control. OK opens the front desk in its own Windows Terminal
-window; Cancel opens nothing. It needs Node and PowerShell 7 (`pwsh`), and says so in a message box if
+Tick "Reachable from my phone" for Remote Control (`front-desk.bat remote` opens the pop-up with it
+ticked). OK opens the front desk in its own Windows Terminal window, named `mm-front-desk` for the main
+team and `mm-front-desk-<folder name>` for a cluster; Cancel opens nothing. It needs Node and PowerShell 7 (`pwsh`), and says so in a message box if
 either is missing or the launch fails.
 
 A cluster folder inside Dropbox (or any synced folder) syncs a live database: use it from one PC only,

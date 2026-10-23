@@ -1,8 +1,8 @@
 import type { SpawnOptions } from 'node:child_process';
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, win32 } from 'node:path';
 import { parseArgs } from 'node:util';
-import { escapeForWt } from './command.ts';
+import { escapeForWt, sessionName } from './command.ts';
 import { encodeCommand, PWSH_ARGS, psQuote } from './wrapper.ts';
 
 /**
@@ -42,8 +42,11 @@ export const INHERITED_CLAUDE_VARS = [
 /** A managed session's identity (command.ts sessionEnv); a picker started from its shell must not pass it on. */
 export const INHERITED_MM_VARS = ['MM_ROLE', 'MM_SESSION_ID', 'MM_PARENT_ID', 'MM_VOICE'] as const;
 
-/** What the tab script clears first. MM_ROSTER_DB too: a cluster sets its own, the main team must use the global one. */
-export const FRONT_DESK_CLEARED_VARS = [...INHERITED_CLAUDE_VARS, ...INHERITED_MM_VARS, 'MM_ROSTER_DB'] as const;
+/**
+ * What the tab script clears first. MM_ROSTER_DB and MM_FRONT_DESK_NAME too: a cluster sets its own, the main
+ * team must use the global roster and the default name.
+ */
+export const FRONT_DESK_CLEARED_VARS = [...INHERITED_CLAUDE_VARS, ...INHERITED_MM_VARS, 'MM_ROSTER_DB', 'MM_FRONT_DESK_NAME'] as const;
 
 export interface FrontDeskOptions {
   /** The cluster folder, or null for the main team (global roster, opened in the plugin folder). */
@@ -53,19 +56,33 @@ export interface FrontDeskOptions {
   remote: boolean;
 }
 
-const NAME = 'mm-front-desk';
+/**
+ * The front desk's session name (tab title, -n, --remote-control): mm-front-desk for the main team,
+ * mm-front-desk-<slug of the folder's name> for a cluster, so two open front desks never share a name
+ * and messages to either still reach it.
+ */
+export function frontDeskName(cluster: string | null): string {
+  if (cluster === null) return sessionName('front-desk');
+  // A drive root (D:\ or D:\.) has no folder name: its drive letter stands in.
+  const folder = win32.normalize(cluster);
+  return sessionName('front-desk', win32.basename(folder) || win32.parse(folder).root);
+}
 
 /** The script the front desk tab runs: it sets its own environment, so it holds however the tab was opened. */
 export function frontDeskScript(opts: FrontDeskOptions): string {
-  const claudeArgs = ['-n', NAME];
-  if (opts.remote) claudeArgs.push('--remote-control', NAME);
+  const name = frontDeskName(opts.cluster);
+  const claudeArgs = ['-n', name];
+  if (opts.remote) claudeArgs.push('--remote-control', name);
   claudeArgs.push('--plugin-dir', opts.pluginDir, '--dangerously-skip-permissions', '/multi-manager:front-desk');
   return [
     `$ErrorActionPreference = 'Continue'`,
     `foreach ($mmName in @(${FRONT_DESK_CLEARED_VARS.map(psQuote).join(', ')})) { Remove-Item -LiteralPath "env:$mmName" -ErrorAction SilentlyContinue }`,
     // Full-screen layout for this session only, so the Multi-Manager pane docks beside the chat.
     `$env:CLAUDE_CODE_NO_FLICKER = '1'`,
-    ...(opts.cluster === null ? [] : [`$env:MM_ROSTER_DB = ${psQuote(clusterDbPath(opts.cluster))}`]),
+    // A cluster's own roster, and its front desk name for start_front_desk (the roster server inherits it).
+    ...(opts.cluster === null
+      ? []
+      : [`$env:MM_ROSTER_DB = ${psQuote(clusterDbPath(opts.cluster))}`, `$env:MM_FRONT_DESK_NAME = ${psQuote(name)}`]),
     `Set-Location -LiteralPath ${psQuote(opts.cluster ?? opts.pluginDir)}`,
     `& claude ${claudeArgs.map(psQuote).join(' ')}`,
     '',
@@ -78,7 +95,7 @@ export function frontDeskScript(opts: FrontDeskOptions): string {
  * the caller's environment to a new tab, and base64 survives paths with spaces and parentheses.
  */
 export function frontDeskCommand(opts: FrontDeskOptions): { file: string; args: string[]; rosterDb: string | null } {
-  const tab = ['-w', 'new', 'new-tab', '--title', NAME, '-d', opts.cluster ?? opts.pluginDir].map(escapeForWt);
+  const tab = ['-w', 'new', 'new-tab', '--title', frontDeskName(opts.cluster), '-d', opts.cluster ?? opts.pluginDir].map(escapeForWt);
   return {
     file: opts.wtPath,
     args: [...tab, 'pwsh', ...PWSH_ARGS, encodeCommand(frontDeskScript(opts))],

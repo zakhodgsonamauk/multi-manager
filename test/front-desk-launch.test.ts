@@ -12,6 +12,7 @@ import {
   FRONT_DESK_CLEARED_VARS,
   frontDeskCommand,
   frontDeskEnv,
+  frontDeskName,
   INHERITED_CLAUDE_VARS,
   INHERITED_MM_VARS,
   runFrontDeskLaunch,
@@ -22,6 +23,8 @@ import { resolveDbPath } from '../src/roster/db.ts';
 
 const FOLDER = 'I:\\Dropbox (Personal)\\Projects\\alpha team';
 const PLUGIN = 'I:\\Dropbox (Personal)\\Projects\\multi-manager';
+/** The cluster front desk's session name for FOLDER: mm-front-desk-<slug of the folder's name>. */
+const DESK = 'mm-front-desk-alpha-team';
 
 const temps: string[] = [];
 after(() => {
@@ -56,7 +59,7 @@ test('clusterDbPath nests the roster inside the cluster folder', () => {
 test('the tab opens a new Terminal window in the chosen folder', () => {
   const { file, args } = launch(false);
   assert.equal(file, 'wt.exe');
-  assert.deepEqual(args.slice(0, args.indexOf('pwsh')), ['-w', 'new', 'new-tab', '--title', 'mm-front-desk', '-d', FOLDER]);
+  assert.deepEqual(args.slice(0, args.indexOf('pwsh')), ['-w', 'new', 'new-tab', '--title', DESK, '-d', FOLDER]);
 });
 
 test('the tab script sets the cluster roster itself, not through the wt.exe environment', () => {
@@ -93,13 +96,13 @@ test('the tab script runs claude as the front desk with the plugin and no permis
   const { script } = launch(false);
   assert.ok(script.includes(`Set-Location -LiteralPath ${psQuote(FOLDER)}`));
   assert.deepEqual(claudeArgs(script), [
-    '-n', 'mm-front-desk', '--plugin-dir', PLUGIN, '--dangerously-skip-permissions', '/multi-manager:front-desk',
+    '-n', DESK, '--plugin-dir', PLUGIN, '--dangerously-skip-permissions', '/multi-manager:front-desk',
   ]);
 });
 
-test('remote control adds --remote-control mm-front-desk only when ticked', () => {
+test('remote control adds --remote-control <the front desk name> only when ticked', () => {
   const args = claudeArgs(launch(true).script);
-  assert.equal(args[args.indexOf('--remote-control') + 1], 'mm-front-desk');
+  assert.equal(args[args.indexOf('--remote-control') + 1], DESK);
   assert.ok(!claudeArgs(launch(false).script).includes('--remote-control'));
 });
 
@@ -109,8 +112,11 @@ test('the main team (no cluster folder) opens in the plugin folder and sets no M
   assert.equal(args[args.indexOf('-d') + 1], PLUGIN);
   assert.ok(script.includes(`Set-Location -LiteralPath ${psQuote(PLUGIN)}`));
   assert.ok(!script.includes('$env:MM_ROSTER_DB ='), 'no roster is set: the global one is used');
+  assert.ok(!script.includes('$env:MM_FRONT_DESK_NAME ='), 'no name is set: the roster defaults to mm-front-desk');
+  assert.equal(args[args.indexOf('--title') + 1], 'mm-front-desk');
   const removeLine = script.split('\n').find((l) => l.includes('Remove-Item'));
   assert.ok(removeLine?.includes(psQuote('MM_ROSTER_DB')), 'an inherited cluster roster is cleared');
+  assert.ok(removeLine?.includes(psQuote('MM_FRONT_DESK_NAME')), 'an inherited cluster front desk name is cleared');
   for (const name of [...INHERITED_CLAUDE_VARS, ...INHERITED_MM_VARS]) assert.ok(removeLine?.includes(psQuote(name)));
   assert.ok(script.includes(`$env:CLAUDE_CODE_NO_FLICKER = '1'`));
   assert.deepEqual(claudeArgs(script), [
@@ -280,6 +286,40 @@ test('runner: a top-level-await script stays alive until a real short-lived chil
   assert.equal(result.status, 0, `exit ${result.status}; stderr: ${result.stderr}`);
 });
 
-test('FRONT_DESK_CLEARED_VARS is the inherited set plus MM_ROSTER_DB', () => {
-  assert.deepEqual([...FRONT_DESK_CLEARED_VARS], [...INHERITED_CLAUDE_VARS, ...INHERITED_MM_VARS, 'MM_ROSTER_DB']);
+test('FRONT_DESK_CLEARED_VARS is the inherited set plus MM_ROSTER_DB and MM_FRONT_DESK_NAME', () => {
+  assert.deepEqual([...FRONT_DESK_CLEARED_VARS], [...INHERITED_CLAUDE_VARS, ...INHERITED_MM_VARS, 'MM_ROSTER_DB', 'MM_FRONT_DESK_NAME']);
+});
+
+// ---- each cluster's front desk has its own session name ----
+
+test('frontDeskName: the main team keeps mm-front-desk, a cluster gets mm-front-desk-<slug of its folder name>', () => {
+  assert.equal(frontDeskName(null), 'mm-front-desk');
+  assert.equal(frontDeskName('C:\\work\\Team (Alpha) one'), 'mm-front-desk-team-alpha-one');
+  assert.equal(frontDeskName('C:\\work\\Team (Alpha) one\\'), 'mm-front-desk-team-alpha-one', 'a trailing backslash is ignored');
+  assert.equal(frontDeskName(FOLDER), DESK);
+  // A drive root has no folder name: the drive letter stands in (the picker passes D:\ as D:\.).
+  assert.equal(frontDeskName('D:\\'), 'mm-front-desk-d');
+  assert.equal(frontDeskName('D:\\.'), 'mm-front-desk-d');
+});
+
+test('a cluster front desk uses its own name in the tab title, -n, --remote-control and MM_FRONT_DESK_NAME', () => {
+  const folder = 'C:\\work\\Team (Alpha) one';
+  const name = 'mm-front-desk-team-alpha-one';
+  const { args, script } = launch(true, folder);
+  assert.equal(args[args.indexOf('--title') + 1], name);
+  const claude = claudeArgs(script);
+  assert.equal(claude[claude.indexOf('-n') + 1], name);
+  assert.equal(claude[claude.indexOf('--remote-control') + 1], name);
+  const lines = script.split('\n');
+  const setAt = lines.indexOf(`$env:MM_FRONT_DESK_NAME = ${psQuote(name)}`);
+  assert.ok(setAt >= 0, script);
+  assert.ok(lines.findIndex((l) => l.includes('Remove-Item')) < setAt, 'cleared before it is set');
+  assert.ok(setAt < lines.findIndex((l) => l.startsWith('& claude ')), 'set before claude runs');
+});
+
+test('two cluster folders yield two front desk names', () => {
+  const a = claudeArgs(launch(false, 'C:\\work\\alpha').script);
+  const b = claudeArgs(launch(false, 'C:\\work\\beta').script);
+  assert.equal(a[a.indexOf('-n') + 1], 'mm-front-desk-alpha');
+  assert.equal(b[b.indexOf('-n') + 1], 'mm-front-desk-beta');
 });

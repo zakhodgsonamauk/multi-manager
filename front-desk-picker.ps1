@@ -2,7 +2,8 @@
 # opened in the plugin folder, as the old front-desk.bat did) or in a chosen "cluster" folder. Each cluster
 # folder is its own team: its roster lives in <folder>\.multi-manager\roster.db (see src/launch/front-desk-launch.ts).
 # Started by front-desk.bat. Cancel launches nothing. Keep this file ASCII: Windows PowerShell reads it as ANSI.
-param([Parameter(Mandatory = $true)][string]$PluginDir)
+# -Remote pre-ticks "Reachable from my phone" (front-desk.bat remote); the user can still untick it.
+param([Parameter(Mandatory = $true)][string]$PluginDir, [switch]$Remote)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -88,6 +89,7 @@ try {
   $remoteBox.Location = New-Object System.Drawing.Point(12, 148)
   $remoteBox.Size = New-Object System.Drawing.Size(536, 24)
   $remoteBox.Text = 'Reachable from my phone (Remote Control)'
+  $remoteBox.Checked = [bool]$Remote
   $form.Controls.Add($remoteBox)
 
   $ok = New-Object System.Windows.Forms.Button
@@ -141,7 +143,11 @@ try {
     $launchArgs = @('--no-warnings', $launcher, '--main', '--plugin-dir', $PluginDir)
   } else {
     $choice = (Resolve-Path -LiteralPath $folder).ProviderPath
-    $launchArgs = @('--no-warnings', $launcher, '--folder', $choice, '--plugin-dir', $PluginDir)
+    # Windows PowerShell passes "D:\" to node as D:" (the trailing backslash escapes the closing quote), so drop
+    # a trailing backslash, and pass a bare drive root as D:\. instead. The remembered choice stays as resolved.
+    $nodeFolder = $choice.TrimEnd('\')
+    if ($nodeFolder -match '^[A-Za-z]:$') { $nodeFolder += '\.' }
+    $launchArgs = @('--no-warnings', $launcher, '--folder', $nodeFolder, '--plugin-dir', $PluginDir)
   }
   if ($remote) { $launchArgs += '--remote' }
   $ErrorActionPreference = 'Continue'

@@ -119,6 +119,15 @@ export function frontDesk(db: DatabaseSync, now: Date = new Date()): Session {
   return registerSession(db, { role: 'front-desk', name: FRONT_DESK_NAME, state: 'stopped' }, now);
 }
 
+/**
+ * The front desk's session name when start_front_desk is given none: a cluster front desk tab sets
+ * MM_FRONT_DESK_NAME (src/launch/front-desk-launch.ts) and the roster server inherits it; otherwise mm-front-desk.
+ */
+export function frontDeskNameFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  const name = env.MM_FRONT_DESK_NAME?.trim();
+  return name ? name : FRONT_DESK_NAME;
+}
+
 export function startFrontDesk(db: DatabaseSync, name: string = FRONT_DESK_NAME, now: Date = new Date()): Session {
   const desk = frontDesk(db, now);
   db.prepare("UPDATE sessions SET state = 'running', name = ?, last_checkin_at = ? WHERE id = ?").run(name, iso(now), desk.id);

@@ -112,3 +112,10 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 - Decision: the main team keeps `mm-front-desk`; a cluster front desk is `mm-front-desk-<folder slug>`, passed to the roster through `MM_FRONT_DESK_NAME`.
 - Alternatives: number them (unstable across reopenings); leave as is (breaks routinely with clusters).
 - Who: the architect.
+
+## 2026-10-23 — Front desk name details (task 004, developer #52)
+
+- The name is worked out once, in `frontDeskName` (`src/launch/front-desk-launch.ts`), from the folder's last part through the existing `sessionName` slug rule. A drive root (`D:\` or `D:\.`) has no folder name, so its drive letter stands in: `mm-front-desk-d`.
+- The roster reads the name in `frontDeskNameFromEnv` (`src/roster/sessions.ts`): `MM_FRONT_DESK_NAME`, blank counts as unset, else `mm-front-desk`. An explicit `name` argument to `start_front_desk` still wins.
+- `MM_FRONT_DESK_NAME` joins the variables the front desk tab clears first, so the main team never inherits a cluster's name. It is not added to the list dropped from wt.exe's environment: the tab clears it anyway.
+- Picker: `front-desk.bat remote` passes `-Remote`, which only pre-ticks the phone box. A cluster folder handed to node loses a trailing backslash, and a bare drive root goes as `D:\.`. On this PC the old picker passed `X:\` through intact (Windows PowerShell only quotes arguments with spaces), so this is a guard for the reported case rather than a reproduced fix.
