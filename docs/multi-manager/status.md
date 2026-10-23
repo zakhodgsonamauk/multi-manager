@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `main`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-10-23 02:05
+Updated: 2026-10-23 02:45
 
 ## Current goal
 Roster goal #15: finish the local track `clusters_models_20261022` (cluster folders + model routing). State: in-progress.
@@ -14,11 +14,13 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane (waiting items, goals, workstreams, projects); never nudge a stopped session. State: in-progress. No sign-off (same rule as #15).
 
 ## In flight
-- 004 Cluster front desk gets its own session name (goal #15): dev session #52, tab `mm-multi-manager-main-dev-004-desk-name`, branch `worktree-mm-multi-manager-main-dev-004-desk-name`, round 1.
+- (none)
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
 - 002 Cluster folder pop-up: `c954d27` (2026-10-23, 3 rounds).
+- 004 Cluster front desk gets its own name: `1f3b817` (2026-10-23).
+- Outside-review follow-ups: `c52696b`; process snapshot fix `160bb6f`; briefing cap `5b6a1b7`.
 - 003 Pane close controls (goal #17): `e6e001f` + review follow-up `e599c81` (hidden workstream's goals hide too) (2026-10-23).
 
 ## Queued (in order)
@@ -32,4 +34,4 @@ Roster goal #17: close controls in the pane (waiting items, goals, workstreams, 
 - F2: every front desk was named mm-front-desk, so with two open, messages to it fail as ambiguous (seen tonight: two mm-front-desk sessions). Fixed for clusters by task 004. Architect/developer names can still collide across clusters with the same project name.
 
 ## Next
-Wrap both goals: desktop shortcut, outside review of the whole change, click-through in a throwaway cluster folder (pop-up, isolated roster, model on launched tabs, pane Close/Hide).
+Click-through in a throwaway cluster folder (pop-up path via the launcher, isolated roster, front desk name, model on a launched architect, pane Close/Hide), then raise done for goals #15 and #17.
