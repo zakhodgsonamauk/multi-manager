@@ -1,6 +1,6 @@
 # 005 — Pick up a tab's process and conversation when the launch could not
 
-Goal #15. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/005-late-pid.return.md` on that branch.
+Goal #15. Branch: `worktree-mm-multi-manager-main-dev-005-late-pid`. Return report: `docs/multi-manager/tasks/005-late-pid.return.md` on that branch.
 
 ## Goal
 Found in the architect's click-through (2026-10-23): the first time Claude Code opens a folder it stops at a "trust this folder?" prompt. The launcher waits 30 s for the new tab's `claude.exe` (`waitForPid` in `launchTab`, `src/launch/launcher.ts` ~line 169), gives up with the warning "…its process id was not found yet…", and the session row keeps `pid = NULL` and `claude_session_id = NULL` for good:

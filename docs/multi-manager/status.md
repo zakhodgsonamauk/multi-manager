@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `main`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-10-23 02:45
+Updated: 2026-10-23 03:30
 
 ## Current goal
 Roster goal #15: finish the local track `clusters_models_20261022` (cluster folders + model routing). State: in-progress.
@@ -14,7 +14,7 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane (waiting items, goals, workstreams, projects); never nudge a stopped session. State: in-progress. No sign-off (same rule as #15).
 
 ## In flight
-- 005 Pick up a late process id and conversation (found in click-through): dispatching.
+- 005 Pick up a late process id and conversation (found in click-through): dev session #53, tab `mm-multi-manager-main-dev-005-late-pid`, branch `worktree-mm-multi-manager-main-dev-005-late-pid`, round 1.
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
@@ -34,6 +34,7 @@ Roster goal #17: close controls in the pane (waiting items, goals, workstreams, 
 - F2: every front desk was named mm-front-desk, so with two open, messages to it fail as ambiguous (seen tonight: two mm-front-desk sessions). Fixed for clusters by task 004. Architect/developer names can still collide across clusters with the same project name.
 - F3: a team-folder architect tab opens in the same Terminal window as the main team's architects (one named window for all). Cosmetic.
 - F4: the first time Claude opens a new folder (team folder or project folder) it stops at "trust this folder?"; the launcher then misses the tab's process id and conversation for good (task 005).
+- F5: pane polish: with every project hidden it says "No projects yet"; an answered item can stay listed until the next 15 s refresh. Cosmetic.
 
 ## Next
-Click-through in a throwaway cluster folder (pop-up path via the launcher, isolated roster, front desk name, model on a launched architect, pane Close/Hide), then raise done for goals #15 and #17.
+Goal #17: click-through passed, raise done. Goal #15: review and merge 005, then raise done.
