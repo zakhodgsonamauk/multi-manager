@@ -14,7 +14,7 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 
 ## In flight
-- 005 Pick up a late process id and conversation (found in click-through): dev session #53, tab `mm-multi-manager-main-dev-005-late-pid`, branch `worktree-mm-multi-manager-main-dev-005-late-pid`, round 1.
+- 005 Pick up a late process id and conversation (found in click-through): dev session #53, tab `mm-multi-manager-main-dev-005-late-pid`, branch `worktree-mm-multi-manager-main-dev-005-late-pid`, round 2 (sent back: match by folder too, not just name).
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
