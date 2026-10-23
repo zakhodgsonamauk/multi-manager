@@ -14,7 +14,7 @@ Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster
 Roster goal #17: close controls in the pane (waiting items, goals, workstreams, projects); never nudge a stopped session. State: in-progress. No sign-off (same rule as #15).
 
 ## In flight
-- (none)
+- 005 Pick up a late process id and conversation (found in click-through): dispatching.
 
 ## Merged
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
@@ -32,6 +32,8 @@ Roster goal #17: close controls in the pane (waiting items, goals, workstreams, 
 ## Findings (record-only)
 - F1: developer copies start from the old remote version (9fcaaed), not this workstream's latest `main`; both developers told to pull in `main` first. Local `main` is ahead of the remote (unpushed). Tool bug worth a task later.
 - F2: every front desk was named mm-front-desk, so with two open, messages to it fail as ambiguous (seen tonight: two mm-front-desk sessions). Fixed for clusters by task 004. Architect/developer names can still collide across clusters with the same project name.
+- F3: a team-folder architect tab opens in the same Terminal window as the main team's architects (one named window for all). Cosmetic.
+- F4: the first time Claude opens a new folder (team folder or project folder) it stops at "trust this folder?"; the launcher then misses the tab's process id and conversation for good (task 005).
 
 ## Next
 Click-through in a throwaway cluster folder (pop-up path via the launcher, isolated roster, front desk name, model on a launched architect, pane Close/Hide), then raise done for goals #15 and #17.
