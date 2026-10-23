@@ -27,3 +27,8 @@ The touched test files with `node --test`, `npm run typecheck`, `npm run lint`. 
 
 ## Evidence required
 Each command with its summary lines pasted verbatim.
+
+## Send-back round 1 (2026-10-23)
+1. `src/monitor/monitor.ts` `adoptLatePids` (and `readLiveConversation` in `src/launch/launcher.ts`): the process is matched by session name only. Two cluster folders can each have a project `alpha`, so both have a tab named `mm-alpha-main`, and each cluster has its own roster. A pid-less row in cluster A could adopt cluster B's live tab; the monitor would then track its death and its process-limit enforcement could kill processes in another team's tab. "Never guess" must hold across clusters too. Fix: also require the Claude Code session file's `cwd` to be inside this session's folder: the project folder for an architect, the project folder (its `.claude\worktrees\<name>` worktree lives under it) for a developer. Compare as Windows paths (case-insensitive, normalised separators, no trailing separator; "inside" means equal or under, never a prefix match like `C:\work\alpha2` for `C:\work\alpha`). Put the check in one small tested helper used by both places (e.g. an optional `cwdWithin` filter on `findSessionPid`).
+2. Tests: a same-name live process whose `cwd` is another folder is not adopted (monitor) and its conversation is not read (model change); a process whose cwd is the developer's worktree under the project folder is adopted; the `alpha` vs `alpha2` prefix case is rejected.
+Update your return report (round 2 section), then raise done again.
