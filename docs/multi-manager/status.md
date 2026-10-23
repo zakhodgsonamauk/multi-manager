@@ -10,8 +10,8 @@ Plan sign-off: not needed. The user's words in goal #15: "proceed without user i
 ## Already done before this goal (earlier session, on `main`)
 Plan tasks 1-5, 9, 12: model rule, `--model` flag, schema, model ledger, cluster launch command, briefing + `/multi-manager:set-model`.
 
-## Also active
-Roster goal #17: close controls in the pane (waiting items, goals, workstreams, projects); never nudge a stopped session. State: in-progress. No sign-off (same rule as #15).
+## Also done
+Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 
 ## In flight
 - 005 Pick up a late process id and conversation (found in click-through): dev session #53, tab `mm-multi-manager-main-dev-005-late-pid`, branch `worktree-mm-multi-manager-main-dev-005-late-pid`, round 1.
@@ -37,4 +37,4 @@ Roster goal #17: close controls in the pane (waiting items, goals, workstreams, 
 - F5: pane polish: with every project hidden it says "No projects yet"; an answered item can stay listed until the next 15 s refresh. Cosmetic.
 
 ## Next
-Goal #17: click-through passed, raise done. Goal #15: review and merge 005, then raise done.
+Goal #15: review and merge 005, then raise done.
