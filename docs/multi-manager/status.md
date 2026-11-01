@@ -42,6 +42,7 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - F3: a team-folder architect tab opens in the same Terminal window as the main team's architects (one named window for all). Cosmetic.
 - F4: the first time Claude opens a new folder (team folder or project folder) it stops at "trust this folder?"; the launcher then misses the tab's process id and conversation for good (task 005).
 - F6 (2026-11-01): in a project folder Claude has never opened, a developer's copy stops at Claude's "trust this folder?" question (seen in a brand-new throwaway project). Projects where an architect has already run are trusted, so not seen in real use yet. A developer tab would sit waiting, not die.
+- F7 (2026-11-01 20:15): the live process list (used by the monitor to spot dead tabs, and the resources tool) failed to read for a few minutes: "SyntaxError: Expected ',' or '}' after property value in JSON at position 302655". Some running program's details broke the list's format, like F-fix 160bb6f but a different character. Gone by the time it was examined, so the bad text was not captured; while it lasts, the monitor is blind. Next time: capture the raw list, then make the reader skip one bad row instead of failing the lot.
 - F5: pane polish: with every project hidden it says "No projects yet"; an answered item can stay listed until the next 15 s refresh. Cosmetic.
 
 ## Next
