@@ -83,6 +83,15 @@ test('developer sessions get the developer role and never a --worktree flag', ()
   assert.equal(JSON.parse(buildLaunchCommand(spec).settings.content).env.MM_ROLE, 'developer');
 });
 
+test('developer sessions run git with long paths on, so a copy deep under .claude/worktrees works; architects do not', () => {
+  const dev = JSON.parse(buildLaunchCommand({ ...base, role: 'developer', name: 'mm-alpha-main-dev-login' }).settings.content).env;
+  assert.equal(dev.GIT_CONFIG_COUNT, '1');
+  assert.equal(dev.GIT_CONFIG_KEY_0, 'core.longpaths');
+  assert.equal(dev.GIT_CONFIG_VALUE_0, 'true');
+  const arch = JSON.parse(buildLaunchCommand(base).settings.content).env;
+  assert.equal(arch.GIT_CONFIG_COUNT, undefined);
+});
+
 test('a process cap reaches the wrapper script', () => {
   const script = decodeCommand(buildLaunchCommand({ ...base, maxProcesses: 40 }).args.at(-1) ?? '');
   assert.match(script, /\[MmKillOnCloseJob\]::Enable\(40\)/);

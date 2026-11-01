@@ -15,6 +15,14 @@ export function devCopyFolder(projectFolder: string, name: string): string {
   return join(projectFolder, '.claude', 'worktrees', name);
 }
 
+/**
+ * The copy sits deep under the project (.claude/worktrees/<session name>), so a long tracked file name can pass
+ * Windows' 260-character path limit there even when it fits in the project folder ("Filename too long").
+ * Long paths are switched on for this one command only; the developer's own git gets the same through its
+ * session environment (sessionEnv). Nothing in the user's git config changes.
+ */
+export const LONG_PATHS = ['-c', 'core.longpaths=true'];
+
 function git(cwd: string, args: string[]): { code: number; out: string } {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   if (result.error !== undefined) throw new Error(`Could not run git: ${result.error.message}`);
@@ -53,9 +61,9 @@ export function ensureDevCopy(input: DevCopyInput): string {
     }
     // No work of its own, so moving it up to the workstream branch loses nothing (a failed launch on 2026-11-01
     // left such branches at the remote's old default branch, behind the area branch).
-    add = git(projectFolder, ['worktree', 'add', '-B', branch, copy, baseBranch]);
+    add = git(projectFolder, [...LONG_PATHS, 'worktree', 'add', '-B', branch, copy, baseBranch]);
   } else {
-    add = git(projectFolder, ['worktree', 'add', '-b', branch, copy, baseBranch]);
+    add = git(projectFolder, [...LONG_PATHS, 'worktree', 'add', '-b', branch, copy, baseBranch]);
   }
   if (add.code !== 0) throw new Error(`git could not make ${name}'s copy at ${copy}: ${add.out}`);
   return copy;

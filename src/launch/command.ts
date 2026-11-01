@@ -62,6 +62,13 @@ export function sessionEnv(spec: LaunchSpec): Record<string, string> {
     MM_VOICE: 'off',
   };
   if (spec.parentId !== null) env.MM_PARENT_ID = String(spec.parentId);
+  if (spec.role === 'developer') {
+    // A developer's copy sits deep under .claude/worktrees, where long file names pass Windows' 260-character
+    // limit: every git it runs gets core.longpaths=true (as if passed with -c), without touching any git config file.
+    env.GIT_CONFIG_COUNT = '1';
+    env.GIT_CONFIG_KEY_0 = 'core.longpaths';
+    env.GIT_CONFIG_VALUE_0 = 'true';
+  }
   return env;
 }
 

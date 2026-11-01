@@ -90,3 +90,18 @@ test('a leftover empty branch made from an older version is moved up to the area
   assert.equal(git(copy, 'rev-parse', 'HEAD'), git(folder, 'rev-parse', 'area'));
   assert.ok(existsSync(join(copy, 'b.txt')));
 });
+
+test('a tracked file whose path in the copy passes the Windows 260-character limit still gets copied', (t) => {
+  const folder = repo(t);
+  // As in tell-me-a-story-2 (2026-11-01): a ~200-character file name under templates/ broke the copy with "Filename too long".
+  const long = join(folder, 'templates', 'llm-prompt', 'user', `${'x'.repeat(190)}.jinja2`);
+  git(folder, '-c', 'core.longpaths=true', 'checkout', '-q', 'area');
+  mkdirSync(join(folder, 'templates', 'llm-prompt', 'user'), { recursive: true });
+  writeFileSync(long, 'prompt');
+  git(folder, '-c', 'core.longpaths=true', 'add', '.');
+  git(folder, '-c', 'core.longpaths=true', 'commit', '-q', '-m', 'long name');
+  git(folder, '-c', 'core.longpaths=true', 'checkout', '-q', 'main');
+  const copy = ensureDevCopy(input(folder));
+  assert.ok(join(copy, 'templates', 'llm-prompt', 'user', `${'x'.repeat(190)}.jinja2`).length > 260);
+  assert.equal(readFileSync(join(copy, 'templates', 'llm-prompt', 'user', `${'x'.repeat(190)}.jinja2`), 'utf8'), 'prompt');
+});
