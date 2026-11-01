@@ -20,4 +20,10 @@ On 2026-11-01 every developer tab launched for tell-me-a-story-2 (roster session
 The exact error text, quoted. The screenshot path, opened and judged. Which variable made it pass or fail.
 
 ## Findings
-<filled in by the architect>
+2026-11-01, Claude Code 2.1.316, launched through the real launcher from branch fix/dev-launch against a throwaway roster:
+1. Throwaway repo in the scratchpad (never trusted): tab exits 1 in ~3 s. Screen text: "Error creating worktree: Workspace trust not yet accepted. Run `claude` once in this directory and accept the trust dialog, then retry with --worktree." No copy made, no branch made.
+2. Throwaway repo under `I:\Dropbox (Personal)\Projects` (a folder Claude already trusts): same error, same exit. So `--worktree` in a launched tab does not take trust from a trusted parent folder.
+3. Same trusted-parent repo, same command with `--worktree` removed: tab stays up, no trust question, and the developer checked in to the throwaway roster 20 s after launch.
+Not reproduced directly: tell-me-a-story-2 itself (its folder is trusted by exact path, and the rules keep this test out of it). Its symptom (exit 1 after ~2 s, no copy) matches.
+Conclusion: Claude Code's own copy-making step (`--worktree`) is what kills the tab. The task text, the wrapper and the kill-on-close Job are not the cause (case 3 used all of them unchanged). Task 007 drops `--worktree`, so it fixes both bugs; the developer's copy must sit under the (trusted) project folder so the tab starts without a trust question.
+Incident during this task: closing a probe tab by window title killed the whole Windows Terminal (all sessions). Close test tabs only by their own wrapper process id.
