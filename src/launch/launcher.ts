@@ -68,7 +68,6 @@ interface TabSpec {
   name: string;
   parentId: number | null;
   prompt: (sessionId: number) => string;
-  worktree?: string;
   /** Relaunch under this existing roster row instead of registering a new one. */
   reuse?: Session;
   /** Continue this Claude Code conversation (`claude --resume`). */
@@ -119,6 +118,17 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
   const warning = permissionWarning(tab.project);
   if (warning !== null) warnings.push(warning);
   ctx.deps.ensureTerminalProfile();
+  // A developer works in its own git copy, made before anything is registered or opened. A refusal leaves no new
+  // session and no tab; a session being relaunched ends stopped.
+  let tabFolder = tab.project.folder;
+  if (tab.role === 'developer' && ctx.deps.ensureDevCopy !== undefined) {
+    try {
+      tabFolder = ctx.deps.ensureDevCopy({ projectFolder: tab.project.folder, name: tab.name, baseBranch: tab.workstream.branch });
+    } catch (error) {
+      if (tab.reuse !== undefined) setSessionState(ctx.db, tab.reuse.id, 'stopped');
+      throw error;
+    }
+  }
   const session =
     tab.reuse !== undefined
       ? reviveSession(ctx.db, tab.reuse.id)
@@ -136,7 +146,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
   const command = buildLaunchCommand({
     wtPath: wtPath(ctx.env),
     name: tab.name,
-    folder: tab.project.folder,
+    folder: tabFolder,
     role: tab.role,
     skipPermissions: warning === null,
     briefingFile: join(ctx.pluginRoot, 'briefings', `${tab.role}.md`),
@@ -146,7 +156,6 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     sessionId: session.id,
     parentId: tab.parentId,
     rosterDb,
-    worktree: tab.worktree,
     resumeId: tab.resumeId,
     model: tab.model,
   });
@@ -223,7 +232,6 @@ export async function launchDeveloper(
     parentId: architect.id,
     model: modelFor(ctx, 'developer', project.id, input),
     prompt: (sessionId) => developerPrompt(project.name, workstream.name, input.task, sessionId),
-    worktree: name,
   });
   saveSessionTask(ctx.db, result.session.id, input.label, input.task);
   if (input.complexity !== undefined || input.clarity !== undefined) {
@@ -444,7 +452,6 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
       parentId: old.parent_id,
       model: input.model,
       prompt: () => prompt,
-      worktree: role === 'developer' ? name : undefined,
       reuse: old,
       resumeId: resumed ? (id ?? undefined) : undefined,
     });

@@ -17,6 +17,7 @@ export interface LaunchCommand extends Command {
 export interface LaunchSpec {
   wtPath: string;
   name: string;
+  /** Where the tab opens: the project folder, or a developer's own copy under it. */
   folder: string;
   role: 'architect' | 'developer';
   skipPermissions: boolean;
@@ -27,7 +28,6 @@ export interface LaunchSpec {
   sessionId: number;
   parentId: number | null;
   rosterDb: string;
-  worktree?: string;
   /** Optional Job process cap for the session's whole tree; unset means no cap. */
   maxProcesses?: number;
   /** Claude Code conversation id to continue (`claude --resume <id>`); unset starts a fresh conversation. */
@@ -71,7 +71,6 @@ export function claudeArgs(spec: LaunchSpec): string[] {
   args.push('-n', spec.name);
   if (spec.model !== undefined) args.push('--model', spec.model);
   if (spec.skipPermissions) args.push('--dangerously-skip-permissions');
-  if (spec.worktree !== undefined) args.push('--worktree', spec.worktree);
   args.push(
     '--plugin-dir', spec.pluginDir,
     '--append-system-prompt-file', spec.briefingFile,

@@ -88,7 +88,7 @@ test('stepping a running developer up relaunches it on the new model with its co
   const args = claudeArgsOf(launched[0]);
   assert.equal(after(args, '--resume'), CONVERSATION);
   assert.equal(after(args, '--model'), 'opus');
-  assert.equal(after(args, '--worktree'), developer.name, 'a developer goes back into its own worktree');
+  assert.ok(!args.includes('--worktree'), 'the launcher makes the copy itself; claude is not asked to');
   assert.match(args.at(-1) ?? '', /^Your model was changed to opus\. .*Your earlier conversation was preserved\./);
   const row = requireSession(db, developer.id);
   assert.deepEqual([row.state, row.model], ['running', 'opus']);

@@ -77,10 +77,9 @@ test('no parent means no MM_PARENT_ID', () => {
   assert.equal(env.MM_PARENT_ID, undefined);
 });
 
-test('developer sessions get the developer role and their own worktree', () => {
-  const spec: LaunchSpec = { ...base, role: 'developer', name: 'mm-alpha-main-dev-login', worktree: 'mm-alpha-main-dev-login' };
-  const args = claudeArgs(spec);
-  assert.equal(args[args.indexOf('--worktree') + 1], 'mm-alpha-main-dev-login');
+test('developer sessions get the developer role and never a --worktree flag', () => {
+  const spec: LaunchSpec = { ...base, role: 'developer', name: 'mm-alpha-main-dev-login' };
+  assert.ok(!claudeArgs(spec).includes('--worktree'));
   assert.equal(JSON.parse(buildLaunchCommand(spec).settings.content).env.MM_ROLE, 'developer');
 });
 

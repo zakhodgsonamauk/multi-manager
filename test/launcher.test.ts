@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import type { Command, SettingsFile } from '../src/launch/command.ts';
 import { launchArchitect, launchDeveloper, stopArchitect, type LaunchContext } from '../src/launch/launcher.ts';
+import type { DevCopyInput } from '../src/launch/dev-copy.ts';
 import type { LaunchDeps } from '../src/launch/runner.ts';
 import { decodeCommand, wrapperMarker } from '../src/launch/wrapper.ts';
 import { claim, listClaims } from '../src/roster/claims.ts';
@@ -18,7 +19,7 @@ function claudeArgsOf(command: Command): string[] {
 }
 
 function fakeDeps(overrides: Partial<LaunchDeps> = {}) {
-  const calls = { run: [] as Command[], settings: [] as SettingsFile[], profile: 0, removed: [] as string[][], markers: [] as string[] };
+  const calls = { copies: [] as DevCopyInput[], run: [] as Command[], settings: [] as SettingsFile[], profile: 0, removed: [] as string[][], markers: [] as string[] };
   const deps: LaunchDeps = {
     run: async (command) => {
       calls.run.push(command);
@@ -41,6 +42,10 @@ function fakeDeps(overrides: Partial<LaunchDeps> = {}) {
     },
     ensureTerminalProfile: () => {
       calls.profile += 1;
+    },
+    ensureDevCopy: (input) => {
+      calls.copies.push(input);
+      return join(input.projectFolder, '.claude', 'worktrees', input.name);
     },
     ...overrides,
   };
@@ -196,8 +201,35 @@ test('architects launch developer tabs in their own worktree; stopping the archi
   assert.equal(dev.session.parent_id, architect.id);
   assert.equal(dev.session.name, 'mm-alpha-main-dev-login');
   const devArgs = claudeArgsOf(calls.run[1]);
-  assert.equal(devArgs[devArgs.indexOf('--worktree') + 1], 'mm-alpha-main-dev-login');
+  assert.ok(!devArgs.includes('--worktree'), 'the launcher makes the copy itself');
+  assert.deepEqual(calls.copies, [{ projectFolder: 'C:\\work\\alpha', name: 'mm-alpha-main-dev-login', baseBranch: 'main' }]);
+  const tab = calls.run[1];
+  const copyFolder = join('C:\\work\\alpha', '.claude', 'worktrees', 'mm-alpha-main-dev-login');
+  assert.equal(tab.args[tab.args.indexOf('-d') + 1], copyFolder, 'the tab opens in the copy');
+  assert.ok(decodeCommand(tab.args.at(-1) ?? '').includes(`Set-Location -LiteralPath '${copyFolder}'`));
+  assert.equal(dev.session.folder, 'C:\\work\\alpha', 'the recorded folder stays the project folder');
   assert.equal(devArgs[devArgs.indexOf('--append-system-prompt-file') + 1], join('I:\\mm', 'briefings', 'developer.md'));
   await stopArchitect(ctx, { project: 'alpha' });
   assert.deepEqual(calls.run.slice(2).map((c) => c.args[1]), ['6161', '7272']);
+});
+
+test('a developer whose copy cannot be made opens no tab and ends stopped', async (t) => {
+  const { deps, calls } = fakeDeps({
+    ensureDevCopy: () => {
+      throw new Error('Branch "main" does not exist');
+    },
+  });
+  const { db, desk, ctx } = setup(t, deps);
+  const { session: architect } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  await assert.rejects(launchDeveloper(ctx, { architectId: architect.id, task: 'x', label: 'login' }), /Branch "main" does not exist/);
+  assert.equal(calls.run.length, 1, 'only the architect tab was opened');
+  const dev = db.prepare("SELECT state FROM sessions WHERE role = 'developer'").all() as { state: string }[];
+  assert.ok(dev.every((row) => row.state === 'stopped'));
+});
+
+test('architect launches make no copy', async (t) => {
+  const { deps, calls } = fakeDeps();
+  const { desk, ctx } = setup(t, deps);
+  await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  assert.deepEqual(calls.copies, []);
 });

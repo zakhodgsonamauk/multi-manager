@@ -14,6 +14,7 @@ import {
   sessionFileName,
 } from './process.ts';
 import { findTranscriptIn } from '../monitor/activity.ts';
+import { ensureDevCopy, type DevCopyInput } from './dev-copy.ts';
 import { ensureTerminalProfile } from './terminal-profile.ts';
 import { isWrapperProcess } from './wrapper.ts';
 
@@ -42,6 +43,8 @@ export interface LaunchDeps {
   /** Deletes our own state files; missing ones are fine. */
   removeFiles: (paths: string[]) => void;
   ensureTerminalProfile: () => void;
+  /** Makes (or finds) a developer's own copy of the project with git and returns its folder. Optional so launcher tests stay pure: without it a developer opens in the project folder. */
+  ensureDevCopy?: (input: DevCopyInput) => string;
   /** Claude Code's conversation id (sessionId) from <pid>.json, or null. Optional: without it the monitor fills the id in later. */
   readClaudeSessionId?: (pid: number) => string | null;
   /** True if the conversation's transcript (<id>.jsonl) still exists. Optional: without it a resume is always tried. */
@@ -164,6 +167,7 @@ export function realDeps(): LaunchDeps {
     ensureTerminalProfile: () => {
       ensureTerminalProfile();
     },
+    ensureDevCopy,
     readClaudeSessionId: (pid) => {
       const id = readSessionFile(pid)?.sessionId;
       return typeof id === 'string' && id !== '' ? id : null;
