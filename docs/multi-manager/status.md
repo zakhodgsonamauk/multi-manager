@@ -1,9 +1,13 @@
 # Status
 
 Live handover for workstream `main`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-10-23 04:00
+Updated: 2026-11-01 18:05
 
 ## Current goal
+Roster goal #10: fix developer tabs dying at launch, and start each developer's copy from its area's branch. State: awaiting sign-off.
+Tasks: 006 (architect: capture the real error), 007 (launcher makes the developer's copy itself from the workstream branch). Then the architect's end-to-end check: a real developer tab in a throwaway project stays up, is on the right branch, and checks in.
+
+## Earlier goal
 Roster goal #15: finish the local track `clusters_models_20261022` (cluster folders + model routing). State: done.
 Plan sign-off: not needed. The user's words in goal #15: "proceed without user input as far as possible."
 
@@ -25,7 +29,9 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - 003 Pane close controls (goal #17): `e6e001f` + review follow-up `e599c81` (hidden workstream's goals hide too) (2026-10-23).
 
 ## Queued (in order)
-- Wrap: desktop shortcut (plan task 11), full gate (task 13), outside review, click-through (task 14), by the architect.
+- 006 Capture the launch error (architect, goal #10).
+- 007 Launcher makes the developer's copy from the workstream branch (goal #10).
+- End-to-end check in a throwaway project (architect, goal #10).
 
 ## Paused / parked
 - (none)
@@ -38,4 +44,4 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - F5: pane polish: with every project hidden it says "No projects yet"; an answered item can stay listed until the next 15 s refresh. Cosmetic.
 
 ## Next
-Both goals done. Nothing queued. Findings F1-F5 recorded for the user to pick from; start nothing without the user's go.
+Goal #10: waiting for plan sign-off. F1 is the second bug of goal #10.

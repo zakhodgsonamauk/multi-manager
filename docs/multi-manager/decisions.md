@@ -135,3 +135,9 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 - Monitor: a pid-less session with no folder is skipped, never matched by name alone.
 - Model change: the conversation is read from a process found by name only if it runs inside the session's folder. The close (`killTarget`, shared by stop, restart and model change) now applies the same folder rule when it looks a process up by name, so a model change never closes another cluster's same-named tab. It refuses with its usual "could not close" message instead. Without a folder on the row it still matches by name, as before.
 - Not changed: the launch's own wait (`waitForPid`) and the voice tool's lookup still match by name only.
+
+## 2026-11-01 — Goal #10: developer copies made by the launcher, not by `claude --worktree`
+Context: `claude --worktree` bases the copy on the remote's default branch (29 commits behind local main on 2026-11-01), and developer tabs started with it die at launch in tell-me-a-story-2.
+Decision: the launcher runs `git worktree add` itself, from the workstream's `branch`, at `<project>/.claude/worktrees/<name>` on branch `worktree-<name>` (same place and name as before), and opens claude in that folder. Existing copies are reused untouched; a leftover branch with its own commits is refused, never reused or reset.
+Alternatives: keep `--worktree` and tell developers to merge the area branch first (today's workaround, error-prone); a Claude Code worktree hook (version-dependent, harder to test).
+Also: diagnosis (006) is done by the architect, not a developer, because launching a developer is the broken thing. Work happens on branch `fix/dev-launch` in a separate copy; `main` (the live plugin) only gets the squash-merge after the end-to-end check passes.
