@@ -21,6 +21,7 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - (none)
 
 ## Merged
+- Follow-up: long file paths in developer copies: `fe94a89` (2026-11-01).
 - 006 + 007 Developer tabs no longer die; copies start from the workstream branch: `b08df4e` (2026-11-01, goal #10). Branch fix/dev-launch kept (deleting branches is the user's call).
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
 - 002 Cluster folder pop-up: `c954d27` (2026-10-23, 3 rounds).
@@ -40,6 +41,7 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - F2: every front desk was named mm-front-desk, so with two open, messages to it fail as ambiguous (seen tonight: two mm-front-desk sessions). Fixed for clusters by task 004. Architect/developer names can still collide across clusters with the same project name.
 - F3: a team-folder architect tab opens in the same Terminal window as the main team's architects (one named window for all). Cosmetic.
 - F4: the first time Claude opens a new folder (team folder or project folder) it stops at "trust this folder?"; the launcher then misses the tab's process id and conversation for good (task 005).
+- F6 (2026-11-01): in a project folder Claude has never opened, a developer's copy stops at Claude's "trust this folder?" question (seen in a brand-new throwaway project). Projects where an architect has already run are trusted, so not seen in real use yet. A developer tab would sit waiting, not die.
 - F5: pane polish: with every project hidden it says "No projects yet"; an answered item can stay listed until the next 15 s refresh. Cosmetic.
 
 ## Next
