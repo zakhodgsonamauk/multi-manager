@@ -36,3 +36,7 @@ The wrapper's Job and variable stripping (unless 006 shows they are the cause). 
 
 ## Evidence required
 Test summary lines (pass counts). The diff of `claudeArgs` / `buildLaunchCommand`. End-to-end proof is run by the architect afterwards.
+
+## Review (2026-11-01, architect)
+Helper agent returned dc224b7. Code read in full: right shape. One gap fixed by the architect in 9c34d29 with a test that failed first: an empty leftover branch was reused at its old version (the remote's old default branch after the 2026-11-01 failures), so the copy would have started behind the area branch. It is now moved up to the workstream branch (no work of its own, so nothing lost). Squash-merged as b08df4e. npm run check 263/263.
+End to end: real developer tab in a throwaway project under a trusted folder, launched through the fixed launcher: stayed up, ran in `.claude\worktrees\<name>` on `worktree-<name>` at the area branch's latest version (not main), checked in 11 s after start, task text arrived intact. Screenshot (opened and judged): scratchpad shots\010-e2e-probe5.png.

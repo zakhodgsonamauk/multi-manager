@@ -1,10 +1,10 @@
 # Status
 
 Live handover for workstream `main`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-01 18:05
+Updated: 2026-11-01 18:15
 
 ## Current goal
-Roster goal #10: fix developer tabs dying at launch, and start each developer's copy from its area's branch. State: awaiting sign-off.
+Roster goal #10: fix developer tabs dying at launch, and start each developer's copy from its area's branch. State: done (on main as b08df4e; running sessions not restarted, the user decides when).
 Tasks: 006 (architect: capture the real error), 007 (launcher makes the developer's copy itself from the workstream branch). Then the architect's end-to-end check: a real developer tab in a throwaway project stays up, is on the right branch, and checks in.
 
 ## Earlier goal
@@ -21,6 +21,7 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - (none)
 
 ## Merged
+- 006 + 007 Developer tabs no longer die; copies start from the workstream branch: `b08df4e` (2026-11-01, goal #10). Branch fix/dev-launch kept (deleting branches is the user's call).
 - 001 Launch on chosen model + change model: `d57de71` (2026-10-23, 2 rounds).
 - 002 Cluster folder pop-up: `c954d27` (2026-10-23, 3 rounds).
 - 005 Pick up a late process id and conversation: `915f03e` (2026-10-23, 2 rounds).
@@ -29,9 +30,7 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - 003 Pane close controls (goal #17): `e6e001f` + review follow-up `e599c81` (hidden workstream's goals hide too) (2026-10-23).
 
 ## Queued (in order)
-- 006 Capture the launch error (architect, goal #10).
-- 007 Launcher makes the developer's copy from the workstream branch (goal #10).
-- End-to-end check in a throwaway project (architect, goal #10).
+- (none)
 
 ## Paused / parked
 - (none)
@@ -44,4 +43,4 @@ Roster goal #17: close controls in the pane. Done 2026-10-23 (item #139).
 - F5: pane polish: with every project hidden it says "No projects yet"; an answered item can stay listed until the next 15 s refresh. Cosmetic.
 
 ## Next
-Goal #10: waiting for plan sign-off. F1 is the second bug of goal #10.
+Goal #10 done. Running sessions load the old launcher until restarted: each architect's own roster tool does the launching, so tell-me-a-story-2's architects need a restart (user's call) before developer tabs work for them. F1 fixed by goal #10.
