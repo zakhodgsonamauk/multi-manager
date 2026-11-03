@@ -10,7 +10,7 @@ The user's go: roster item #935, answered by the user in the front-desk tab: "#9
 - **The tool connection is now only in two projects.** It used to start in every Claude session in every project (about 566 MB each). It now starts only in sessions opened in financial-portal and tell-me-a-story, the two projects that actually used it.
 - **The watch list is down from 19 folders to 2** (financial-portal, tell-me-a-story), so a manual restart of the watcher would stay small.
 - **Stale data cleared: about 3.0 GB.** 25 indexes deleted (see list below) and 53 dead entries removed from the tool's list of known folders (70 down to 17).
-- **financial-portal's index now lives outside Dropbox**, at `C:\Users\zak_h\AppData\Local\code-review-graph\graphs\financial-portal-moved-20261103\`. The old copy inside the financial-portal folder is untouched and still there (see follow-ups).
+- **financial-portal's index now lives outside Dropbox**, at `C:\Users\zak_h\AppData\Local\code-review-graph\graphs\financial-portal-moved-20261103\`. The old copy was deleted later the same day, and tell-me-a-story's index was moved too (see the end of this file).
 
 ## Files changed (all backed up first)
 
@@ -89,9 +89,28 @@ Only the financial-portal index move: restore `registry.json` from the backup (t
 
 Deleted indexes: rebuilt on demand with `code-review-graph build --repo <folder>`. The task-copy folders they belonged to are mostly gone already.
 
-## Follow-ups (not done)
+## Follow-ups, done the same day (user's go: roster item #944, answered "go on all")
 
-1. **Old financial-portal index inside Dropbox** (`financial-portal\.code-review-graph\`, 1.54 GB). Still there, still synced. Financial-portal's running tabs opened it before the move and may still have it open. Delete it once those tabs have restarted. It touches the financial-portal folder, so it waits for the go from the project manager.
-2. **tell-me-a-story's index is also in Dropbox** (548 MB in `tell-me-a-story\.code-review-graph\`). Not in the agreed scope. It could be moved the same way.
-3. **Task copies don't get the tool.** The local tool connection matches the exact project folder, so a developer working in a temporary copy of financial-portal (`.worktrees\...`) won't see it. In six weeks, that happened once. Part 2 can decide.
-4. **Running tabs still carry the tool** until they restart (30 programs, 5.7 GB right now). No tab was restarted, as agreed.
+**1. financial-portal's old index deleted from Dropbox.** Before deleting, each of its files was opened with exclusive, read-only access. All four opened, so no running tab held them. The newest write to the database was at 12:20, before the copy was made at 13:22, so the copy has everything. Deleted: `financial-portal\.code-review-graph\` (1,537,693,561 bytes, 4 files, git-ignored). Nothing else in the project was touched.
+
+**2. tell-me-a-story's index moved out of Dropbox**, the same way as financial-portal's:
+
+| | Original (in Dropbox) | Copy (outside Dropbox) |
+|---|---|---|
+| Location | `I:\Dropbox (Personal)\Projects\tell-me-a-story\.code-review-graph\` | `C:\Users\zak_h\AppData\Local\code-review-graph\graphs\tell-me-a-story-moved-20261103\` |
+| Size | 684,906,401 bytes (3 files) | 574,877,696 bytes (1 file) |
+| Row counts | nodes 36,104; edges 212,394; embeddings 24,617; flows 4,341; flow memberships 1,880,513; risk index 34,756 | identical in all 15 tables |
+| Integrity check | | ok |
+
+- The tool's folder list (`registry.json`) now points tell-me-a-story at the copy. The tool's own lookup resolves both projects to their new copies (financial-portal 85,190 entries, tell-me-a-story 36,104).
+- The original's files were checked free (exclusive open) and deleted. Its last database write was at 13:14, before the copy.
+- Backup of the folder list as it stood before this step: `C:\Users\zak_h\.claude-backups\crg-2026-11-03\registry-after-part1.json`.
+
+**Undo for these two:** the copies hold the same data. To put an index back inside its project folder:
+1. Copy `graph.db` from the new location into `<project>\.code-review-graph\`.
+2. Remove that project's `data_dir` line from `registry.json`, or restore `registry.json` from the backup folder.
+
+## Still open
+
+1. **Task copies don't get the tool.** The local tool connection matches the exact project folder, so a developer working in a temporary copy (`<project>\.claude\worktrees\<name>`) won't see it. In six weeks, that happened once. It was not in the go; it is left for part 2.
+2. **Running tabs still carry the tool** until they restart (30 programs, 5.7 GB at 13:26). No tab was restarted, as agreed.
