@@ -1,6 +1,6 @@
 # 016 — Per-project code-review-graph switch
 
-Goal #102. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/016-code-graph-switch.return.md` on that branch.
+Goal #102. Branch: `worktree-mm-multi-manager-graph-watcher-dev-016-code-graph-switch`. Return report: `docs/multi-manager/tasks/016-code-graph-switch.return.md` on that branch.
 
 Background: `docs/multi-manager/graph-watcher/report.md`, `changes.md`, `pm-ownership-plan.md`.
 
