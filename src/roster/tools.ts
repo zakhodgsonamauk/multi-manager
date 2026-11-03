@@ -19,10 +19,19 @@ import {
 import { claim, release } from './claims.ts';
 import type { Env } from './db.ts';
 import { GOAL_STATES, createGoal, goalWithPlace, updateGoal } from './goals.ts';
-import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, closeItem, listItems, markSeen, raiseItem } from './items.ts';
+import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, closeItem, listItems, markSeen, raiseItem, requireItem } from './items.ts';
 import { listModelUsage, recordModelChange } from './model-ledger.ts';
 import { WORK_MODELS } from './models.ts';
-import { addProject, addWorkstream, listProjects, listWorkstreams, requireProject, requireWorkstream, setProjectDefaultModel } from './projects.ts';
+import {
+  addProject,
+  addWorkstream,
+  listProjects,
+  listWorkstreams,
+  requireProject,
+  requireWorkstream,
+  setProjectDefaultModel,
+  setProjectRules,
+} from './projects.ts';
 import {
   FRONT_DESK_NAME,
   ROLES,
@@ -141,12 +150,14 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
         approval_rules: z.string().optional(),
         idle_stop_minutes: z.number().int().positive().optional(),
         daily_budget_usd: z.number().nonnegative().optional(),
+        standing_rules: z.string().optional().describe("The user's standing rules for every session in this project, stored exactly as given"),
         workstreams: z.array(z.object({ name: z.string().min(1), branch: z.string().min(1) })).optional(),
       },
     },
     (a) =>
       guard(() => {
         const project = addProject(db, {
+          standingRules: a.standing_rules,
           name: a.name,
           folder: a.folder,
           permissionMode: a.permission_mode,
@@ -159,8 +170,25 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
       }),
   );
 
-  server.registerTool('list_projects', { description: 'List all projects with their settings.', inputSchema: {} }, () =>
+  server.registerTool('list_projects', { description: 'List all projects with their settings and standing user rules.', inputSchema: {} }, () =>
     guard(() => listProjects(db)),
+  );
+
+  server.registerTool(
+    'set_project_rules',
+    {
+      description:
+        "Store the user's standing rules for a project, exactly as the user gave them (no trimming); every session of that project is shown them at start-up. Empty text clears them. Front desk, or that project's running project manager.",
+      inputSchema: { project: z.string().min(1), text: z.string() },
+    },
+    (a) =>
+      guard(() => {
+        const caller = me(ctx);
+        const project = requireProject(db, a.project);
+        const allowed = caller.role === 'front-desk' || (caller.role === 'project-manager' && caller.state === 'running' && caller.project_id === project.id);
+        if (!allowed) throw new Error(`Only the front desk or ${project.name}'s project manager can set its standing rules`);
+        return setProjectRules(db, project.name, a.text);
+      }),
   );
 
   server.registerTool(
@@ -171,7 +199,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
 
   server.registerTool(
     'list_workstreams',
-    { description: 'List the workstreams of a project.', inputSchema: { project: z.string() } },
+    { description: 'List the workstreams of a project (name or numeric id).', inputSchema: { project: z.union([z.string(), z.number().int().positive()]) } },
     ({ project }) => guard(() => listWorkstreams(db, project)),
   );
 
@@ -241,10 +269,10 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     'raise_item',
     {
       description:
-        'Raise a sign-off, question, blocker, done report or note. Goes to your parent session (architects: the front desk) unless addressed_to is given. Then SendMessage the returned nudge.',
+        'Raise a sign-off, question, blocker, done report or note (the text goes in body). Goes to your parent session unless addressed_to is given; an architect under a project manager sends sign-offs and questions straight to the front desk, and the project manager watches. Then SendMessage the returned nudge (and watcher_nudge, if present).',
       inputSchema: {
         kind: z.enum(ITEM_KINDS),
-        body: z.string().min(1),
+        body: z.string().min(1).describe('The text of the item'),
         goal_id: z.number().int().positive().optional(),
         addressed_to: z.number().int().positive().optional().describe('Roster session id'),
       },
@@ -252,7 +280,12 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     (a) =>
       guard(() => {
         const item = raiseItem(db, { kind: a.kind, body: a.body, goalId: a.goal_id, raisedBy: ctx.identity.sessionId, addressedTo: a.addressed_to });
-        return { item, nudge: nudge(ctx, item.addressed_to, item.id) };
+        const reply: { item: typeof item; nudge: ReturnType<typeof nudge>; watcher_nudge?: ReturnType<typeof nudge> } = {
+          item,
+          nudge: nudge(ctx, item.addressed_to, item.id),
+        };
+        if (item.watched_by !== null) reply.watcher_nudge = nudge(ctx, item.watched_by, item.id);
+        return reply;
       }),
   );
 
@@ -265,21 +298,34 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     },
     (a) =>
       guard(() => {
+        const caller = me(ctx);
+        const before = requireItem(db, a.item_id);
+        if (before.watched_by === caller.id && before.addressed_to !== caller.id) {
+          throw new Error(`Item #${before.id} is only watched by you: it is addressed to session #${before.addressed_to}, so you cannot answer it`);
+        }
         const item = answerItem(db, a.item_id, a.answer);
-        return { item, ...answerReply(db, item) };
+        return { item, ...answerReply(db, item), ...(item.watched_by === null ? {} : { watcher_nudge: nudge(ctx, item.watched_by, item.id) }) };
       }),
   );
 
   server.registerTool(
     'close_item',
     { description: 'Close an item you have acted on.', inputSchema: { item_id: z.number().int().positive() } },
-    ({ item_id }) => guard(() => closeItem(db, item_id)),
+    ({ item_id }) =>
+      guard(() => {
+        const caller = me(ctx);
+        const item = requireItem(db, item_id);
+        if (caller.role !== 'front-desk' && item.addressed_to !== caller.id && item.raised_by !== caller.id) {
+          throw new Error(`Item #${item_id} is not yours to close: it is addressed to session #${item.addressed_to}${item.watched_by === caller.id ? ' and you only watch it' : ''}`);
+        }
+        return closeItem(db, item_id);
+      }),
   );
 
   server.registerTool(
     'list_items',
     {
-      description: 'List roster items. By default only items addressed to you that are not closed.',
+      description: 'List roster items. By default only items addressed to you or watched by you (flagged watching: true) that are not closed.',
       inputSchema: {
         mine_only: z.boolean().optional().describe('Default true'),
         states: z.array(z.enum(ITEM_STATES)).optional().describe('Default open and answered'),
@@ -288,23 +334,34 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
       },
     },
     (a) =>
-      guard(() =>
-        listItems(db, {
-          addressedTo: a.mine_only === false ? undefined : me(ctx).id,
-          states: a.states ?? ['open', 'answered'],
-          unseenOnly: a.unseen_only === true,
-          goalId: a.goal_id,
-        }),
-      ),
+      guard(() => {
+        const mine = a.mine_only === false ? undefined : me(ctx).id;
+        const items = listItems(db, { involving: mine, states: a.states ?? ['open', 'answered'], unseenOnly: a.unseen_only === true, goalId: a.goal_id });
+        return mine === undefined ? items : items.map((item) => (item.watched_by === mine && item.addressed_to !== mine ? { ...item, watching: true } : item));
+      }),
   );
 
   server.registerTool(
     'mark_seen',
-    { description: 'Mark items as seen.', inputSchema: { item_ids: z.array(z.number().int().positive()) } },
-    ({ item_ids }) =>
+    {
+      description: 'Mark items as seen: one item_id, or a list in item_ids.',
+      inputSchema: { item_ids: z.array(z.number().int().positive()).optional(), item_id: z.number().int().positive().optional() },
+    },
+    ({ item_ids, item_id }) =>
       guard(() => {
-        markSeen(db, item_ids);
-        return { marked: item_ids };
+        const ids = [...(item_ids ?? []), ...(item_id === undefined ? [] : [item_id])];
+        if (ids.length === 0) throw new Error('Give item_id or item_ids');
+        const callerId = me(ctx).id;
+        const skipped: number[] = [];
+        const marked: number[] = [];
+        for (const id of ids) {
+          const item = requireItem(db, id);
+          // One seen flag per item: a session that only watches it must not hide it from the one it is addressed to.
+          if (item.watched_by === callerId && item.addressed_to !== callerId) skipped.push(id);
+          else marked.push(id);
+        }
+        markSeen(db, marked);
+        return skipped.length === 0 ? { marked } : { marked, skipped, note: 'Skipped items are addressed to someone else; you only watch them.' };
       }),
   );
 
@@ -394,10 +451,11 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'stop_architect',
     {
-      description: 'Stop the architect for a project workstream (default main) and its developer sessions. Kills its process tree, so its tab closes.',
-      inputSchema: { project: z.string(), workstream: z.string().optional() },
+      description:
+        'Stop an architect and its developer sessions: name its project and workstream (default main), or give its session_id. Kills its process tree, so its tab closes.',
+      inputSchema: { project: z.string().optional(), workstream: z.string().optional(), session_id: z.number().int().positive().optional() },
     },
-    (a) => guard(() => stopArchitect(ctx.launch, { project: a.project, workstream: a.workstream })),
+    (a) => guard(() => stopArchitect(ctx.launch, { project: a.project, workstream: a.workstream, sessionId: a.session_id })),
   );
 
   server.registerTool(

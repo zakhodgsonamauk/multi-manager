@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runSessionStartHook } from '../src/hooks/session-start.ts';
 import { getItem, raiseItem } from '../src/roster/items.ts';
-import { addProject, requireWorkstream } from '../src/roster/projects.ts';
+import { addProject, addWorkstream, requireWorkstream } from '../src/roster/projects.ts';
 import { getSession, registerSession, startFrontDesk } from '../src/roster/sessions.ts';
 import { tempDir, tempRoster } from './helpers.ts';
 
@@ -37,4 +37,27 @@ test('the SessionStart entry script is silent outside Multi-Manager sessions', (
   const result = spawnSync(process.execPath, [join(import.meta.dirname, '..', 'scripts', 'session-start-hook.ts')], { env, input: '{}', encoding: 'utf8' });
   assert.equal(result.status, 0);
   assert.equal(result.stdout, '');
+});
+
+test('SessionStart shows a project\'s standing rules verbatim to its sessions, and nothing to the front desk', (t) => {
+  const db = tempRoster(t);
+  const desk = startFrontDesk(db);
+  const rules = '  No production deploy without my go.\n\nPush after each merge.  ';
+  const project = addProject(db, { name: 'alpha', folder: 'C:\\a', standingRules: rules });
+  const plain = addProject(db, { name: 'beta', folder: 'C:\\b' });
+  const main = requireWorkstream(db, project.id, 'main');
+  const pmStream = addWorkstream(db, 'alpha', { name: 'pm', branch: 'main' });
+  const pm = registerSession(db, { role: 'project-manager', parentId: desk.id, projectId: project.id, workstreamId: pmStream.id, name: 'pm' });
+  const arch = registerSession(db, { role: 'architect', parentId: pm.id, projectId: project.id, workstreamId: main.id, name: 'arch' });
+  const dev = registerSession(db, { role: 'developer', parentId: arch.id, projectId: project.id, workstreamId: main.id, name: 'dev' });
+  const other = registerSession(db, { role: 'architect', parentId: desk.id, projectId: plain.id, workstreamId: requireWorkstream(db, plain.id, 'main').id, name: 'b' });
+  const header = 'Standing user rules for alpha (verbatim, they apply to all your work):\n' + rules;
+  for (const [s, role] of [[pm, 'project-manager'], [arch, 'architect'], [dev, 'developer']] as const) {
+    const text = runSessionStartHook({ MM_SESSION_ID: String(s.id), MM_ROLE: role, MM_ROSTER_DB: process.env.MM_ROSTER_DB })?.hookSpecificOutput.additionalContext ?? '';
+    assert.ok(text.endsWith(header), `${role}: ${text}`);
+  }
+  for (const s of [desk, other]) {
+    const text = runSessionStartHook({ MM_SESSION_ID: String(s.id), MM_ROSTER_DB: process.env.MM_ROSTER_DB })?.hookSpecificOutput.additionalContext ?? '';
+    assert.doesNotMatch(text, /Standing user rules/);
+  }
 });

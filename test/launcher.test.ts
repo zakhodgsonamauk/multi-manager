@@ -154,6 +154,17 @@ test('stopping kills the process tree, marks stopped and releases claims', async
   await assert.rejects(stopArchitect(ctx, { project: 'alpha' }), /No running architect for alpha\/main/);
 });
 
+test('stop_architect can name the session id instead of project and workstream', async (t) => {
+  const { deps } = fakeDeps();
+  const { desk, ctx } = setup(t, deps);
+  const { session } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  const stopped = await stopArchitect(ctx, { sessionId: session.id });
+  assert.equal(stopped.session.state, 'stopped');
+  await assert.rejects(stopArchitect(ctx, { sessionId: session.id }), /not running/);
+  await assert.rejects(stopArchitect(ctx, { sessionId: desk.id }), /not an architect/);
+  await assert.rejects(stopArchitect(ctx, {}), /session_id/);
+});
+
 test('stop never kills a process it does not own', async (t) => {
   const { deps, calls } = fakeDeps({ ownsProcess: async () => false, ownsWrapper: async () => false });
   const { desk, ctx } = setup(t, deps);

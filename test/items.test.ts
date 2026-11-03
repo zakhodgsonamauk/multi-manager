@@ -12,7 +12,7 @@ import {
   raiseItem,
   unseenItemsFor,
 } from '../src/roster/items.ts';
-import { addProject, requireWorkstream } from '../src/roster/projects.ts';
+import { addProject, addWorkstream, requireWorkstream } from '../src/roster/projects.ts';
 import { registerSession, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
 import { tempRoster } from './helpers.ts';
 
@@ -91,4 +91,65 @@ test('answering an item whose raiser is running nudges it as before', (t) => {
   const item = raiseItem(db, { kind: 'question', body: 'A or B?', goalId: goal.id, raisedBy: arch.id });
   const answered = answerItem(db, item.id, 'A');
   assert.deepEqual(answerReply(db, answered), { nudge: { to: 'mm-alpha-main', message: `check roster item #${item.id}` } });
+});
+
+function setupPm(t: TestContext) {
+  const db = tempRoster(t);
+  const desk = startFrontDesk(db);
+  const project = addProject(db, { name: 'alpha', folder: 'C:\\a' });
+  const main = requireWorkstream(db, project.id, 'main');
+  const pmStream = addWorkstream(db, 'alpha', { name: 'pm', branch: 'main' });
+  const pm = registerSession(db, { role: 'project-manager', parentId: desk.id, projectId: project.id, workstreamId: pmStream.id, name: 'mm-alpha-pm' });
+  const arch = registerSession(db, { role: 'architect', parentId: pm.id, projectId: project.id, workstreamId: main.id, name: 'mm-alpha-main' });
+  const dev = registerSession(db, { role: 'developer', parentId: arch.id, projectId: project.id, workstreamId: main.id, name: 'mm-alpha-dev' });
+  return { db, desk, pm, arch, dev };
+}
+
+test('an architect under a running project manager: signoff and question go to the front desk, watched by the manager', (t) => {
+  const { db, desk, pm, arch } = setupPm(t);
+  for (const kind of ['signoff', 'question'] as const) {
+    const item = raiseItem(db, { kind, body: 'x', raisedBy: arch.id });
+    assert.equal(item.addressed_to, desk.id);
+    assert.equal(item.watched_by, pm.id);
+  }
+});
+
+test('done, blocked and info from such an architect go to the project manager, unwatched', (t) => {
+  const { db, pm, arch } = setupPm(t);
+  for (const kind of ['done', 'blocked', 'info'] as const) {
+    const item = raiseItem(db, { kind, body: 'x', raisedBy: arch.id });
+    assert.equal(item.addressed_to, pm.id);
+    assert.equal(item.watched_by, null);
+  }
+});
+
+test('architect under the front desk, stopped manager, developer, explicit addressee: routing as before', (t) => {
+  const { db, desk, pm, arch, dev } = setupPm(t);
+  const direct = registerSession(db, { role: 'architect', parentId: desk.id, projectId: arch.project_id, workstreamId: arch.workstream_id, name: 'direct', state: 'stopped' });
+  const underDesk = raiseItem(db, { kind: 'signoff', body: 'x', raisedBy: direct.id });
+  assert.equal(underDesk.addressed_to, desk.id);
+  assert.equal(underDesk.watched_by, null);
+  const fromDev = raiseItem(db, { kind: 'signoff', body: 'x', raisedBy: dev.id });
+  assert.equal(fromDev.addressed_to, arch.id);
+  assert.equal(fromDev.watched_by, null);
+  const explicit = raiseItem(db, { kind: 'signoff', body: 'x', raisedBy: arch.id, addressedTo: pm.id });
+  assert.equal(explicit.addressed_to, pm.id);
+  assert.equal(explicit.watched_by, null);
+  setSessionState(db, pm.id, 'stopped');
+  const stopped = raiseItem(db, { kind: 'signoff', body: 'x', raisedBy: arch.id });
+  assert.equal(stopped.addressed_to, desk.id);
+  assert.equal(stopped.watched_by, null);
+});
+
+test('the project manager sees watched items, with the answer, but cannot answer them', (t) => {
+  const { db, pm, arch } = setupPm(t);
+  const item = raiseItem(db, { kind: 'signoff', body: 'Plan', raisedBy: arch.id });
+  const before = listItems(db, { involving: pm.id, states: ['open', 'answered'] });
+  assert.deepEqual(before.map((i) => i.id), [item.id]);
+  answerItem(db, item.id, ' go ');
+  const after = listItems(db, { involving: pm.id, states: ['open', 'answered'] });
+  assert.equal(after[0].state, 'answered');
+  assert.equal(after[0].answer, ' go ');
+  assert.equal(after[0].watched_by, pm.id);
+  assert.equal(after[0].addressed_to, arch.id);
 });

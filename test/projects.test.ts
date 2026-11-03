@@ -8,6 +8,7 @@ import {
   getProject,
   listProjects,
   listWorkstreams,
+  setProjectRules,
 } from '../src/roster/projects.ts';
 import { tempRoster } from './helpers.ts';
 
@@ -59,4 +60,23 @@ test('workstreams can be added later, once per name', (t) => {
   assert.equal(addWorkstream(db, 'alpha', { name: 'api', branch: 'feature/api' }).branch, 'feature/api');
   assert.throws(() => addWorkstream(db, 'alpha', { name: 'api', branch: 'x' }), /Workstream "api" already exists in alpha/);
   assert.throws(() => addWorkstream(db, 'nope', { name: 'api', branch: 'x' }), /Unknown project "nope"/);
+});
+
+test('standing rules: add_project stores them, set_project_rules replaces them byte for byte, empty clears', (t) => {
+  const db = tempRoster(t);
+  const first = addProject(db, { name: 'alpha', folder: 'C:\\a', standingRules: 'No deploy.' });
+  assert.equal(first.standing_rules, 'No deploy.');
+  assert.equal(addProject(db, { name: 'beta', folder: 'C:\\b' }).standing_rules, null);
+  const words = '\n  Push after each merge.\r\n  Close tabs by pid only.  \n';
+  assert.equal(setProjectRules(db, 'alpha', words).standing_rules, words);
+  assert.equal(listProjects(db).find((p) => p.name === 'alpha')?.standing_rules, words);
+  assert.equal(setProjectRules(db, 'alpha', '').standing_rules, null);
+});
+
+test('list_workstreams accepts the project name or its numeric id', (t) => {
+  const db = tempRoster(t);
+  const project = addProject(db, { name: 'alpha', folder: 'C:\\a' });
+  assert.deepEqual(listWorkstreams(db, project.id).map((w) => w.name), ['main']);
+  assert.deepEqual(listWorkstreams(db, String(project.id)).map((w) => w.name), ['main']);
+  assert.deepEqual(listWorkstreams(db, 'alpha').map((w) => w.name), ['main']);
 });

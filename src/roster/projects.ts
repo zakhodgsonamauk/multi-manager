@@ -20,6 +20,8 @@ export interface Project {
   default_model: string | null;
   /** When the user hid it from the status and the pane; null while shown. Nothing is deleted. */
   archived_at: string | null;
+  /** The user's standing rules for every session in this project, exactly as given; null when none. */
+  standing_rules: string | null;
 }
 
 export interface Workstream {
@@ -43,6 +45,7 @@ export interface ProjectInput {
   approvalRules?: string;
   idleStopMinutes?: number;
   dailyBudgetUsd?: number | null;
+  standingRules?: string;
   workstreams?: WorkstreamInput[];
 }
 
@@ -75,8 +78,8 @@ export function addProject(db: DatabaseSync, input: ProjectInput, now: Date = ne
   return tx(db, () => {
     const result = db
       .prepare(
-        `INSERT INTO projects (name, folder, permission_mode, approval_rules, idle_stop_minutes, daily_budget_usd, created_at, default_model)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (name, folder, permission_mode, approval_rules, idle_stop_minutes, daily_budget_usd, created_at, default_model, standing_rules)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.name,
@@ -87,6 +90,7 @@ export function addProject(db: DatabaseSync, input: ProjectInput, now: Date = ne
         input.dailyBudgetUsd ?? null,
         iso(now),
         null,
+        input.standingRules === undefined || input.standingRules === '' ? null : input.standingRules,
       );
     const projectId = Number(result.lastInsertRowid);
     const extra = input.workstreams ?? [];
@@ -124,8 +128,17 @@ export function requireWorkstreamById(db: DatabaseSync, id: number): Workstream 
   return workstream;
 }
 
-export function listWorkstreams(db: DatabaseSync, projectName: string): Workstream[] {
-  const project = requireProject(db, projectName);
+/** A project by name, or by numeric id (as a number or as a string of digits when no project has that name). */
+export function requireProjectRef(db: DatabaseSync, ref: string | number): Project {
+  if (typeof ref === 'number') return requireProjectById(db, ref);
+  const byName = getProject(db, ref);
+  if (byName !== undefined) return byName;
+  if (/^\d+$/.test(ref)) return requireProjectById(db, Number(ref));
+  throw new Error(`Unknown project "${ref}"`);
+}
+
+export function listWorkstreams(db: DatabaseSync, projectRef: string | number): Workstream[] {
+  const project = requireProjectRef(db, projectRef);
   return many<Workstream>(db.prepare('SELECT * FROM workstreams WHERE project_id = ? ORDER BY id').all(project.id));
 }
 
@@ -176,4 +189,11 @@ export function addWorkstream(db: DatabaseSync, projectName: string, input: Work
   }
   insertWorkstream(db, project.id, input);
   return requireWorkstream(db, project.id, input.name);
+}
+
+/** Stores the user's standing rules for a project exactly as given (no trimming); empty text clears them. */
+export function setProjectRules(db: DatabaseSync, projectName: string, text: string): Project {
+  const project = requireProject(db, projectName);
+  db.prepare('UPDATE projects SET standing_rules = ? WHERE id = ?').run(text === '' ? null : text, project.id);
+  return requireProjectById(db, project.id);
 }

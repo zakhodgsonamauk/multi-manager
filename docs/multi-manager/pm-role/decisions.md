@@ -47,3 +47,8 @@ Decisions:
 - `team_health` and `record_nudge` accept a project manager (its own architects). Grouping the status tree stays task 012.
 Alternatives: converting existing `architect` rows on `pm` (ruled out by the architect); a separate `parent` column rewrite on resume (not needed: restart keeps the row).
 - Round 1: the rebuild's reference check covers only references to `sessions` (an unrelated dangling row elsewhere must not stop every open), and the row copy takes only columns both tables have. `restore_all` re-parents an architect whose project manager was not brought back to the project's running manager, else the front desk, and lists it under `reparented`.
+
+## 2026-11-03 — Task 011: sign-off routing details
+Context: architects' sign-offs and questions now go straight to the front desk with the project manager watching.
+Decision: with a stopped project manager as parent, `signoff`/`question` still go to the front desk with no watcher; `done`/`blocked`/`info` keep the default (parent). A session that only watches an item cannot answer it, close it or mark it seen (skipped ids are reported); the addressee, raiser and front desk keep full rights, so today's hand-relaying project managers still work. `stop_architect` by session id refuses a session that is not running. A project given as digits is read as a name first, then as an id. `raise_item` keeps `body` required in the schema. `answer_item` replies also carry `watcher_nudge`.
+Alternatives: a front-desk-only `answer_item` (rejected in send-back round 1: strands relaying project managers).

@@ -329,7 +329,14 @@ export async function stopProjectManager(ctx: LaunchContext, input: { project: s
   return stopSession(ctx, manager.id);
 }
 
-export async function stopArchitect(ctx: LaunchContext, input: { project: string; workstream?: string }): Promise<StopResult> {
+export async function stopArchitect(ctx: LaunchContext, input: { project?: string; workstream?: string; sessionId?: number }): Promise<StopResult> {
+  if (input.sessionId !== undefined) {
+    const session = requireSession(ctx.db, input.sessionId);
+    if (session.role !== 'architect') throw new Error(`Session #${session.id} is not an architect`);
+    if (session.state !== 'running') throw new Error(`Session #${session.id} is not running`);
+    return stopSession(ctx, session.id);
+  }
+  if (input.project === undefined) throw new Error('Name the project (and workstream), or give session_id');
   const project = requireProject(ctx.db, input.project);
   const workstream = requireWorkstream(ctx.db, project.id, input.workstream ?? 'main');
   const architect = runningArchitect(ctx.db, workstream.id);

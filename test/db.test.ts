@@ -152,3 +152,25 @@ test('a stray column in an old sessions table does not stop the migration; known
     db.close();
   }
 });
+
+test('an old roster gains items.watched_by and projects.standing_rules; existing rows keep null', (t) => {
+  const path = join(tempDir(t), 'roster.db');
+  const old = new DatabaseSync(path);
+  old.exec(SCHEMA.replace('  watched_by INTEGER REFERENCES sessions(id),\n', '').replace('  standing_rules TEXT,\n', ''));
+  old.exec("INSERT INTO projects (id, name, folder, permission_mode, approval_rules, idle_stop_minutes, created_at) VALUES (1, 'alpha', 'C:/a', 'x', 'x', 5, 'x')");
+  old.exec("INSERT INTO sessions (id, role, state, created_at) VALUES (1, 'front-desk', 'running', 'x')");
+  old.exec("INSERT INTO items (id, kind, body, state, addressed_to, created_at, updated_at) VALUES (1, 'info', 'hi', 'open', 1, 'x', 'x')");
+  const cols = (db: DatabaseSync, table: string) => db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name);
+  assert.ok(!cols(old, 'items').includes('watched_by'));
+  assert.ok(!cols(old, 'projects').includes('standing_rules'));
+  old.close();
+  const db = openRoster(path);
+  try {
+    assert.ok(cols(db, 'items').includes('watched_by'));
+    assert.ok(cols(db, 'projects').includes('standing_rules'));
+    assert.equal(firstValue(db.prepare('SELECT watched_by FROM items').get()), null);
+    assert.equal(firstValue(db.prepare('SELECT standing_rules FROM projects').get()), null);
+  } finally {
+    db.close();
+  }
+});
