@@ -79,6 +79,10 @@ export function frontDeskScript(opts: FrontDeskOptions): string {
     `foreach ($mmName in @(${FRONT_DESK_CLEARED_VARS.map(psQuote).join(', ')})) { Remove-Item -LiteralPath "env:$mmName" -ErrorAction SilentlyContinue }`,
     // Full-screen layout for this session only, so the Multi-Manager pane docks beside the chat.
     `$env:CLAUDE_CODE_NO_FLICKER = '1'`,
+    // The front desk routes work and does not edit code, so the user's Stop hook (the project
+    // check gate) has nothing to guard here. Left on, one stray edit armed it for the rest of the
+    // session and every timer tick then paid the full project check (2026-11-03).
+    `$env:SKIP_GATE = '1'`,
     // A cluster's own roster, and its front desk name for start_front_desk (the roster server inherits it).
     ...(opts.cluster === null
       ? []

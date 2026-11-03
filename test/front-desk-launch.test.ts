@@ -72,6 +72,13 @@ test('the tab script sets CLAUDE_CODE_NO_FLICKER=1 so the side pane can dock', (
   assert.ok(launch(false).script.includes(`$env:CLAUDE_CODE_NO_FLICKER = '1'`));
 });
 
+test('the tab script sets SKIP_GATE=1 so the project-check Stop hook stays out of a front desk that edits nothing', () => {
+  const lines = launch(false).script.split('\n');
+  const at = lines.findIndex((l) => l === `$env:SKIP_GATE = '1'`);
+  assert.ok(at >= 0, 'SKIP_GATE is set');
+  assert.ok(at < lines.findIndex((l) => l.startsWith('& claude ')), 'set before claude runs');
+});
+
 test('the tab script removes every inherited Claude Code and session-identity variable before running claude', () => {
   const { script } = launch(false);
   assert.deepEqual([...INHERITED_CLAUDE_VARS], [
