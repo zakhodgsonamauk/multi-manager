@@ -5,3 +5,4 @@
 - 2026-11-03 09:55 Sign-off raised: item #875 (to PM #286), goal set awaiting-signoff, PM nudged. Waiting; nothing built.
 - 2026-11-03 09:40 Item #875 answered. Answer (verbatim): "go on the plan for #876" (#876 is the PM's relay of this plan to the user). Item closed; goal #83 in progress.
 - 2026-11-03 09:41 Dispatched 008 to dev #288 (mm-multi-manager-opus-default-dev-008-opus-arch), haiku (complexity 2, clarity 5), branch worktree-mm-multi-manager-opus-default-dev-008-opus-arch.
+- 2026-11-03 09:45 PM warned of overlap with mm-multi-manager-pane-status (#289, goal #85). Claimed src/roster/tools.ts, briefings/front-desk.md, briefings/architect.md; told #289. Release after 008 merges; pull in main before merging.
