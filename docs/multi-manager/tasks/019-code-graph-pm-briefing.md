@@ -1,6 +1,6 @@
 # 019 — Project manager instructions for code-review-graph
 
-Goal #102. Needs 016 merged; can run alongside 017. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/019-code-graph-pm-briefing.return.md` on that branch.
+Goal #102. Needs 016 merged; can run alongside 017. Branch: `worktree-mm-multi-manager-graph-watcher-dev-019-code-graph-pm-briefing`. Return report: `docs/multi-manager/tasks/019-code-graph-pm-briefing.return.md` on that branch.
 
 ## Goal
 The project manager knows it owns its project's code-review-graph switch and when to use it.

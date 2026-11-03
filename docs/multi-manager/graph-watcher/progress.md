@@ -13,3 +13,6 @@
 - 2026-11-03 13:35 Part 2 planned: tasks 016-019 (numbers from allocate_number), plan in pm-ownership-plan.md. Research by one read-only helper agent (PM role, project settings, launch, stop, tests). Sign-off going to the front desk.
 - 2026-11-03 13:50 Sign-off item #947 answered, verbatim: "go". Plan and testing approach in pm-ownership-plan.md approved. Goal set to in-progress. Dispatching 016 first.
 - 2026-11-03 13:50 Dispatched 016 to developer #312 (Sonnet, complexity 3 clarity 5), branch worktree-mm-multi-manager-graph-watcher-dev-016-code-graph-switch. Free RAM 18.3 GB at launch. 017 and 019 wait for 016's merge.
+- 2026-11-03 14:00 016 sent back, round 1: shell quoting breaks add-json on Windows, blocking spawnSync, not-found wording, local-scope check, partial-failure message, missing tests.
+- 2026-11-03 13:56 016 round 1 return reviewed (all 9 points fixed: async no-shell runner, exact not-found wording, local-scope check, half-done messages). Merged as 2731543; focused tests 37/37 pass on the merged tree, tsc and eslint clean. Front desk warned before merge. Developer #312 stopped, its copy and branch removed.
+- 2026-11-03 13:56 Dispatched 017 (developer #313, Sonnet, 3/5) and 019 (developer #314, Haiku, 1/5) side by side; they touch different files.

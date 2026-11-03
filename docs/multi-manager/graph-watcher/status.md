@@ -3,7 +3,7 @@
 Updated: 2026-11-03 13:51. Plan signed off (item #947, "go").
 
 ## In flight
-- 016 per-project switch: developer session #312 (tab mm-multi-manager-graph-watcher-dev-016-code-graph-switch, branch worktree-mm-multi-manager-graph-watcher-dev-016-code-graph-switch, Sonnet), dispatched 13:50.
+- 016 per-project switch: developer session #312 (tab mm-multi-manager-graph-watcher-dev-016-code-graph-switch, branch worktree-mm-multi-manager-graph-watcher-dev-016-code-graph-switch, Sonnet), dispatched 13:50. Send-back round 1 at 14:00.
 
 ## Queued (in order, after sign-off)
 

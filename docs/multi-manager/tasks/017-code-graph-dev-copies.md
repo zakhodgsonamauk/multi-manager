@@ -1,6 +1,6 @@
 # 017 — Developers' temporary copies get code-review-graph when the project has it on
 
-Goal #102. Needs 016 merged. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/017-code-graph-dev-copies.return.md` on that branch.
+Goal #102. Needs 016 merged. Branch: `worktree-mm-multi-manager-graph-watcher-dev-017-code-graph-dev-copies`. Return report: `docs/multi-manager/tasks/017-code-graph-dev-copies.return.md` on that branch.
 
 ## Goal
 Today the tool connection is local to the project's main folder. A developer working in `<project>\.claude\worktrees\<name>` doesn't get it.
