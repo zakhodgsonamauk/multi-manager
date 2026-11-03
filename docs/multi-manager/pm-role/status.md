@@ -1,17 +1,17 @@
 # Status — workstream `pm-role` (goal #89)
 
 Live handover. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-03 10:05
+Updated: 2026-11-03 11:40
 
 ## Current goal
 Roster goal #89: formalise the project manager role (front desk → project manager → architects → developers). State: in-progress.
 Plan and testing approach signed off: 2026-11-03, item #888 ("go").
 
 ## In flight
-- 010 The roster knows the project manager role: dev #293, tab `mm-multi-manager-pm-role-dev-010-pm-role`, sonnet, branch `worktree-mm-multi-manager-pm-role-dev-010-pm-role`, round 2 accepted, ready to merge; waits for item #895.
+- (none)
 
 ## Merged
-- (none)
+- 010 The roster knows the project manager role: `24123ba` (2026-11-03), pushed. Live roster backed up first to `~/.claude/multi-manager/roster.pre-task-010.db`.
 
 ## Queued (in order)
 - 011 Sign-offs straight to the front desk with the project manager watching; standing rules once per project; tool annoyances: waits for 010. `../tasks/011-signoffs-and-standing-rules.md`
