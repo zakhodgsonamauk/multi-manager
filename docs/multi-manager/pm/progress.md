@@ -12,3 +12,4 @@ Append-only, dated.
 - 2026-11-03 13:30 #310 follow-ups done (item #945): old financial-portal index deleted (checked free first), tell-me-a-story index moved out of Dropbox. Verified 9b6ef9a on origin/main, old folder gone, both new copies present. Closed #945, reported #946.
 - 2026-11-03 13:32 #310 raised plan sign-off #947 to front desk (project manager owns its project's code-review-graph, tasks 016-019). Watching only. Overlap check: new roster column added on new-tab start, old tabs ignore it; no restarts; no other architects in this project. No info item needed.
 - 2026-11-03 13:56 User answered sign-off #947 "go" (13:49). #310 building part 2 (tasks 016-019), one developer running.
+- 2026-11-03 14:10 #310 done (item #960): tasks 016-019 merged and pushed. Checked: all four on origin/main, full npm test 366/366 pass, e2e output 20/20. Stopped #310, goal #101 done, reported #961. Spend reported $4 (my estimate). Parked: financial-portal switch-on, user's go.
