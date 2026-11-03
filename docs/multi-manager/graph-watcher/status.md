@@ -1,16 +1,15 @@
 # graph-watcher status
 
-Updated: 2026-11-03 13:57. Architect: roster session #310. Goal #102. Plan signed off (item #947, "go").
+Updated: 2026-11-03 14:01. Architect: roster session #310. Goal #102. Plan signed off (item #947, "go").
 
 ## In flight
-- 017 developer copies get the tool: developer #313 (tab mm-multi-manager-graph-watcher-dev-017-code-graph-dev-copies, branch worktree-mm-multi-manager-graph-watcher-dev-017-code-graph-dev-copies, Sonnet), dispatched 13:56.
-
+- 018 watcher runs with the team, stale data cleared: developer #315 (tab mm-multi-manager-graph-watcher-dev-018-code-graph-watcher, branch worktree-mm-multi-manager-graph-watcher-dev-018-code-graph-watcher, Sonnet), dispatched 14:01.
 
 ## Queued
-1. 018 watcher runs with the team, stale data cleared (tasks/018-code-graph-watcher-lifecycle.md). Starts after 017 merges (same launch/stop code).
-2. Then: architect's end-to-end check in a throwaway project, switch financial-portal on, report done.
+1. Architect's end-to-end check in a throwaway project, switch financial-portal on, report done.
 
 ## Merged
+- 017 developer copies get the tool: `02412ec` (2026-11-03, 1 send-back round).
 - 016 per-project switch + set_code_graph: `2731543` (2026-11-03, 1 send-back round).
 - 019 project manager instructions: `6ec7aa1` (2026-11-03).
 

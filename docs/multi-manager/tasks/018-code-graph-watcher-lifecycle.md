@@ -1,6 +1,6 @@
 # 018 — code-review-graph watcher runs only while its team does; stale data cleared on architect stop
 
-Goal #102. Needs 016 and 017 merged: it edits the same launch and stop code as 017. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/018-code-graph-watcher-lifecycle.return.md` on that branch.
+Goal #102. Needs 016 and 017 merged: it edits the same launch and stop code as 017. Branch: `worktree-mm-multi-manager-graph-watcher-dev-018-code-graph-watcher`. Return report: `docs/multi-manager/tasks/018-code-graph-watcher-lifecycle.return.md` on that branch.
 
 ## Goal
 For a project with `code_graph` on, its folder watcher keeps the index fresh while an architect or project manager of that project is running, and stops when the last one stops. When no project needs a watcher, the background watcher program is shut down.
