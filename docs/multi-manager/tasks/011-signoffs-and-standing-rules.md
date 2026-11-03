@@ -36,3 +36,15 @@ The Stop hook's item list, `status.ts`, `hooks/` (task 012). Briefing and skill 
 
 ## Evidence required
 Pass/fail summary line of each focused run, typecheck and lint. The SessionStart hook output text for an architect in a project with rules (paste it). The `raise_item` reply JSON for a watched sign-off (paste it).
+
+## Send-back round 1 (2026-11-03)
+Merging goes live at once, and today the project managers in every project are still plain architects that relay by hand. These must hold for them.
+1. `src/roster/tools.ts` (`answer_item`, the new front-desk-only check): remove it. Those hand-relaying project managers answer their architects' items with `answer_item`; this check would strand those sign-offs. My spec line "stays front-desk only as today" was wrong (there was no check). The rule wanted is narrower: a session that only watches an item (it is `watched_by`, not `addressed_to`) cannot answer it. Test both: the addressee (an architect-role session) can answer an item addressed to it; a watcher is refused.
+2. `src/roster/tools.ts:309-311` / `src/roster/items.ts:119-123` (`close_item`): a watcher can close the front desk's open sign-off before the user sees it (and today's project managers close "their copy" after a relay, so this would happen). Allow only the item's current addressee, its raiser, or the front desk; refuse a session that only watches it, with a plain message. Test it: the item stays open for the front desk.
+3. `src/roster/tools.ts:333-346` / `src/roster/items.ts:149-152` (`mark_seen`): there is one `seen` flag per item, so a watcher marking it seen hides it from the front desk's Stop hook. Skip ids the caller only watches (report them as skipped in the reply). Test: after the watcher's `mark_seen`, the front desk still sees it as unseen.
+4. `src/launch/launcher.ts:333-337` (`stop_architect` by `session_id`): refuse a session that is not running ("#N is not running"), as the project + workstream route effectively does. Test it.
+5. `raise_item`: keep `body` required in the published tool schema (models drop optional fields). Drop the custom `text` check if it needs `body` optional; instead say in the tool description "the text goes in body". Adjust the test.
+6. Optional, do it if small: `answerReply` also nudges the watcher when the item has one (`watcher_nudge`, like `raise_item`).
+7. Tests also for: `list_items` with `mine_only: false` still returns every item.
+8. Move your decisions entry from `docs/multi-manager/decisions.md` to `docs/multi-manager/pm-role/decisions.md`, leaving the main file as on `main`.
+Update your return report (add a "Round 1" section) and raise done again.
