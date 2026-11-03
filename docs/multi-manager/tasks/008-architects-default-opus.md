@@ -1,6 +1,6 @@
 # 008 — Architects and project managers start on Opus by default
 
-Goal #83 (workstream `opus-default`, branch `main`). Return report: `docs/multi-manager/tasks/008-architects-default-opus.return.md` on your branch.
+Goal #83 (workstream `opus-default`, branch `main`). Developer branch: `worktree-mm-multi-manager-opus-default-dev-008-opus-arch`. Return report: `docs/multi-manager/tasks/008-architects-default-opus.return.md` on your branch.
 
 ## Goal
 The user's words (verbatim): "all architects and pms shouldbe opus by default - infact, that needs to be a development target for multi-manager itself"
