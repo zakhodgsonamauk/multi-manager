@@ -5,3 +5,4 @@
 - 2026-11-03 09:45 Sign-off raised: item #879 (to PM #286), goal set awaiting-signoff, PM nudged. Told #287 the plan stays out of its claimed files. Waiting; nothing built.
 - 2026-11-03 09:46 Item #879 answered. Answer (verbatim): "Sounds good, go". Item closed; goal #85 in progress.
 - 2026-11-03 09:46 Dispatched 009 to dev #291 (mm-multi-manager-pane-status-dev-009-pane-odd), sonnet (complexity 3, clarity 4).
+- 2026-11-03 09:50 PM warned of overlap with mm-multi-manager-pm-role (#292, goal #89: launch, status, team health, sidebar, briefings). Told #292 which files 009 edits. #83 merged (6343fc3); its claims are free. Pull in main before merging 009.
