@@ -1,6 +1,6 @@
 # 012 — Status, team health and the sidebar show the tree: front desk → project manager → architects → developers
 
-Goal #89 (workstream `pm-role`, branch `main`). Waits for task 011 **and** for goal #85's task 009 to merge (it edits `src/roster/status.ts`, `hooks/roster-view.ts`, `hooks/register.tsx`): pull in the latest `main` before you start. Developer branch: filled in at dispatch. Return report: `docs/multi-manager/tasks/012-pm-tree-in-status-and-sidebar.return.md` on your branch.
+Goal #89 (workstream `pm-role`, branch `main`). Waits for task 011 **and** for goal #85's task 009 to merge (it edits `src/roster/status.ts`, `hooks/roster-view.ts`, `hooks/register.tsx`): pull in the latest `main` before you start. Developer branch: `worktree-mm-multi-manager-pm-role-dev-012-pm-tree` (dev #296). Return report: `docs/multi-manager/tasks/012-pm-tree-in-status-and-sidebar.return.md` on your branch.
 
 ## Goal
 Today the project manager shows up as "the architect of the `pm` workstream", and `team_health` for a project manager shows only developers (it has none). After this task, whoever looks (the user in the sidebar, the front desk in `status` / `team_health`, the project manager in `team_health`) sees who manages whom.

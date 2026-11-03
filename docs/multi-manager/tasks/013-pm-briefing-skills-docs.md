@@ -1,6 +1,6 @@
 # 013 — Project manager briefing and skills; front desk routing; architect and README updates
 
-Goal #89 (workstream `pm-role`, branch `main`). Waits for task 011 (needs its tool names); can run beside task 012 (no shared files). Developer branch: filled in at dispatch. Return report: `docs/multi-manager/tasks/013-pm-briefing-skills-docs.return.md` on your branch.
+Goal #89 (workstream `pm-role`, branch `main`). Waits for task 011 (needs its tool names); can run beside task 012 (no shared files). Developer branch: `worktree-mm-multi-manager-pm-role-dev-013-pm-docs` (dev #297). Return report: `docs/multi-manager/tasks/013-pm-briefing-skills-docs.return.md` on your branch.
 
 ## Goal
 The project manager stops being "a long goal text the front desk pastes in each time" and gets its own written role, like the front desk and architects have. The front desk knows to route work to a project's project manager when one runs. Architects know their sign-offs go straight to the user's desk while their project manager watches. The README describes the four-level team.
