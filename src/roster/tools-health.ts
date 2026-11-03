@@ -60,7 +60,7 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
     'team_health',
     {
       description:
-        'Stuck check. Architect: your developers. Front desk: every architect, with its developers summarised. Each session: state (ok, hung, stalled, dead), status (busy, idle, unknown), minutes_quiet, nudges since its last activity, and recommended_action (none, nudge, restart, report). paused is true if your scope is paused.',
+        'Stuck check. Architect: your developers. Project manager: your architects, each with its developers summarised. Front desk: each project manager with its architects nested, then every architect without one, developers summarised. Each session: state (ok, hung, stalled, dead), status (busy, idle, unknown), minutes_quiet, nudges since its last activity, and recommended_action (none, nudge, restart, report). paused is true if your scope is paused.',
       inputSchema: {},
     },
     () =>
@@ -74,16 +74,29 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
         if (caller.role !== 'front-desk' && caller.role !== 'project-manager') {
           throw new Error('Only architects and the front desk (and project managers) can call team_health');
         }
-        // A project manager sees its own architects; the front desk sees every project manager and architect.
-        const mine = (s: Session): boolean => caller.role === 'front-desk' || s.parent_id === caller.id;
-        const sessions = scope((s) => (s.role === 'architect' || s.role === 'project-manager') && mine(s)).map((s) => {
+        // A project manager sees its own architects; the front desk sees each project manager with its architects
+        // nested, then every architect no project manager manages.
+        const withDevelopers = (s: Session) => {
           const devs = scope((d) => d.role === 'developer' && d.parent_id === s.id).map((d) => sessionHealth(db, d, readers, t));
           const names = (state: string) => devs.filter((d) => d.state === state).map((d) => d.name);
           return {
             ...row(sessionHealth(db, s, readers, t)),
             developers: { total: devs.length, ok: names('ok').length, hung: names('hung'), stalled: names('stalled'), dead: names('dead') },
           };
-        });
+        };
+        if (caller.role === 'project-manager') {
+          const sessions = scope((s) => s.role === 'architect' && s.parent_id === caller.id).map(withDevelopers);
+          return { paused: isPaused(db), sessions };
+        }
+        const all = scope((s) => s.role === 'architect' || s.role === 'project-manager');
+        const managers = new Set(all.filter((s) => s.role === 'project-manager').map((s) => s.id));
+        const sessions = all
+          .filter((s) => s.role === 'project-manager' || s.parent_id === null || !managers.has(s.parent_id))
+          .map((s) =>
+            s.role === 'project-manager'
+              ? { ...row(sessionHealth(db, s, readers, t)), architects: all.filter((a) => a.role === 'architect' && a.parent_id === s.id).map(withDevelopers) }
+              : withDevelopers(s),
+          );
         return { paused: isPaused(db), sessions };
       }),
   );

@@ -63,10 +63,14 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     answerReply: null as null | { nudge: null; note: string },
     /** Tools that answer with this error instead (a refusal). */
     refuse: {} as Record<string, string>,
+    /** Replaces the whole status or team_health answer (a project manager's tree, or an older roster's shape). */
+    statusOverride: undefined as unknown,
+    healthOverride: undefined as unknown,
   }
   const answer = (tool: string, args: Record<string, unknown>): unknown => {
     switch (tool) {
       case 'status':
+        if (roster.statusOverride !== undefined) return roster.statusOverride
         return {
           generated_at: '2026-10-21T10:05:00.000Z',
           stale_after_minutes: 30,
@@ -98,6 +102,7 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
             : [],
         }
       case 'team_health':
+        if (roster.healthOverride !== undefined) return roster.healthOverride
         return {
           paused: false,
           sessions: roster.projects
@@ -544,4 +549,95 @@ test('a refused hide says why', async ($, on) => {
   await ui.press({ key: 'hide-project-yes-blog' })
   await ui.unmount()
   expect(fake.roster.toasts).toContain('That did not work: mm-arch-blog is still running for blog/main: stop it first, then hide it.')
+})
+
+const treeHealth = (state: string, status: string, developers?: unknown) => ({
+  role: 'architect',
+  state,
+  status,
+  minutes_quiet: 1,
+  nudges: 0,
+  recommended_action: 'none',
+  reason: '',
+  ...(developers === undefined ? {} : { developers }),
+})
+const arch = (id: number, name: string, managedBy: number | null) => ({ session_id: id, name, minutes_since_checkin: 1, stale: false, managed_by: managedBy })
+
+/** A project manager (#10) with two architects (#11, #12) under it, one architect (#13) under the front desk. */
+function treeAnswers() {
+  const status = {
+    generated_at: '2026-10-21T10:05:00.000Z',
+    stale_after_minutes: 30,
+    waiting_for_user: [],
+    projects: [
+      {
+        name: 'shop',
+        folder: 'C:/code/shop',
+        spend_today_usd: 1,
+        daily_budget_usd: null,
+        project_manager: { session_id: 10, name: 'mm-shop-pm', state: 'running', model: 'opus', last_checkin_at: '2026-10-21T10:04:00.000Z' },
+        workstreams: [
+          { name: 'main', branch: 'main', architect: arch(13, 'mm-shop-main', null) },
+          { name: 'ui', branch: 'ui', architect: arch(11, 'mm-shop-ui', 10) },
+          { name: 'api', branch: 'api', architect: arch(12, 'mm-shop-api', 10) },
+        ],
+        active_goals: [],
+        open_items: [],
+      },
+    ],
+  }
+  const health = {
+    paused: false,
+    sessions: [
+      { session_id: 13, name: 'mm-shop-main', ...treeHealth('ok', 'busy', { total: 1, ok: 1, hung: [], stalled: [], dead: [] }) },
+      {
+        session_id: 10,
+        name: 'mm-shop-pm',
+        ...treeHealth('ok', 'busy'),
+        role: 'project-manager',
+        architects: [
+          { session_id: 11, name: 'mm-shop-ui', ...treeHealth('ok', 'busy', { total: 2, ok: 1, hung: ['mm-shop-ui-dev'], stalled: [], dead: [] }) },
+          { session_id: 12, name: 'mm-shop-api', ...treeHealth('ok', 'idle', { total: 0, ok: 0, hung: [], stalled: [], dead: [] }) },
+        ],
+      },
+    ],
+  }
+  return { status, health }
+}
+
+test('the pane shows the project manager and puts its architects one level deeper', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  const tree = treeAnswers()
+  fake.roster.statusOverride = tree.status
+  fake.roster.healthOverride = tree.health
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const pm = await ui.find({ type: 'Text', text: /project manager/ })
+  expect(pm?.text).toContain('mm-shop-pm (project manager) — busy, model opus')
+  const managed = await ui.find({ type: 'Text', text: /mm-shop-ui/ })
+  const own = await ui.find({ type: 'Text', text: /mm-shop-main/ })
+  // Managed architects sit two spaces deeper than the one under the front desk.
+  expect(managed?.text).toMatch(/^ {4}ui \(branch ui\): mm-shop-ui — busy/)
+  expect(own?.text).toMatch(/^ {2}main \(branch main\): mm-shop-main — busy/)
+  expect(await ui.find({ type: 'Text', text: /^ {6}2 developers \(1 fine; 1 stuck: mm-shop-ui-dev\)/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'stop-11' })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'stop-13' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a status from before project managers draws as before, with no note about the missing field', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /project manager/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /did not load/ })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^ *main \(branch/ }))?.text).toMatch(/^ {2}main \(branch main\): mm-arch-shop/)
+  await ui.unmount()
 })

@@ -3,7 +3,7 @@ import { iso, many } from './db.ts';
 import { activeGoals } from './goals.ts';
 import type { ItemKind, ItemState } from './items.ts';
 import { listProjects, listWorkstreams, type Project, type Workstream } from './projects.ts';
-import { frontDesk, runningArchitect, type Session } from './sessions.ts';
+import { frontDesk, runningArchitect, runningProjectManager, type Session } from './sessions.ts';
 import { spendForGoal, spendToday } from './spend.ts';
 
 export const STALE_AFTER_MINUTES = 30;
@@ -15,6 +15,16 @@ export interface ArchitectStatus {
   last_checkin_at: string | null;
   minutes_since_checkin: number | null;
   stale: boolean;
+  /** The running project manager's session id, or null when the front desk is its parent. */
+  managed_by: number | null;
+}
+
+export interface ProjectManagerStatus {
+  session_id: number;
+  name: string | null;
+  state: string;
+  model: string | null;
+  last_checkin_at: string | null;
 }
 
 export interface WorkstreamStatus {
@@ -68,6 +78,8 @@ export interface ProjectStatus {
   idle_stop_minutes: number;
   daily_budget_usd: number | null;
   spend_today_usd: number;
+  /** The running project manager, or null when none runs. Its `pm` workstream is not listed in `workstreams`. */
+  project_manager: ProjectManagerStatus | null;
   workstreams: WorkstreamStatus[];
   active_goals: GoalStatus[];
   open_items: ItemStatus[];
@@ -108,7 +120,7 @@ function itemRows(db: DatabaseSync, where: string, params: SQLInputValue[]): Ite
   });
 }
 
-function architectStatus(session: Session | undefined, now: Date, staleAfter: number): ArchitectStatus | null {
+function architectStatus(session: Session | undefined, now: Date, staleAfter: number, managerId: number | null): ArchitectStatus | null {
   if (session === undefined) return null;
   const minutes =
     session.last_checkin_at === null ? null : Math.floor((now.getTime() - Date.parse(session.last_checkin_at)) / 60_000);
@@ -119,6 +131,7 @@ function architectStatus(session: Session | undefined, now: Date, staleAfter: nu
     last_checkin_at: session.last_checkin_at,
     minutes_since_checkin: minutes,
     stale: minutes === null || minutes > staleAfter,
+    managed_by: managerId !== null && session.parent_id === managerId ? managerId : null,
   };
 }
 
@@ -130,7 +143,10 @@ function shownWorkstreams(db: DatabaseSync, project: Project): { workstream: Wor
 }
 
 function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter: number): ProjectStatus {
-  const shown = shownWorkstreams(db, project);
+  const pm = runningProjectManager(db, project.id);
+  // The pm workstream is the project manager's own seat: it is listed as the project manager, not as a workstream.
+  const shown = shownWorkstreams(db, project).filter(({ workstream }) => pm === undefined || workstream.id !== pm.workstream_id);
+  const pmName = pm === undefined ? '' : (listWorkstreams(db, project.name).find((w) => w.id === pm.workstream_id)?.name.toLowerCase() ?? '');
   const shownNames = new Set(shown.map(({ workstream }) => workstream.name.toLowerCase()));
   return {
     name: project.name,
@@ -139,14 +155,16 @@ function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter
     idle_stop_minutes: project.idle_stop_minutes,
     daily_budget_usd: project.daily_budget_usd,
     spend_today_usd: spendToday(db, project.id, now),
+    project_manager:
+      pm === undefined ? null : { session_id: pm.id, name: pm.name, state: pm.state, model: pm.model, last_checkin_at: pm.last_checkin_at },
     workstreams: shown.map(({ workstream, architect }) => ({
       name: workstream.name,
       branch: workstream.branch,
-      architect: architectStatus(architect, now, staleAfter),
+      architect: architectStatus(architect, now, staleAfter, pm?.id ?? null),
     })),
     // A hidden workstream's goals hide with it.
     active_goals: activeGoals(db, project.id)
-      .filter((g) => shownNames.has(g.workstream.toLowerCase()))
+      .filter((g) => shownNames.has(g.workstream.toLowerCase()) || (pm !== undefined && g.workstream.toLowerCase() === pmName))
       .map((g) => {
         const text = cutText(g.text, ` … (full text: get_goal ${g.id})`);
         return {

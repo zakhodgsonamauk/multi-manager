@@ -15,9 +15,9 @@ import { createGoal, updateGoal } from '../src/roster/goals.ts';
 import { listItems, raiseItem } from '../src/roster/items.ts';
 import { DEFAULT_STALL_MINUTES, getStallMinutes, setLimits } from '../src/roster/limits.ts';
 import { endPause, startPause } from '../src/roster/pause.ts';
-import { addProject } from '../src/roster/projects.ts';
+import { addProject, addWorkstream } from '../src/roster/projects.ts';
 import { getSessionTask } from '../src/roster/session-tasks.ts';
-import { requireSession, setSessionModel, setSessionScores, startFrontDesk } from '../src/roster/sessions.ts';
+import { registerSession, requireSession, setSessionModel, setSessionScores, startFrontDesk } from '../src/roster/sessions.ts';
 import { registerHealthTools } from '../src/roster/tools-health.ts';
 import type { ToolContext } from '../src/roster/tools.ts';
 import { tempDir, tempRoster } from './helpers.ts';
@@ -324,4 +324,37 @@ test('restart_developer relaunches on the developer\'s recorded model and keeps 
   assert.match(line, /'--model' 'opus'/);
   const row = requireSession(db, restarted.session.id);
   assert.deepEqual([row.model, row.complexity, row.clarity], ['opus', 1, 5]);
+});
+
+test('team_health nests architects under their project manager for the front desk, and scopes a project manager to its own', async (t) => {
+  const { db, desk, arch, dev, readers, as, call, setNow } = await setup(t);
+  const later = Date.now() + 30 * MIN;
+  setNow(later);
+  readers.set(dev.pid!, 'idle', Date.now());
+  const ws = (name: string) => addWorkstream(db, 'alpha', { name, branch: name });
+  const pm = registerSession(db, { role: 'project-manager', parentId: desk.id, projectId: arch.project_id!, workstreamId: ws('pm').id, name: 'mm-alpha-pm', pid: 9001 });
+  const managed = registerSession(db, { role: 'architect', parentId: pm.id, projectId: arch.project_id!, workstreamId: ws('ui').id, name: 'mm-alpha-ui', pid: 9002 });
+  const managedDev = registerSession(db, { role: 'developer', parentId: managed.id, projectId: arch.project_id!, workstreamId: managed.workstream_id!, name: 'mm-alpha-ui-dev', pid: 9003 });
+  readers.set(managedDev.pid!, 'idle', Date.now());
+
+  // Front desk: the project manager with its architect nested; the architect outside it stays at the top.
+  as(desk.id);
+  const deskView = await call('team_health');
+  assert.deepEqual(deskView.sessions.map((s: { session_id: number }) => s.session_id), [arch.id, pm.id]);
+  const deskPm = deskView.sessions.find((s: { session_id: number }) => s.session_id === pm.id);
+  assert.equal(deskPm.role, 'project-manager');
+  assert.deepEqual(deskPm.architects.map((a: { session_id: number }) => a.session_id), [managed.id]);
+  assert.equal(deskPm.architects[0].developers.total, 1);
+  assert.deepEqual(deskPm.architects[0].developers.stalled, [managedDev.name]);
+  assert.equal('architects' in deskView.sessions.find((s: { session_id: number }) => s.session_id === arch.id), false);
+
+  // Project manager: its architects and their developers' health, nothing from outside its tree.
+  as(pm.id);
+  const pmView = await call('team_health');
+  assert.deepEqual(pmView.sessions.map((s: { session_id: number }) => s.session_id), [managed.id]);
+  assert.deepEqual(pmView.sessions[0].developers.stalled, [managedDev.name]);
+
+  // Architect: unchanged, its own developers only.
+  as(arch.id);
+  assert.deepEqual((await call('team_health')).sessions.map((s: { session_id: number }) => s.session_id), [dev.id]);
 });

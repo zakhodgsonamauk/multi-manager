@@ -381,7 +381,7 @@ export const register: Register = on => {
     const projects = view.projects.map(project => {
       const budget = project.dailyBudgetUsd === null ? '' : ` of ${money(project.dailyBudgetUsd)}`
       // Hiding is offered only where nothing runs; the roster refuses it anyway while an architect does.
-      const isIdle = project.workstreams.every(ws => ws.architect === null)
+      const isIdle = project.projectManager === null && project.workstreams.every(ws => ws.architect === null)
       const isConfirmingHide = confirm?.kind === 'hide-project' && confirm.project === project.name
       return (
         <Box key={`project-${project.name}`} flexDirection="column" marginBottom={1}>
@@ -405,8 +405,17 @@ export const register: Register = on => {
               <Button key={`hide-project-no-${project.name}`} label="Cancel" onPress={cancel} />
             </Box>
           )}
-          {project.workstreams.map(ws => {
+          {project.projectManager !== null && (
+            <Text color={project.projectManager.state === 'stuck' || project.projectManager.state === 'dead' ? 'red' : undefined}>
+              {'  '}
+              {project.projectManager.name} (project manager) — {project.projectManager.state}
+              {project.projectManager.model === null ? '' : `, model ${project.projectManager.model}`}
+            </Text>
+          )}
+          {/* The project manager's architects come right under it, one step further in. */}
+          {[...project.workstreams.filter(ws => ws.isManaged), ...project.workstreams.filter(ws => !ws.isManaged)].map(ws => {
             const a = ws.architect
+            const indent = ws.isManaged ? '    ' : '  '
             const place = `${ws.name} (branch ${ws.branch})`
             if (a === null) {
               const isConfirmingHideWs = confirm?.kind === 'hide-workstream' && confirm.project === project.name && confirm.workstream === ws.name
@@ -447,7 +456,7 @@ export const register: Register = on => {
               <Box key={`ws-${project.name}-${ws.name}`} flexDirection="column">
                 <Box flexDirection="row" gap={1}>
                   <Text color={a.state === 'stuck' || a.state === 'dead' ? 'red' : undefined}>
-                    {'  '}
+                    {indent}
                     {place}: {a.name} — {a.state}
                     {quiet}
                     {processes}
@@ -461,7 +470,7 @@ export const register: Register = on => {
                     />
                   )}
                 </Box>
-                {a.developers !== null && <Text dimColor>    {a.developers}</Text>}
+                {a.developers !== null && <Text dimColor>{indent}  {a.developers}</Text>}
                 {isConfirming && (
                   <Box flexDirection="row" gap={1}>
                     <Text>    Stop {a.name} and its developers? Its tab closes.</Text>

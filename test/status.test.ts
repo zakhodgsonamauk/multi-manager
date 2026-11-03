@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createGoal, requireGoal, updateGoal } from '../src/roster/goals.ts';
 import { closeItem, listItems, raiseItem } from '../src/roster/items.ts';
 import { addProject, requireWorkstream } from '../src/roster/projects.ts';
-import { checkIn, registerSession, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
+import { checkIn, registerSession, setSessionModel, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
 import { reportSpend } from '../src/roster/spend.ts';
 import { statusSummary } from '../src/roster/status.ts';
 import { minutesBefore, tempRoster } from './helpers.ts';
@@ -124,4 +124,45 @@ test('status with 20 big goals and 20 big items across two projects stays small,
   // list_items and get_goal read the database directly: full text.
   assert.equal(listItems(db, {}).every((i) => i.body.length === 5000), true);
   assert.equal(requireGoal(db, 1).text.length, 5000);
+});
+
+test('status names the project manager, hides the pm workstream, and says who manages each architect', (t) => {
+  const db = tempRoster(t);
+  const now = new Date('2026-10-21T15:00:00.000Z');
+  const desk = startFrontDesk(db, 'mm-front-desk', now);
+  const p = addProject(db, {
+    name: 'alpha',
+    folder: 'C:/a',
+    workstreams: [{ name: 'pm', branch: 'main' }, { name: 'ui', branch: 'ui' }, { name: 'api', branch: 'api' }],
+  });
+  const pmId = requireWorkstream(db, p.id, 'pm').id;
+  const pm = registerSession(db, { role: 'project-manager', parentId: desk.id, projectId: p.id, workstreamId: pmId, name: 'mm-alpha-pm' }, now);
+  setSessionModel(db, pm.id, 'opus');
+  const ui = registerSession(db, { role: 'architect', parentId: pm.id, projectId: p.id, workstreamId: requireWorkstream(db, p.id, 'ui').id, name: 'mm-alpha-ui' }, now);
+  const api = registerSession(db, { role: 'architect', parentId: pm.id, projectId: p.id, workstreamId: requireWorkstream(db, p.id, 'api').id, name: 'mm-alpha-api' }, now);
+  const main = registerSession(db, { role: 'architect', parentId: desk.id, projectId: p.id, workstreamId: requireWorkstream(db, p.id, 'main').id, name: 'mm-alpha-main' }, now);
+  createGoal(db, { workstreamId: pmId, text: 'Run the project' });
+
+  const a = statusSummary(db, now).projects[0];
+  assert.deepEqual(a.project_manager, { session_id: pm.id, name: 'mm-alpha-pm', state: 'running', model: 'opus', last_checkin_at: now.toISOString() });
+  assert.deepEqual(a.workstreams.map((w) => w.name), ['main', 'ui', 'api']);
+  const managed = Object.fromEntries(a.workstreams.map((w) => [w.name, w.architect?.managed_by]));
+  assert.deepEqual(managed, { main: null, ui: pm.id, api: pm.id });
+  assert.equal(ui.id > 0 && api.id > 0 && main.id > 0, true);
+  // The pm workstream's goals still show, under the project manager.
+  assert.deepEqual(a.active_goals.map((g) => g.workstream), ['pm']);
+});
+
+test('a project with no project manager keeps today\'s shape', (t) => {
+  const db = tempRoster(t);
+  const now = new Date('2026-10-21T15:00:00.000Z');
+  const desk = startFrontDesk(db, 'mm-front-desk', now);
+  const p = addProject(db, { name: 'alpha', folder: 'C:/a', workstreams: [{ name: 'pm', branch: 'main' }] });
+  registerSession(db, { role: 'architect', parentId: desk.id, projectId: p.id, workstreamId: requireWorkstream(db, p.id, 'main').id, name: 'mm-alpha-main' }, now);
+  const a = statusSummary(db, now).projects[0];
+  assert.equal(a.project_manager, null);
+  // No project manager runs: pm is an ordinary workstream, and the architect's managed_by is null.
+  assert.deepEqual(a.workstreams.map((w) => w.name), ['main', 'pm']);
+  assert.equal(a.workstreams[0].architect?.managed_by, null);
+  assert.deepEqual(Object.keys(a.workstreams[0].architect ?? {}).sort(), ['last_checkin_at', 'managed_by', 'minutes_since_checkin', 'name', 'pid', 'session_id', 'stale']);
 });

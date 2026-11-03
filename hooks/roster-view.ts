@@ -1,7 +1,7 @@
 // Pure helpers for the front desk pane: turn the roster tools' JSON into what the pane draws,
 // the one-line summary, and which toasts are due. No `$` here, so the logic reads plainly.
 
-import type { PaneArchitect, PaneItem, PaneProject, PaneSessionState, PaneView } from '../types'
+import type { PaneArchitect, PaneItem, PaneProject, PaneProjectManager, PaneSessionState, PaneView } from '../types'
 
 // The roster tools' answers, as far as the pane reads them (src/roster/status.ts, tools-health.ts,
 // monitor/enforce.ts). Everything is optional-safe: a field the roster stops sending draws as unknown.
@@ -20,10 +20,12 @@ export type RosterStatus = {
     name: string
     spend_today_usd: number
     daily_budget_usd: number | null
+    /** Absent from a roster older than project managers. */
+    project_manager?: { session_id: number; name: string | null; state: string; model: string | null; last_checkin_at: string | null } | null
     workstreams: {
       name: string
       branch: string
-      architect: { session_id: number; name: string | null; minutes_since_checkin: number | null } | null
+      architect: { session_id: number; name: string | null; minutes_since_checkin: number | null; managed_by?: number | null } | null
     }[]
     active_goals: { id: number; workstream: string; text: string; spent_usd: number; budget_usd: number | null }[]
   }[]
@@ -39,6 +41,8 @@ export type RosterHealth = {
     status: 'busy' | 'idle' | 'unknown'
     minutes_quiet: number | null
     developers?: { total: number; ok: number; hung: string[]; stalled: string[]; dead: string[] }
+    /** A project manager's architects, nested (the front desk's view). */
+    architects?: RosterHealth['sessions']
   }[]
 }
 
@@ -160,7 +164,10 @@ export function buildView(input: RosterAnswers, now: number): PaneView {
   const items = list<RosterItem>(input.items, 'open items', input.items === undefined)
   const resourceRows = list<RosterResources[number]>(input.resources, 'process counts', input.resources === undefined)
 
-  const health = new Map(healthSessions.map(s => [s.session_id, s]))
+  // A project manager's architects come nested under it: flatten so every session is found by id.
+  const flatHealth = (sessions: RosterHealth['sessions']): RosterHealth['sessions'] =>
+    sessions.flatMap(s => [s, ...flatHealth(Array.isArray(s.architects) ? s.architects.filter(isRecord) : [])])
+  const health = new Map(flatHealth(healthSessions).map(s => [s.session_id, s]))
   const resources = new Map(resourceRows.map(r => [r.session_id, r]))
   const raisedBy = new Map(waitingForUser.map(i => [i.id, i.raised_by]))
   // An older roster sends no raised_by_running: count its raisers as running, as before.
@@ -169,13 +176,25 @@ export function buildView(input: RosterAnswers, now: number): PaneView {
   const projects: PaneProject[] = statusProjects.map(p => {
     const workstreams = list<RosterStatus['projects'][number]['workstreams'][number]>(p.workstreams, `workstreams of ${String(p.name)}`, false)
     const goals = list<RosterStatus['projects'][number]['active_goals'][number]>(p.active_goals, `goals of ${String(p.name)}`, false)
+    // No project_manager field (an older roster) or null: no project manager line, and no note about it.
+    const pm = isRecord(p.project_manager) ? p.project_manager : null
+    const projectManager: PaneProjectManager | null =
+      pm === null
+        ? null
+        : {
+            sessionId: num(pm.session_id),
+            name: typeof pm.name === 'string' ? pm.name : `session #${String(pm.session_id)}`,
+            state: sessionState(health.get(num(pm.session_id))),
+            model: typeof pm.model === 'string' ? pm.model : null,
+          }
     return {
       name: str(p.name),
       spendTodayUsd: num(p.spend_today_usd),
       dailyBudgetUsd: numOrNull(p.daily_budget_usd),
+      projectManager,
       workstreams: workstreams.map(w => {
         const a = isRecord(w.architect) ? w.architect : null
-        if (a === null) return { name: str(w.name), branch: str(w.branch), architect: null }
+        if (a === null) return { name: str(w.name), branch: str(w.branch), architect: null, isManaged: false }
         const h = health.get(a.session_id)
         const devs = developersOf(h?.developers)
         const architect: PaneArchitect = {
@@ -187,7 +206,7 @@ export function buildView(input: RosterAnswers, now: number): PaneView {
           troubledDevelopers: devs === undefined ? [] : [...devs.hung, ...devs.stalled, ...devs.dead],
           processes: processesLine(resources.get(a.session_id)),
         }
-        return { name: str(w.name), branch: str(w.branch), architect }
+        return { name: str(w.name), branch: str(w.branch), architect, isManaged: projectManager !== null && a.managed_by === projectManager.sessionId }
       }),
       goals: goals.map(g => ({ id: num(g.id), workstream: str(g.workstream), text: str(g.text), spentUsd: num(g.spent_usd), budgetUsd: numOrNull(g.budget_usd) })),
     }

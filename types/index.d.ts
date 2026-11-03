@@ -28,10 +28,21 @@ export type PaneArchitect = {
   processes: string | null;
 };
 
+/** The project's running project manager: one line in the pane, with its architects one level below. */
+export type PaneProjectManager = {
+  sessionId: number;
+  name: string;
+  state: PaneSessionState;
+  /** The model it runs on (haiku, sonnet, opus...), or null when unknown. */
+  model: string | null;
+};
+
 export type PaneWorkstream = {
   name: string;
   branch: string;
   architect: PaneArchitect | null;
+  /** True when this architect's parent is the project manager (it draws one level deeper). */
+  isManaged: boolean;
 };
 
 export type PaneGoal = {
@@ -46,6 +57,8 @@ export type PaneProject = {
   name: string;
   spendTodayUsd: number;
   dailyBudgetUsd: number | null;
+  /** The running project manager, or null when none runs (or the roster is from before project managers). */
+  projectManager: PaneProjectManager | null;
   workstreams: PaneWorkstream[];
   goals: PaneGoal[];
 };
