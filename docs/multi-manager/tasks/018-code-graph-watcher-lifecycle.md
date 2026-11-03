@@ -50,3 +50,8 @@ In `test/codegraph.test.ts`, with the fake runner and a fake process list:
 
 ## Evidence required
 Focused test summary lines, typecheck and lint output.
+
+## Send-back round 1 (2026-11-03)
+1. `src/codegraph/codegraph.ts`, `pruneStaleGraphData`: "folder doesn't exist" alone is too weak a sign that a project is gone. If a drive or the Dropbox folder is briefly unavailable (not mounted, being synced, I: offline), every entry on it looks stale, and live indexes are deleted. financial-portal's 1.4 GB index is one example. Fix: treat an entry as stale only when its folder is missing AND its parent folder exists. For a temporary copy under `<project>\.claude\worktrees\` or `<project>\.worktrees\`, the parent is that worktrees folder. If the parent is also missing, keep the entry and log it.
+2. Tests: (a) folder missing but parent present → pruned, as now. (b) folder and parent both missing (simulated unmounted drive) → entry kept, index not deleted, line logged.
+Rest of the diff is good. Same test scope. Update the return report, raise done again.
