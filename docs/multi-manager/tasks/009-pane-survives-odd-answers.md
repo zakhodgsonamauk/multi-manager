@@ -1,6 +1,6 @@
 # 009 — Front-desk pane survives odd roster answers; status answers stay small
 
-Goal #85 (workstream `pane-status`, branch `main`). Developer branch: your temporary copy's branch. Return report: `docs/multi-manager/tasks/009-pane-survives-odd-answers.return.md` on your branch.
+Goal #85 (workstream `pane-status`, branch `main`). Developer branch: `worktree-mm-multi-manager-pane-status-dev-009-pane-odd` (dev #291). Return report: `docs/multi-manager/tasks/009-pane-survives-odd-answers.return.md` on your branch.
 
 ## Goal
 The user's report (verbatim): "\"roster unavailable: undefined is not an object (evaluating 'input.status.winting_for_user.map')\" is in the front-desk sidebar currently"
