@@ -97,7 +97,7 @@ export function permissionWarning(project: Project): string | null {
   );
 }
 
-/** The model a new tab runs on: an explicit model, else the task scores (developers), else the project default, else sonnet. */
+/** The model a new tab runs on: an explicit model, else opus for architects, else the task scores (developers), else the project default, else sonnet. */
 function modelFor(
   ctx: LaunchContext,
   role: 'architect' | 'developer',
@@ -338,7 +338,7 @@ export async function restartArchitect(ctx: LaunchContext, input: { sessionId: n
     workstream,
     name: old.name ?? sessionName(project.name, workstream.name),
     parentId: old.parent_id,
-    // Keep the model it ran on; a session from before models were recorded gets the project default.
+    // Keep the model it ran on; a session with no recorded model gets opus.
     model: modelFor(ctx, 'architect', project.id, { model: old.model }),
     prompt: () => restartPrompt(project.name, workstream.name, input.reason, resumed),
     reuse: old,

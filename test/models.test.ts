@@ -35,8 +35,17 @@ test('resolveLaunchModel: a scored developer maps through the rule', () => {
   );
 });
 
-test('resolveLaunchModel: an unscored developer and every architect fall back to the project default, then sonnet', () => {
+test('resolveLaunchModel: an unscored developer falls back to the project default, then sonnet', () => {
   assert.equal(resolveLaunchModel({ role: 'developer', modelOverride: null, complexity: null, clarity: null, projectDefaultModel: 'haiku' }), 'haiku');
-  assert.equal(resolveLaunchModel({ role: 'architect', modelOverride: null, complexity: null, clarity: null, projectDefaultModel: null }), 'sonnet');
-  assert.equal(resolveLaunchModel({ role: 'architect', modelOverride: null, complexity: null, clarity: null, projectDefaultModel: 'opus' }), 'opus');
+  assert.equal(resolveLaunchModel({ role: 'developer', modelOverride: null, complexity: null, clarity: null, projectDefaultModel: null }), 'sonnet');
+});
+
+test('resolveLaunchModel: an architect with no override launches on opus, whatever the project default', () => {
+  assert.equal(resolveLaunchModel({ role: 'architect', modelOverride: null, complexity: null, clarity: null, projectDefaultModel: null }), 'opus');
+  assert.equal(resolveLaunchModel({ role: 'architect', modelOverride: null, complexity: null, clarity: null, projectDefaultModel: 'haiku' }), 'opus');
+  assert.equal(resolveLaunchModel({ role: 'architect', modelOverride: null, complexity: null, clarity: null, projectDefaultModel: 'sonnet' }), 'opus');
+});
+
+test('resolveLaunchModel: an architect with an explicit model keeps it', () => {
+  assert.equal(resolveLaunchModel({ role: 'architect', modelOverride: 'sonnet', complexity: null, clarity: null, projectDefaultModel: null }), 'sonnet');
 });

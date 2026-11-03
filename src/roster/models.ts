@@ -34,13 +34,19 @@ export interface ResolveModelInput {
   modelOverride: string | null;
   complexity: number | null;
   clarity: number | null;
-  /** The project's default model; used when there are no scores. Null means "not set". */
+  /** The project's default model; developers use it when there are no scores. Architects ignore it. Null means "not set". */
   projectDefaultModel: string | null;
 }
 
-/** The model a tab is launched on. */
+/**
+ * The model a tab is launched on.
+ * - Architect (project managers are architects too): an explicit model if one is given or recorded,
+ *   else opus. The project default never applies to architects.
+ * - Developer: an explicit model, else the task scores, else the project default, else sonnet.
+ */
 export function resolveLaunchModel(input: ResolveModelInput): string {
   if (input.modelOverride !== null && input.modelOverride !== '') return input.modelOverride;
+  if (input.role === 'architect') return 'opus';
   if (input.role === 'developer' && isValidScore(input.complexity) && isValidScore(input.clarity)) {
     return resolveModelTier(input.complexity, input.clarity);
   }

@@ -33,6 +33,8 @@ Create them from `templates/architect/` in the plugin root (`get_briefing` retur
 - Merging developer work into your workstream branch is your job. Anything beyond that branch follows the approval rules.
 
 ## Choosing a model for each task
+You run on Opus by default. Your developers are scored and tiered as below.
+
 Before you dispatch a task, score it and pass the scores to `launch_developer`:
 - `complexity` 1-5: 1 trivial (a rename, a typo), 5 hard (a new subsystem, a migration, concurrency).
 - `clarity` 1-5: 1 vague ("do the auth thing"), 5 fully specified (goal, files, tests, out-of-scope, acceptance).

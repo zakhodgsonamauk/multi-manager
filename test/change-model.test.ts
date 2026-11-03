@@ -234,8 +234,8 @@ test('when the relaunch fails after the kill, the old model stays, claims are re
   assert.deepEqual([row.state, row.model], ['stopped', 'sonnet']);
   assert.deepEqual(listClaims(db, developer.project_id!), []);
 
-  await assert.rejects(changeSessionModel(launch, { sessionId: architect.id, model: 'opus' }), /restart_architect/);
-  assert.equal(requireSession(db, architect.id).model, 'sonnet');
+  await assert.rejects(changeSessionModel(launch, { sessionId: architect.id, model: 'sonnet' }), /restart_architect/);
+  assert.equal(requireSession(db, architect.id).model, 'opus');
 });
 
 test('when the relaunch throws before Terminal is asked (settings file), the session is marked stopped, not left running', async (t) => {
@@ -293,7 +293,7 @@ test('set_session_model: front desk changes anyone but itself, an architect only
   assert.deepEqual(
     ledger.map((r) => [r.session_id, r.from_model, r.to_model, r.reason]),
     [
-      [other.id, 'sonnet', 'haiku', 'set_session_model'],
+      [other.id, 'opus', 'haiku', 'set_session_model'],
       [developer.id, 'sonnet', 'opus', 'set_session_model'],
     ],
   );
@@ -350,7 +350,7 @@ test('set_project_default_model, log_model_use and model_usage', async (t) => {
     ['fable', 'auth architecture'],
   ]);
   const alpha = await call('model_usage', { project: 'alpha' });
-  assert.deepEqual(alpha.map((r: { session_name: string; from_model: string }) => [r.session_name, r.from_model]), [[architect.name, 'sonnet']]);
+  assert.deepEqual(alpha.map((r: { session_name: string; from_model: string }) => [r.session_name, r.from_model]), [[architect.name, 'opus']]);
 });
 
 test('only the front desk can hide or show projects and workstreams', async (t) => {

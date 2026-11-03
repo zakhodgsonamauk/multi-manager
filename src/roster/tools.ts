@@ -429,7 +429,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'set_project_default_model',
     {
-      description: "Front desk only: the model a project's tabs run on when a task has no scores (haiku, sonnet or opus); null clears it (then sonnet).",
+      description: "Front desk only: the model a project's developer tabs run on when a task has no scores (haiku, sonnet or opus); null clears it (then sonnet). Architects and project managers ignore it: they start on opus unless stepped down.",
       inputSchema: { project: z.string(), model: z.enum(WORK_MODELS).nullable() },
     },
     (a) =>

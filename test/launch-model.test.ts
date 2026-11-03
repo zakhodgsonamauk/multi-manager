@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import type { Command } from '../src/launch/command.ts';
-import { launchArchitect, launchDeveloper, type LaunchContext } from '../src/launch/launcher.ts';
+import { launchArchitect, launchDeveloper, restartArchitect, type LaunchContext } from '../src/launch/launcher.ts';
 import type { LaunchDeps } from '../src/launch/runner.ts';
 import { decodeCommand } from '../src/launch/wrapper.ts';
 import { addProject, setProjectDefaultModel } from '../src/roster/projects.ts';
-import { requireSession, startFrontDesk } from '../src/roster/sessions.ts';
+import { requireSession, setSessionModel, startFrontDesk } from '../src/roster/sessions.ts';
 import { tempRoster } from './helpers.ts';
 
 /** The claude arguments inside the wrapper script that wt.exe is given (last argument, base64). */
@@ -74,20 +74,34 @@ test('a small, fully specified task launches its developer on haiku', async (t) 
   assert.deepEqual([row.model, row.complexity, row.clarity], ['haiku', 1, 5]);
 });
 
-test('an architect launches on sonnet when the project has no default', async (t) => {
+test('an architect launches on opus when the project has no default', async (t) => {
   const { db, desk, ctx, runs } = setup(t);
   const { session, existing } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
   assert.equal(existing, false);
   assert.equal(runs.length, 1);
-  assert.equal(modelOf(runs[0]), 'sonnet');
-  assert.equal(requireSession(db, session.id).model, 'sonnet');
+  assert.equal(modelOf(runs[0]), 'opus');
+  assert.equal(requireSession(db, session.id).model, 'opus');
 });
 
-test('an architect launches on the project default when one is set', async (t) => {
+test('an architect launches on opus even when the project default is haiku', async (t) => {
   const { db, desk, project, ctx, runs } = setup(t);
-  setProjectDefaultModel(db, project.id, 'opus');
+  setProjectDefaultModel(db, project.id, 'haiku');
   const { session } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
   assert.equal(modelOf(runs[0]), 'opus');
+  assert.equal(requireSession(db, session.id).model, 'opus');
+});
+
+test('a restarted architect comes back on its recorded model, or opus when it has none', async (t) => {
+  const { db, desk, ctx, runs } = setup(t);
+  const { session } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  setSessionModel(db, session.id, 'sonnet');
+  await restartArchitect(ctx, { sessionId: session.id, reason: 'a crash' });
+  assert.equal(modelOf(runs.at(-1)!), 'sonnet');
+  assert.equal(requireSession(db, session.id).model, 'sonnet');
+
+  setSessionModel(db, session.id, null);
+  await restartArchitect(ctx, { sessionId: session.id, reason: 'a crash' });
+  assert.equal(modelOf(runs.at(-1)!), 'opus');
   assert.equal(requireSession(db, session.id).model, 'opus');
 });
 

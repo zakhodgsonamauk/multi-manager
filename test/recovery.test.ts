@@ -252,11 +252,11 @@ test('restart_architect and restore_all relaunch on the architect\'s recorded mo
   assert.deepEqual([requireSession(db, alpha.id).model, requireSession(db, beta.id).model], ['opus', 'haiku']);
 });
 
-test('an architect restarted with no recorded model falls back to the project default', async (t) => {
+test('an architect restarted with no recorded model comes back on opus, ignoring the project default', async (t) => {
   const { db, desk, launch, fake, call } = setup(t);
   const alpha = (await launchArchitect(launch, { project: 'alpha', parentId: desk.id })).session;
   setSessionModel(db, alpha.id, null);
-  setProjectDefaultModel(db, alpha.project_id!, 'opus');
+  setProjectDefaultModel(db, alpha.project_id!, 'haiku');
   await call('restart_architect', { session_id: alpha.id });
   const args = claudeArgsOf(fake.runs.at(-1)!);
   assert.equal(args[args.indexOf('--model') + 1], 'opus');
