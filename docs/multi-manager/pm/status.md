@@ -1,17 +1,17 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-03 13:08
+Updated: 2026-11-03 13:16
 
 Project manager: roster session #307, goal #81, workstream `pm`.
 
 ## Architects
-- #308 mm-multi-manager-graph-watcher, workstream graph-watcher, goal #100 (front desk tracks it as #99). Read-only investigation of the code-review-graph watcher.
+- (none running)
 
 ## Goals
-- #99 / #100 code-review-graph investigation, report only. In progress.
+- #99 / #100 code-review-graph investigation: done. Report docs/multi-manager/graph-watcher/report.md, summary item #935. Recommends option C (on-demand); B/C/D need the user's go.
 
 ## Overlaps
 - (none)
 
 ## Next
-- Wait for architect #308's report; check it against the 7 questions in goal #100, then stop the architect.
+- Wait for the user's choice on the code-review-graph options, or other input.
