@@ -29,3 +29,9 @@
 - Decision: focused unit tests per task (launcher tests capture the exact tab command, so no real tabs); the database change rehearsed on a copy of the live roster database; the sidebar checked from a rendered screenshot of test data, judged by the architect; after all four merge, an end-to-end run on a throwaway roster database (separate file, no tabs). The live switch-over (reload, relaunching #286 as a project manager, writing each project's standing rules) only on the user's go via the front desk.
 - Alternatives: a live launch on a throwaway project (pops windows; offered if wanted).
 - Who: the architect; part of the plan sign-off.
+
+## 2026-11-03 — Merging is a live change on this project; ask before the first one
+- Context: the plugin runs from the project folder, so every hook and new tab opens the live roster with whatever is on `main`. Task 010 rebuilds the live sessions table on first open.
+- Decision: hold the 010 merge until the user answers item #895 (merge as each task passes, recommended; or one switch-over at the end).
+- Alternatives: merge without asking (the plan sign-off implied merges were not live, so the user did not knowingly approve a live database change).
+- Who: the architect; the user decides via item #895.
