@@ -34,3 +34,8 @@ Code in `src/` or `hooks/`. Writing standing rules for real projects. Relaunchin
 
 ## Evidence required
 Pass/fail summary lines. Word count of each briefing before and after (the briefings are loaded into every session; keep the project manager briefing no longer than the architect one).
+
+## As merged (architect's note, 2026-11-03)
+- 010 (`24123ba`): tools `launch_project_manager` (front desk only; optional goal), `stop_project_manager`; `restart_architect` also takes a project manager; tab name `mm-<project>-project-manager`. `briefings/project-manager.md` is a placeholder to replace.
+- 011 (`155c99a`): `raise_item` reply has `nudge` and, for a watched item, `watcher_nudge` (send both); `answer_item` reply likewise. A watcher cannot answer, close or mark seen an item it only watches. `set_project_rules` (front desk, or the project's running project manager). `list_items` default includes watched items flagged `watching: true`. `list_workstreams` takes a name or id; `stop_architect` takes `session_id`; `mark_seen` takes `item_id` or `item_ids`.
+- Watched items do not show in the Stop hook's list: the project manager learns of them from `watcher_nudge` and `list_items` (say so in its briefing and tick).
