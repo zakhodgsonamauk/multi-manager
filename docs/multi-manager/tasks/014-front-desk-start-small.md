@@ -26,3 +26,10 @@ Goal: roster goal #97 (workstream pane-status). Follow-up to task 009 (commit 16
 ## Acceptance
 - `npm run typecheck`, `npm run lint` clean; `node --test test/status.test.ts` and the new test pass; `npm run test:mod` passes (sidebar still parses the answer).
 - Return report `docs/multi-manager/tasks/014-front-desk-start-small.return.md` on the branch: files changed, test output lines with the measured sizes.
+
+## Send-back round 1 (2026-11-03)
+Returned build is good (compact print, listed once, `answer` left out when null). The stress test measured 26,478 against 25,000. Decision (architect, logged in decisions.md): items under a project's `open_items` are mostly between architects and developers; the front desk reads them in full with `list_items` when it needs to. So:
+1. Give `cutText` / `itemRows` a max-length parameter. Project `open_items` body and answer cut at 120 characters; `waiting_for_user` keeps 250; goal texts keep 250. Export the 120 as a named constant beside `STATUS_TEXT_MAX`, and update the interface comments.
+2. Keep the size assertion at 25,000 with the same stress data. Log the new size.
+3. Add an assertion that a long project item body is cut to at most 120 characters and a long waiting item body to at most 250.
+4. Re-run the same focused checks (status test, new test, typecheck, lint, test:mod). Append a "Round 1" section to the return report with the new sizes.
