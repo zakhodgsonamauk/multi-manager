@@ -9,11 +9,11 @@ Plan and testing approach signed off: 2026-11-03, item #888 ("go").
 
 ## In flight
 - 012 Status, team health and sidebar show the tree: dev #296, tab `mm-multi-manager-pm-role-dev-012-pm-tree`, sonnet, branch `worktree-mm-multi-manager-pm-role-dev-012-pm-tree`, round 1.
-- 013 Project manager briefing and skill, front desk routing, README: dev #297, tab `mm-multi-manager-pm-role-dev-013-pm-docs`, sonnet, branch `worktree-mm-multi-manager-pm-role-dev-013-pm-docs`, round 1.
 
 ## Merged
 - 010 The roster knows the project manager role: `24123ba` (2026-11-03), pushed. Live roster backed up first to `~/.claude/multi-manager/roster.pre-task-010.db`.
 - 011 Sign-offs straight to the front desk (project manager watches), standing rules per project, tool fixes: `155c99a` (2026-11-03), pushed.
+- 013 Project manager briefing, pm-intake skill, front desk routing, README: `4feba69` (2026-11-03), pushed.
 
 ## Queued (in order)
 - (none)
