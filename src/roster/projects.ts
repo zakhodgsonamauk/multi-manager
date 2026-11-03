@@ -22,6 +22,8 @@ export interface Project {
   archived_at: string | null;
   /** The user's standing rules for every session in this project, exactly as given; null when none. */
   standing_rules: string | null;
+  /** 1 when this project uses code-review-graph (a local code-search tool); 0 when not (the default). */
+  code_graph: number;
 }
 
 export interface Workstream {
@@ -195,5 +197,17 @@ export function addWorkstream(db: DatabaseSync, projectName: string, input: Work
 export function setProjectRules(db: DatabaseSync, projectName: string, text: string): Project {
   const project = requireProject(db, projectName);
   db.prepare('UPDATE projects SET standing_rules = ? WHERE id = ?').run(text === '' ? null : text, project.id);
+  return requireProjectById(db, project.id);
+}
+
+/** Whether the project uses code-review-graph. Off for a new project. */
+export function getCodeGraph(db: DatabaseSync, projectName: string): boolean {
+  return requireProject(db, projectName).code_graph === 1;
+}
+
+/** Stores the switch only; the tool connection and watch list are changed by `src/codegraph/codegraph.ts`. */
+export function setCodeGraph(db: DatabaseSync, projectName: string, enabled: boolean): Project {
+  const project = requireProject(db, projectName);
+  db.prepare('UPDATE projects SET code_graph = ? WHERE id = ?').run(enabled ? 1 : 0, project.id);
   return requireProjectById(db, project.id);
 }

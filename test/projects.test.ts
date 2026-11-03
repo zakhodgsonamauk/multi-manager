@@ -5,6 +5,8 @@ import {
   DEFAULT_IDLE_STOP_MINUTES,
   addProject,
   addWorkstream,
+  getCodeGraph,
+  setCodeGraph,
   getProject,
   listProjects,
   listWorkstreams,
@@ -79,4 +81,16 @@ test('list_workstreams accepts the project name or its numeric id', (t) => {
   assert.deepEqual(listWorkstreams(db, project.id).map((w) => w.name), ['main']);
   assert.deepEqual(listWorkstreams(db, String(project.id)).map((w) => w.name), ['main']);
   assert.deepEqual(listWorkstreams(db, 'alpha').map((w) => w.name), ['main']);
+});
+
+test('code_graph defaults to off and round-trips', (t) => {
+  const db = tempRoster(t);
+  addProject(db, { name: 'alpha', folder: 'C:\\a' });
+  assert.equal(getCodeGraph(db, 'alpha'), false);
+  assert.equal(getProject(db, 'alpha')?.code_graph, 0);
+  setCodeGraph(db, 'alpha', true);
+  assert.equal(getCodeGraph(db, 'alpha'), true);
+  assert.equal(listProjects(db)[0]?.code_graph, 1);
+  setCodeGraph(db, 'alpha', false);
+  assert.equal(getCodeGraph(db, 'alpha'), false);
 });

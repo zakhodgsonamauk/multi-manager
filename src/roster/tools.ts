@@ -4,6 +4,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { disableCodeGraph, enableCodeGraph, type CodeGraphRunner } from '../codegraph/codegraph.ts';
 import { sessionIdFromEnv } from '../hooks/common.ts';
 import {
   changeSessionModel,
@@ -29,6 +30,7 @@ import {
   listWorkstreams,
   requireProject,
   requireWorkstream,
+  setCodeGraph,
   setProjectDefaultModel,
   setProjectRules,
 } from './projects.ts';
@@ -65,6 +67,8 @@ export interface ToolContext {
   identity: Identity;
   pluginRoot: string;
   launch: LaunchContext;
+  /** Runs the `claude mcp` and `code-review-graph` commands; tests pass a fake. Default: the real commands. */
+  codeGraphRunner?: CodeGraphRunner;
 }
 
 export function identityFromEnv(env: Env): Identity {
@@ -193,6 +197,25 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
         const allowed = caller.role === 'front-desk' || (caller.role === 'project-manager' && caller.state === 'running' && caller.project_id === project.id);
         if (!allowed) throw new Error(`Only the front desk or ${project.name}'s project manager can set its standing rules`);
         return setProjectRules(db, project.name, a.text);
+      }),
+  );
+
+  server.registerTool(
+    'set_code_graph',
+    {
+      description:
+        "Switch code-review-graph (a local code-search tool) on or off for a project. On: adds the tool connection for the project folder (local to that folder) and adds the folder to the tool's watch list. Off: removes both. The setting is stored only after those commands succeed. Front desk, or that project's running project manager.",
+      inputSchema: { project: z.string().min(1), enabled: z.boolean() },
+    },
+    (a) =>
+      guard(async () => {
+        const caller = me(ctx);
+        const project = requireProject(db, a.project);
+        const allowed = caller.role === 'front-desk' || (caller.role === 'project-manager' && caller.state === 'running' && caller.project_id === project.id);
+        if (!allowed) throw new Error(`Only the front desk or ${project.name}'s project manager can switch its code graph`);
+        const result = await (a.enabled ? enableCodeGraph(project, ctx.codeGraphRunner) : disableCodeGraph(project, ctx.codeGraphRunner));
+        if (!result.ok) throw new Error(result.error ?? 'Switching the code graph failed');
+        return setCodeGraph(db, project.name, a.enabled);
       }),
   );
 

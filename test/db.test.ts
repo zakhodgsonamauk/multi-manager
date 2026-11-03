@@ -153,7 +153,7 @@ test('a stray column in an old sessions table does not stop the migration; known
   }
 });
 
-test('an old roster gains items.watched_by and projects.standing_rules; existing rows keep null', (t) => {
+test('an old roster gains items.watched_by and projects.standing_rules and projects.code_graph; existing rows keep null or 0', (t) => {
   const path = join(tempDir(t), 'roster.db');
   const old = new DatabaseSync(path);
   old.exec(SCHEMA.replace('  watched_by INTEGER REFERENCES sessions(id),\n', '').replace('  standing_rules TEXT,\n', ''));
@@ -168,6 +168,8 @@ test('an old roster gains items.watched_by and projects.standing_rules; existing
   try {
     assert.ok(cols(db, 'items').includes('watched_by'));
     assert.ok(cols(db, 'projects').includes('standing_rules'));
+    assert.ok(cols(db, 'projects').includes('code_graph'));
+    assert.equal(firstValue(db.prepare('SELECT code_graph FROM projects').get()), 0);
     assert.equal(firstValue(db.prepare('SELECT watched_by FROM items').get()), null);
     assert.equal(firstValue(db.prepare('SELECT standing_rules FROM projects').get()), null);
   } finally {
