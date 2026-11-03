@@ -1,6 +1,6 @@
 # 011 — Sign-offs go straight to the user's desk; standing rules held once per project
 
-Goal #89 (workstream `pm-role`, branch `main`). Waits for task 010. Developer branch: filled in at dispatch. Return report: `docs/multi-manager/tasks/011-signoffs-and-standing-rules.return.md` on your branch.
+Goal #89 (workstream `pm-role`, branch `main`). Waits for task 010. Developer branch: `worktree-mm-multi-manager-pm-role-dev-011-signoffs-rules` (dev #295). Return report: `docs/multi-manager/tasks/011-signoffs-and-standing-rules.return.md` on your branch.
 
 ## Goal
 Two things the project manager does by hand today become the roster's job:

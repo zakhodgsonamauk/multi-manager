@@ -8,13 +8,12 @@ Roster goal #89: formalise the project manager role (front desk → project mana
 Plan and testing approach signed off: 2026-11-03, item #888 ("go").
 
 ## In flight
-- (none)
+- 011 Sign-offs straight to the front desk, standing rules, tool annoyances: dev #295, tab `mm-multi-manager-pm-role-dev-011-signoffs-rules`, sonnet, branch `worktree-mm-multi-manager-pm-role-dev-011-signoffs-rules`, round 1.
 
 ## Merged
 - 010 The roster knows the project manager role: `24123ba` (2026-11-03), pushed. Live roster backed up first to `~/.claude/multi-manager/roster.pre-task-010.db`.
 
 ## Queued (in order)
-- 011 Sign-offs straight to the front desk with the project manager watching; standing rules once per project; tool annoyances: waits for 010. `../tasks/011-signoffs-and-standing-rules.md`
 - 012 Status, team health and sidebar show the tree: waits for 011 (009 merged as 1612de5). `../tasks/012-pm-tree-in-status-and-sidebar.md`
 - 013 Project manager briefing and skill, front desk routing, architect wording, README: waits for 011; runs beside 012. `../tasks/013-pm-briefing-skills-docs.md`
 
