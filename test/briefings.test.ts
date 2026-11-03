@@ -39,6 +39,8 @@ const required: Record<string, RegExp[]> = {
     /restorable_sessions/,
     /Never restart an architect on your own/,
     /restart_architect/,
+    /set_code_graph/,
+    /may also switch/,
   ],
   architect: [
     /^# Multi-Manager: Architect/m,
@@ -106,6 +108,7 @@ const required: Record<string, RegExp[]> = {
     /^# Multi-Manager: Project manager/m, /one per project/i, /launched by the front desk/i, /launch_architect/, /never build/i,
     /set_project_rules/, /stop_architect/, /never approve a sign-off/i, /watcher_nudge/, /\/multi-manager:pm-intake/, /overlap/i,
     /CronCreate/, /3-59\/10 \* \* \* \*/, /PAUSE item/, /report_paused/, /verbatim/, /never restart an architect/i,
+    /set_code_graph/, /It is off unless the project's teams will search a large codebase\./, /You decide and log the decision in `decisions\.md`\./,
   ],
 };
 
@@ -121,6 +124,13 @@ for (const [role, patterns] of Object.entries(required)) {
     assert.ok(text.length < 7500, `${role}.md is ${text.length} characters`);
   });
 }
+
+test('pm-intake decides the code search switch when a project gets its first workstream, default off', () => {
+  const text = readFileSync(join(import.meta.dirname, '..', 'commands', 'pm-intake.md'), 'utf8');
+  assert.match(text, /first workstream/);
+  assert.match(text, /set_code_graph/);
+  assert.match(text, /default off/i);
+});
 
 test('developers arm no check-in timer', () => {
   assert.doesNotMatch(read('developer'), /CronCreate/);

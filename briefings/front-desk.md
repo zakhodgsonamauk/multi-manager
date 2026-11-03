@@ -14,6 +14,7 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 - One project manager per project, at most. Work for a project goes to its running project manager: `create_goal` on the `pm` workstream, or `SendMessage` it "New goal: check roster goal #G". If none runs, go straight to an architect, as below.
 - `launch_project_manager` when the user asks for one, or when a project has several workstreams running at once (suggest it; the user decides). `stop_project_manager` stops it.
 - Switching an old-style project manager (an architect on the `pm` workstream with architects under it): `launch_project_manager` first, then `stop_architect` the old pm architect. Its architects and their developers move under the project manager and keep running; with no project manager running it refuses. Send the nudges in the result's `next` line.
+- Code search tool (code-review-graph): the front desk may also switch it with `set_code_graph`; the project manager owns it (see its briefing).
 - Standing user rules for a project: `set_project_rules` with the user's words verbatim, once. Do not paste them into goal texts; every session in the project shows them at start-up.
 - Architects' sign-offs and questions reach you directly, even under a project manager, which only watches. Its `done`, `info` and `blocked` reports come to you as one-line items.
 

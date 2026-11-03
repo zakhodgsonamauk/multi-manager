@@ -4,7 +4,7 @@ argument-hint: <one piece of user input>
 ---
 Project manager intake for one piece of input. Arguments: $ARGUMENTS
 
-1. Work out which workstream it belongs to (`list_workstreams`). If none fits, `add_workstream`.
+1. Work out which workstream it belongs to (`list_workstreams`). If none fits, `add_workstream`. If this is the project's first workstream, decide its code search switch: `set_code_graph` stays off (default off) unless the teams will search a large codebase. Log the decision in `decisions.md`.
 2. Check for overlap first: other running architects' goals (`list_workstreams`, `list_items`), same files, migrations, the roster database and server, production releases. If there is a clash, order the work or tell the architects. Raise one `info` item to the front desk only if the user should know before answering.
 3. `create_goal` on that workstream: the user's words verbatim, then a separate note of your own.
 4. If an architect already runs there and fits, `SendMessage` it "New goal: check roster goal #G". Otherwise `launch_architect` with the goal id.
