@@ -8,16 +8,16 @@ Roster goal #98: stopping an old "pm" architect hands its running architects to 
 Plan and testing approach: covered by the user's go on item #919 ("sure, go on the follow-up"); no separate sign-off (decisions.md).
 
 ## In flight
-- (none yet)
+- 015 stop_architect hands architects to the real project manager: dev session #306, tab `mm-multi-manager-pm-handover-dev-015-pm-handover`, branch `worktree-mm-multi-manager-pm-handover-dev-015-pm-handover`, round 0.
 
 ## Merged
 - (none)
 
 ## Queued (in order)
-- 015 stop_architect hands architects to the real project manager: waits for nothing.
+- (none)
 
 ## Findings
 - Going live needs each caller's roster server restarted (front desk restart or /mcp reconnect). A plugin reload is not enough. Not done by me.
 
 ## Next
-- Dispatch 015.
+- Review 015 when it returns.

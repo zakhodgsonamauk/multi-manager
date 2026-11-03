@@ -11,3 +11,4 @@ Folder: `docs/multi-manager/pm-handover/` (status, decisions, progress); task fi
 ## Log
 - 2026-11-03 12:55 Goal #98 received (roster session #304, under old-style pm #286). User's answer (verbatim, roster item #919, in the goal): "sure, go on the follow-up". Overlap #302 (goal #97): its task 014 is merged and #302 is no longer running, so no live overlap.
 - 2026-11-03 13:05 Read stop/launch/items code myself (small). Task 015 allocated and written. Decisions logged: hand-over inside stop_architect, refuse when no project manager, no adoption at launch, live items move. No sign-off raised (the go covers it). Goal set in-progress.
+- 2026-11-03 13:06 Dispatched 015 to dev #306 (mm-multi-manager-pm-handover-dev-015-pm-handover), sonnet (complexity 3, clarity 5), branch `worktree-mm-multi-manager-pm-handover-dev-015-pm-handover`.

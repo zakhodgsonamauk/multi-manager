@@ -1,6 +1,6 @@
 # 015 — Stopping an old "pm" architect hands its architects to the real project manager
 
-Goal #98 (workstream pm-handover). Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/015-pm-handover-on-stop.return.md` on that branch.
+Goal #98 (workstream pm-handover). Branch: `worktree-mm-multi-manager-pm-handover-dev-015-pm-handover`. Return report: `docs/multi-manager/tasks/015-pm-handover-on-stop.return.md` on that branch.
 
 ## Goal
 Three projects still run an old-style project manager: an architect on the `pm` workstream that launched other architects (financial-portal #173 with #298 and #301 under it, multi-manager #286 with #304 under it). Goal #89 made "project manager" a real role. The front desk wants to switch: launch the real project manager (`launch_project_manager`, already allowed beside the old one), then stop the old pm architect. Today `stop_architect` stops every child first (`src/launch/launcher.ts:304-322`, `stopSession`), so the architects mid-build die with it.
