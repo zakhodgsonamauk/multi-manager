@@ -7,3 +7,4 @@
 - 2026-11-03 09:46 Dispatched 009 to dev #291 (mm-multi-manager-pane-status-dev-009-pane-odd), sonnet (complexity 3, clarity 4).
 - 2026-11-03 09:50 PM warned of overlap with mm-multi-manager-pm-role (#292, goal #89: launch, status, team health, sidebar, briefings). Told #292 which files 009 edits. #83 merged (6343fc3); its claims are free. Pull in main before merging 009.
 - 2026-11-03 09:58 009 returned (item #887). Helper review: Part 2 good; Part 1 send back (total-failure count wrong when resources cached, repeat toasts after a part fails, unchecked number/text fields can still crash drawing). Checked defect 1 myself: confirmed. Send-back round 1 written.
+- 2026-11-03 09:57 Round 1 returned (item #890). Checked the fix diff myself; squash-merged as 1612de5 (decisions conflict: kept both entries). Focused tests on merged code: status 10/10, sidebar 31/31, typecheck and lint clean. Dev #291 stopped, its copy and branch removed, item closed, claims free.
