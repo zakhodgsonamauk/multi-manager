@@ -12,6 +12,8 @@ export interface SettingsFile {
 
 export interface LaunchCommand extends Command {
   settings: SettingsFile;
+  /** The extra tool-connection file to write before the tab opens; only when the spec carries one. */
+  mcpConfig?: SettingsFile;
 }
 
 export interface LaunchSpec {
@@ -24,6 +26,10 @@ export interface LaunchSpec {
   briefingFile: string;
   pluginDir: string;
   settingsPath: string;
+  /** A tool-connection file passed as `--mcp-config` (never `--strict-mcp-config`, which would drop the plugin's own roster tool). */
+  mcpConfigPath?: string;
+  /** What `buildLaunchCommand` hands back to write at `mcpConfigPath`. */
+  mcpConfigContent?: string;
   prompt: string;
   sessionId: number;
   parentId: number | null;
@@ -78,6 +84,8 @@ export function claudeArgs(spec: LaunchSpec): string[] {
   args.push('-n', spec.name);
   if (spec.model !== undefined) args.push('--model', spec.model);
   if (spec.skipPermissions) args.push('--dangerously-skip-permissions');
+  // --mcp-config takes several values, so it must never sit right before the prompt: another option always follows it.
+  if (spec.mcpConfigPath !== undefined) args.push('--mcp-config', spec.mcpConfigPath);
   args.push(
     '--plugin-dir', spec.pluginDir,
     '--append-system-prompt-file', spec.briefingFile,
@@ -105,6 +113,9 @@ export function buildLaunchCommand(spec: LaunchSpec): LaunchCommand {
     file: spec.wtPath,
     args: [...tab, 'pwsh', ...PWSH_ARGS, encodeCommand(script)],
     settings: { path: spec.settingsPath, content: `${JSON.stringify({ env: sessionEnv(spec) }, null, 2)}\n` },
+    ...(spec.mcpConfigPath !== undefined && spec.mcpConfigContent !== undefined
+      ? { mcpConfig: { path: spec.mcpConfigPath, content: spec.mcpConfigContent } }
+      : {}),
   };
 }
 

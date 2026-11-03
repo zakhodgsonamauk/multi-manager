@@ -21,6 +21,8 @@ export interface WrapperSpec {
 
 export interface SessionFiles {
   settings: string;
+  /** A developer's extra tool-connection file (only written when the project uses code-review-graph). */
+  mcp: string;
   wrapperPid: string;
   exit: string;
 }
@@ -32,6 +34,7 @@ export function sessionStateDir(rosterDb: string): string {
 export function sessionFiles(stateDir: string, sessionId: number): SessionFiles {
   return {
     settings: join(stateDir, `${sessionId}.settings.json`),
+    mcp: join(stateDir, `${sessionId}.mcp.json`),
     wrapperPid: join(stateDir, `${sessionId}.wrapper.pid`),
     exit: join(stateDir, `${sessionId}.exit`),
   };

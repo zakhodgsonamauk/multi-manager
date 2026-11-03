@@ -155,3 +155,22 @@ test('initial prompts name the roster goal or session and contain no semicolons'
     assert.ok(!prompt.includes(';'));
   }
 });
+
+test('a tool-connection file goes in as --mcp-config followed by another option, with the prompt still last, never --strict-mcp-config', () => {
+  const args = claudeArgs({ ...base, mcpConfigPath: 'C:/s/7.mcp.json' });
+  assert.equal(args[args.indexOf('--mcp-config') + 1], 'C:/s/7.mcp.json');
+  // --mcp-config takes several values: the next argument after the path must be an option, not the prompt.
+  assert.ok(args[args.indexOf('--mcp-config') + 2].startsWith('--'));
+  assert.equal(args.at(-1), base.prompt);
+  assert.ok(!args.includes('--strict-mcp-config'));
+});
+
+test('without a tool-connection file the arguments are unchanged and no extra file is returned', () => {
+  assert.ok(!claudeArgs(base).includes('--mcp-config'));
+  assert.equal(buildLaunchCommand(base).mcpConfig, undefined);
+});
+
+test('buildLaunchCommand returns the tool-connection file to write', () => {
+  const command = buildLaunchCommand({ ...base, mcpConfigPath: 'C:/s/7.mcp.json', mcpConfigContent: '{}\n' });
+  assert.deepEqual(command.mcpConfig, { path: 'C:/s/7.mcp.json', content: '{}\n' });
+});

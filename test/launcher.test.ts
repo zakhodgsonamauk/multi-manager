@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import type { Command, SettingsFile } from '../src/launch/command.ts';
-import { launchArchitect, launchDeveloper, stopArchitect, type LaunchContext } from '../src/launch/launcher.ts';
+import { CODE_GRAPH_SERVER_SPEC } from '../src/codegraph/codegraph.ts';
+import { launchArchitect, launchDeveloper, launchProjectManager, stopArchitect, type LaunchContext } from '../src/launch/launcher.ts';
 import type { DevCopyInput } from '../src/launch/dev-copy.ts';
 import type { LaunchDeps } from '../src/launch/runner.ts';
 import { decodeCommand, wrapperMarker } from '../src/launch/wrapper.ts';
 import { claim, listClaims } from '../src/roster/claims.ts';
 import { createGoal, requireGoal } from '../src/roster/goals.ts';
-import { addProject, requireWorkstream } from '../src/roster/projects.ts';
+import { addProject, requireWorkstream, setCodeGraph } from '../src/roster/projects.ts';
 import { requireSession, startFrontDesk } from '../src/roster/sessions.ts';
 import { tempRoster } from './helpers.ts';
 
@@ -148,7 +149,7 @@ test('stopping kills the process tree, marks stopped and releases claims', async
   const rosterDb = process.env.MM_ROSTER_DB ?? '';
   assert.deepEqual(calls.markers, [wrapperMarker(session.id, rosterDb)]);
   const dir = join(dirname(rosterDb), 'sessions');
-  assert.deepEqual(calls.removed.at(-1), [`${session.id}.settings.json`, `${session.id}.wrapper.pid`, `${session.id}.exit`].map((f) => join(dir, f)));
+  assert.deepEqual(calls.removed.at(-1), [`${session.id}.settings.json`, `${session.id}.mcp.json`, `${session.id}.wrapper.pid`, `${session.id}.exit`].map((f) => join(dir, f)));
   assert.equal(stopped.session.state, 'stopped');
   assert.deepEqual(listClaims(db, project.id), []);
   await assert.rejects(stopArchitect(ctx, { project: 'alpha' }), /No running architect for alpha\/main/);
@@ -200,7 +201,7 @@ test('launch clears stale wrapper state files for the new session first', async 
   const { deps, calls } = fakeDeps();
   const { desk, ctx } = setup(t, deps);
   const { session } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
-  assert.deepEqual(calls.removed[0].map((p) => p.split(/[\\/]/).at(-1)), [`${session.id}.wrapper.pid`, `${session.id}.exit`]);
+  assert.deepEqual(calls.removed[0].map((p) => p.split(/[\\/]/).at(-1)), [`${session.id}.mcp.json`, `${session.id}.wrapper.pid`, `${session.id}.exit`]);
 });
 
 test('architects launch developer tabs in their own worktree; stopping the architect stops them first', async (t) => {
@@ -243,4 +244,52 @@ test('architect launches make no copy', async (t) => {
   const { desk, ctx } = setup(t, deps);
   await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
   assert.deepEqual(calls.copies, []);
+});
+
+test('a developer for a code-graph project gets a .mcp.json pointing at the project folder; the launch passes it', async (t) => {
+  const { deps, calls } = fakeDeps();
+  const { db, desk, ctx } = setup(t, deps);
+  setCodeGraph(db, 'alpha', true);
+  const { session: architect } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  const dev = await launchDeveloper(ctx, { architectId: architect.id, task: 'x', label: 'login' });
+  const path = join(dirname(process.env.MM_ROSTER_DB ?? ''), 'sessions', `${dev.session.id}.mcp.json`);
+  const written = calls.settings.filter((f) => f.path === path);
+  assert.equal(written.length, 1);
+  const spec = JSON.parse(CODE_GRAPH_SERVER_SPEC) as { env: Record<string, string> };
+  assert.deepEqual(JSON.parse(written[0].content), {
+    mcpServers: { 'code-review-graph': { ...spec, env: { ...spec.env, CRG_REPO_ROOT: 'C:\\work\\alpha' } } },
+  });
+  const args = claudeArgsOf(calls.run[1]);
+  assert.equal(args[args.indexOf('--mcp-config') + 1], path);
+  assert.ok(!args.includes('--strict-mcp-config'));
+});
+
+test('with code_graph off no .mcp.json is written and no flag is passed', async (t) => {
+  const { deps, calls } = fakeDeps();
+  const { desk, ctx } = setup(t, deps);
+  const { session: architect } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  await launchDeveloper(ctx, { architectId: architect.id, task: 'x', label: 'login' });
+  assert.ok(!calls.settings.some((f) => f.path.endsWith('.mcp.json')));
+  assert.ok(!claudeArgsOf(calls.run[1]).includes('--mcp-config'));
+});
+
+test('architects and project managers never get the .mcp.json, even with code_graph on', async (t) => {
+  const { deps, calls } = fakeDeps();
+  const { db, desk, ctx } = setup(t, deps);
+  setCodeGraph(db, 'alpha', true);
+  await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  await launchProjectManager(ctx, { project: 'alpha', parentId: desk.id });
+  assert.ok(!calls.settings.some((f) => f.path.endsWith('.mcp.json')));
+  for (const run of calls.run) assert.ok(!claudeArgsOf(run).includes('--mcp-config'));
+});
+
+test('stopping a session removes its .mcp.json along with the other state files', async (t) => {
+  const { deps, calls } = fakeDeps();
+  const { db, desk, ctx } = setup(t, deps);
+  setCodeGraph(db, 'alpha', true);
+  const { session: architect } = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  const dev = await launchDeveloper(ctx, { architectId: architect.id, task: 'x', label: 'login' });
+  await stopArchitect(ctx, { project: 'alpha' });
+  const mcp = join(dirname(process.env.MM_ROSTER_DB ?? ''), 'sessions', `${dev.session.id}.mcp.json`);
+  assert.ok(calls.removed.slice(1).some((paths) => paths.includes(mcp)), 'removed on stop');
 });

@@ -151,3 +151,7 @@ Alternatives: store first then run commands (leaves a wrong flag on failure); ed
 Context: goal #102. The project manager should know it owns its project's code-review-graph switch and when to turn it on. The front desk may also switch it (task 016 allows it).
 Decision: the project manager briefing has a short "Code search tool" section: off unless the teams will search a large codebase, about 0.57 GB per open tab when on, the index updater and stale-data cleanup are automatic, and the project manager logs its decision in `decisions.md`. The front desk briefing gets one line saying it may also switch it. `/multi-manager:pm-intake` decides the switch when a project gets its first workstream, default off.
 Alternatives: leave the switch to the front desk only (the project manager then cannot act on what it knows about its project); turn it on by default for every project (costs memory on every open tab).
+
+## 2026-11-03 — Task 017: developer tool-connection file
+- The extra file is `<rosterDir>\sessions\<id>.mcp.json`, written through the same `writeSettings` dependency as the settings file. It is added only for developers of a project with `code_graph` on; passed as `--mcp-config` (never `--strict-mcp-config`).
+- Clean-up always lists the file (`SessionFiles.mcp`), also on launch and for projects with the switch off, so a switch turned off later leaves no stale file.

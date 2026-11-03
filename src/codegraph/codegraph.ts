@@ -7,6 +7,18 @@ export const CODE_GRAPH_SERVER_SPEC =
 
 export const CODE_GRAPH_SERVER_NAME = 'code-review-graph';
 
+/**
+ * The extra tool-connection file a developer's temporary copy is started with (`claude --mcp-config`).
+ * Same server as the project folder's, plus CRG_REPO_ROOT so it searches the project folder's index
+ * instead of building one for the copy.
+ */
+export function devMcpConfig(projectFolder: string): string {
+  const spec = JSON.parse(CODE_GRAPH_SERVER_SPEC) as { env?: Record<string, string> };
+  const server = { ...spec, env: { ...spec.env, CRG_REPO_ROOT: projectFolder } };
+  return `${JSON.stringify({ mcpServers: { [CODE_GRAPH_SERVER_NAME]: server } }, null, 2)}
+`;
+}
+
 /** Every command gets this long before it is given up on. */
 export const CODE_GRAPH_TIMEOUT_MS = 60_000;
 

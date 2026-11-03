@@ -45,6 +45,7 @@ import {
   sessionName,
 } from './command.ts';
 import type { LaunchDeps } from './runner.ts';
+import { devMcpConfig } from '../codegraph/codegraph.ts';
 import { sessionFiles, sessionStateDir, wrapperMarker, type SessionFiles } from './wrapper.ts';
 
 export interface LaunchContext {
@@ -151,7 +152,10 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
         });
   const rosterDb = resolveDbPath(ctx.env);
   const files = sessionFiles(sessionStateDir(rosterDb), session.id);
-  ctx.deps.removeFiles([files.wrapperPid, files.exit]);
+  ctx.deps.removeFiles([files.mcp, files.wrapperPid, files.exit]);
+  // A developer's copy has no tool connection of its own, so when the project uses code-review-graph it gets one
+  // that searches the project folder's index. Architects and project managers run in the project folder itself.
+  const withGraph = tab.role === 'developer' && tab.project.code_graph === 1;
   const command = buildLaunchCommand({
     wtPath: wtPath(ctx.env),
     name: tab.name,
@@ -161,6 +165,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     briefingFile: join(ctx.pluginRoot, 'briefings', `${tab.role}.md`),
     pluginDir: ctx.pluginRoot,
     settingsPath: files.settings,
+    ...(withGraph ? { mcpConfigPath: files.mcp, mcpConfigContent: devMcpConfig(tab.project.folder) } : {}),
     prompt: tab.prompt(session.id),
     sessionId: session.id,
     parentId: tab.parentId,
@@ -169,6 +174,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     model: tab.model,
   });
   ctx.deps.writeSettings(command.settings);
+  if (command.mcpConfig !== undefined) ctx.deps.writeSettings(command.mcpConfig);
   const since = Date.now() - 1000;
   const result = await ctx.deps.run(command);
   if (result.code !== 0) {
@@ -321,7 +327,7 @@ export async function stopSession(ctx: LaunchContext, sessionId: number): Promis
     killed = result.code === 0;
     if (!killed) warnings.push(`taskkill exited with ${result.code}: ${result.stderr || result.stdout}`);
   }
-  ctx.deps.removeFiles([files.settings, files.wrapperPid, files.exit]);
+  ctx.deps.removeFiles([files.settings, files.mcp, files.wrapperPid, files.exit]);
   setSessionState(ctx.db, session.id, 'stopped');
   releaseAll(ctx.db, session.id);
   return { session: requireSession(ctx.db, session.id), killed, warnings };
@@ -458,7 +464,7 @@ async function readLiveConversation(ctx: LaunchContext, session: Session, name: 
 /** Removes a closed session's state files and marks it stopped. */
 function markClosed(ctx: LaunchContext, session: Session): void {
   const files = sessionFiles(sessionStateDir(resolveDbPath(ctx.env)), session.id);
-  ctx.deps.removeFiles([files.settings, files.wrapperPid, files.exit]);
+  ctx.deps.removeFiles([files.settings, files.mcp, files.wrapperPid, files.exit]);
   setSessionState(ctx.db, session.id, 'stopped');
 }
 

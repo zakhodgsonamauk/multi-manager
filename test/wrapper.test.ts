@@ -32,6 +32,7 @@ test('state files live next to the roster, named by session id', () => {
   assert.equal(dir, join('C:\\r', 'sessions'));
   assert.deepEqual(sessionFiles(dir, 7), {
     settings: join(dir, '7.settings.json'),
+    mcp: join(dir, '7.mcp.json'),
     wrapperPid: join(dir, '7.wrapper.pid'),
     exit: join(dir, '7.exit'),
   });
