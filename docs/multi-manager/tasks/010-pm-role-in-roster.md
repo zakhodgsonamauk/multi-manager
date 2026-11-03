@@ -43,3 +43,13 @@ The new and touched test files only: `node --test test/db.test.ts test/launcher.
 
 ## Evidence required
 Pass/fail summary line of each focused run, typecheck and lint. The migration on the database copy: counts before/after and that a `project-manager` insert succeeds. The exact command line captured for a project manager launch (model, briefing file, `MM_ROLE`).
+
+## Send-back round 1 (2026-11-03)
+The review found the work sound and the spec met. These fixes come first because the rebuild runs on the live roster within seconds of merging, and a throw there stops every hook and every new tab from starting.
+1. `src/roster/db.ts:167`: `PRAGMA foreign_key_check` runs over the whole database, so an unrelated broken reference anywhere would make the migration throw on every open. Check only the tables involved: `foreign_key_check(sessions)` plus each table that references `sessions`. Test: an old-schema database with a dangling reference in an unrelated table still migrates.
+2. `src/roster/db.ts:160`: the copy takes every column of the old table, so a stray column the new table lacks would fail the same way. Copy only the columns present in both tables. Test: an old table with an extra unknown column migrates and the known columns' values are kept.
+3. `src/roster/tools-recovery.ts:214-217`: when `restore_all` skips the project manager (paused, replaced, or its relaunch fails), its architects are still relaunched under the stopped manager. Re-parent them to the project's running project manager if one exists, else the front desk, and say so in the result. Test it.
+4. `src/roster/tools-monitor.ts:61`: the message says "this project's architect" only; include the project manager.
+5. Your decisions went into `docs/multi-manager/decisions.md` (the main workstream's file). Move that entry to `docs/multi-manager/pm-role/decisions.md` and leave the main file as it was on `main`.
+6. Add a test for a project manager that never reported paused: `resume` does not relaunch it, and its architects go back under the front desk (pin today's behaviour).
+Update your return report (add a "Round 1" section) and raise done again.
