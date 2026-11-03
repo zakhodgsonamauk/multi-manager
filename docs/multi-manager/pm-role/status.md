@@ -1,10 +1,10 @@
 # Status — workstream `pm-role` (goal #89)
 
 Live handover. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-03 11:40
+Updated: 2026-11-03 12:05
 
 ## Current goal
-Roster goal #89: formalise the project manager role (front desk → project manager → architects → developers). State: in-progress.
+Roster goal #89: formalise the project manager role (front desk → project manager → architects → developers). State: done (reported 2026-11-03).
 Plan and testing approach signed off: 2026-11-03, item #888 ("go").
 
 ## In flight
@@ -26,5 +26,8 @@ Plan and testing approach signed off: 2026-11-03, item #888 ("go").
 - (none)
 
 ## Next
-Wait for the plan sign-off (relayed by project manager #286). Then dispatch 010.
-After all four merge: the roster server and plugin need a reload for every session to see the new role, and the running project manager (#286) needs relaunching as a real project manager. Both interrupt running sessions: tell the front desk first and wait for the user's go.
+All four tasks merged and pushed; end-to-end run on a throwaway roster passed (9/9). Live steps, each only on the user's go (they interrupt running sessions):
+1. Tabs started before the merges still run the old roster code; the front desk needs a fresh roster connection (restart its tab or reload the plugin) before it has `launch_project_manager`.
+2. Relaunch #286 (today an architect on `multi-manager/pm`) as a real project manager, and the same for the financial-portal and digital-survey-platform `pm` architects.
+3. Write each project's standing rules with `set_project_rules`, verbatim, from the lists in goals #69, #81, #89.
+By design: on resume after a pause, every architect of a project with a project manager comes back under it, including ones the front desk launched.
