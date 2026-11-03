@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { launchArchitect, stopSession } from '../launch/launcher.ts';
+import { launchArchitect, launchProjectManager, stopSession } from '../launch/launcher.ts';
 import { raiseItem } from './items.ts';
 import {
   PAUSE_ITEM_TEXT,
@@ -145,8 +145,9 @@ export function registerPauseTools(server: McpServer, ctx: ToolContext): void {
         }
         const targets = runningInScope(db, pause.project_id);
         const warnings: string[] = [];
-        // Architects first: stopSession closes their developers before them.
-        for (const role of ['architect', 'developer'] as const) {
+        // Project managers first, then architects: stopSession closes a session's children before it, so each
+        // manager takes its architects and their developers down in order.
+        for (const role of ['project-manager', 'architect', 'developer'] as const) {
           for (const s of targets) {
             if (s.role !== role || requireSession(db, s.id).state !== 'running') continue;
             warnings.push(...(await stopSession(ctx.launch, s.id)).warnings);
@@ -182,7 +183,33 @@ export function registerPauseTools(server: McpServer, ctx: ToolContext): void {
         if (pause.ended_at !== null) throw new Error(`Pause #${pause.id} has already ended`);
         const reports = pauseReports(db, pause.id);
         const ended = endPause(db, pause.id);
-        const architects: { name: string; session_id?: number; relaunched: boolean; nudge?: string; note?: string }[] = [];
+        type Relaunch = { name: string; session_id?: number; relaunched: boolean; nudge?: string; note?: string };
+        const managers: Relaunch[] = [];
+        const architects: Relaunch[] = [];
+        // A project's relaunched project manager, so its architects hang under it and not under the front desk.
+        const managerOf = new Map<number, number>();
+        const resumeText = (r: { note_path: string | null }, later: string) => {
+          const where = r.note_path === null ? 'No resume note was reported: read your progress log' : `Your resume note: ${r.note_path}`;
+          return oneLine(`RESUME after pause #${pause.id}. ${where}. Summarise status to the front desk and WAIT for the user's go before starting work. ${later}`);
+        };
+        for (const r of reports.filter((x) => x.role === 'project-manager')) {
+          const old = requireSession(db, r.session_id);
+          if (old.project_id === null) continue;
+          const project = requireProjectById(db, old.project_id);
+          if (isPaused(db, project.id)) {
+            managers.push({ name: label(old), relaunched: false, note: `${project.name} is still under another pause` });
+            continue;
+          }
+          const text = resumeText(r, 'Do not relaunch architects until then.');
+          const result = await launchProjectManager(ctx.launch, { project: project.name, parentId: desk.id, extraPrompt: text, model: old.model ?? undefined });
+          managerOf.set(project.id, result.session.id);
+          if (result.existing) {
+            const item = raiseItem(db, { kind: 'info', body: text, raisedBy: desk.id, addressedTo: result.session.id });
+            managers.push({ name: label(result.session), session_id: result.session.id, relaunched: false, nudge: `check roster item #${item.id}` });
+          } else {
+            managers.push({ name: label(result.session), session_id: result.session.id, relaunched: true });
+          }
+        }
         for (const r of reports.filter((x) => x.role === 'architect')) {
           const old = requireSession(db, r.session_id);
           if (old.project_id === null || old.workstream_id === null) continue;
@@ -191,14 +218,11 @@ export function registerPauseTools(server: McpServer, ctx: ToolContext): void {
             architects.push({ name: label(old), relaunched: false, note: `${project.name} is still under another pause` });
             continue;
           }
-          const where = r.note_path === null ? 'No resume note was reported: read your progress log' : `Your resume note: ${r.note_path}`;
-          const text = oneLine(
-            `RESUME after pause #${pause.id}. ${where}. Summarise status to the front desk and WAIT for the user's go before starting work. Do not relaunch developers until then.`,
-          );
+          const text = resumeText(r, 'Do not relaunch developers until then.');
           const result = await launchArchitect(ctx.launch, {
             project: project.name,
             workstream: requireWorkstreamById(db, old.workstream_id).name,
-            parentId: desk.id,
+            parentId: managerOf.get(project.id) ?? desk.id,
             extraPrompt: text,
             model: old.model ?? undefined,
           });
@@ -214,6 +238,7 @@ export function registerPauseTools(server: McpServer, ctx: ToolContext): void {
           .map((r) => ({ name: label(getSession(db, r.session_id)!), note_path: r.note_path, committed: r.committed === 1 }));
         return {
           pause: ended,
+          project_managers: managers,
           architects,
           developers_not_relaunched: developers,
           next: 'Architects will summarise and wait. Nothing starts until the user says go.',

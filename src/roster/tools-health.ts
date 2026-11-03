@@ -45,14 +45,14 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
   /** Running children of a role plus the dead ones nobody has dealt with yet. */
   const scope = (filter: (s: Session) => boolean): Session[] => {
     const dead = unresolvedDeaths(db).filter(filter);
-    const running = many<Session>(db.prepare("SELECT * FROM sessions WHERE state = 'running' AND role IN ('architect', 'developer') ORDER BY id").all());
+    const running = many<Session>(db.prepare("SELECT * FROM sessions WHERE state = 'running' AND role IN ('architect', 'project-manager', 'developer') ORDER BY id").all());
     return [...running.filter(filter), ...dead].sort((a, b) => a.id - b.id);
   };
 
   /** Who may act on a session: its parent architect, or the front desk for anything. */
   const assertMayAct = (caller: Session, target: Session): void => {
     if (caller.role === 'front-desk') return;
-    if (caller.role === 'architect' && target.parent_id === caller.id) return;
+    if ((caller.role === 'architect' || caller.role === 'project-manager') && target.parent_id === caller.id) return;
     throw new Error(`Session #${target.id} is not one of yours`);
   };
 
@@ -71,8 +71,12 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
           const sessions = scope((s) => s.role === 'developer' && s.parent_id === caller.id).map((s) => row(sessionHealth(db, s, readers, t)));
           return { paused: isPaused(db, caller.project_id), sessions };
         }
-        if (caller.role !== 'front-desk') throw new Error('Only architects and the front desk can call team_health');
-        const sessions = scope((s) => s.role === 'architect').map((s) => {
+        if (caller.role !== 'front-desk' && caller.role !== 'project-manager') {
+          throw new Error('Only architects and the front desk (and project managers) can call team_health');
+        }
+        // A project manager sees its own architects; the front desk sees every project manager and architect.
+        const mine = (s: Session): boolean => caller.role === 'front-desk' || s.parent_id === caller.id;
+        const sessions = scope((s) => (s.role === 'architect' || s.role === 'project-manager') && mine(s)).map((s) => {
           const devs = scope((d) => d.role === 'developer' && d.parent_id === s.id).map((d) => sessionHealth(db, d, readers, t));
           const names = (state: string) => devs.filter((d) => d.state === state).map((d) => d.name);
           return {

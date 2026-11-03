@@ -5,6 +5,34 @@ import { DatabaseSync } from 'node:sqlite';
 
 export type Env = Record<string, string | undefined>;
 
+const SESSIONS_TABLE = `
+CREATE TABLE IF NOT EXISTS sessions (
+  id INTEGER PRIMARY KEY,
+  role TEXT NOT NULL CHECK (role IN ('front-desk', 'architect', 'project-manager', 'developer')),
+  parent_id INTEGER REFERENCES sessions(id),
+  project_id INTEGER REFERENCES projects(id),
+  workstream_id INTEGER REFERENCES workstreams(id),
+  name TEXT,
+  pid INTEGER,
+  wrapper_pid INTEGER,
+  claude_session_id TEXT,
+  model TEXT,
+  complexity INTEGER,
+  clarity INTEGER,
+  folder TEXT,
+  state TEXT NOT NULL CHECK (state IN ('running', 'stopped')),
+  last_checkin_at TEXT,
+  created_at TEXT NOT NULL
+);
+`;
+
+const SESSIONS_INDEXES = `
+CREATE UNIQUE INDEX IF NOT EXISTS one_running_architect_per_workstream
+  ON sessions (workstream_id) WHERE role = 'architect' AND state = 'running';
+CREATE UNIQUE INDEX IF NOT EXISTS one_running_project_manager_per_project
+  ON sessions (project_id) WHERE role = 'project-manager' AND state = 'running';
+`;
+
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY,
@@ -23,26 +51,8 @@ CREATE TABLE IF NOT EXISTS workstreams (
   branch TEXT NOT NULL,
   UNIQUE (project_id, name)
 );
-CREATE TABLE IF NOT EXISTS sessions (
-  id INTEGER PRIMARY KEY,
-  role TEXT NOT NULL CHECK (role IN ('front-desk', 'architect', 'developer')),
-  parent_id INTEGER REFERENCES sessions(id),
-  project_id INTEGER REFERENCES projects(id),
-  workstream_id INTEGER REFERENCES workstreams(id),
-  name TEXT,
-  pid INTEGER,
-  wrapper_pid INTEGER,
-  claude_session_id TEXT,
-  model TEXT,
-  complexity INTEGER,
-  clarity INTEGER,
-  folder TEXT,
-  state TEXT NOT NULL CHECK (state IN ('running', 'stopped')),
-  last_checkin_at TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS one_running_architect_per_workstream
-  ON sessions (workstream_id) WHERE role = 'architect' AND state = 'running';
+${SESSIONS_TABLE}
+${SESSIONS_INDEXES}
 CREATE TABLE IF NOT EXISTS goals (
   id INTEGER PRIMARY KEY,
   workstream_id INTEGER NOT NULL REFERENCES workstreams(id),
@@ -125,6 +135,48 @@ export function migrate(db: DatabaseSync): void {
   for (const { table, column, type } of ADDED_COLUMNS) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
     if (!columns.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+  widenSessionRoles(db);
+}
+
+function sessionsSql(db: DatabaseSync): string {
+  return String(db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").get()?.sql ?? '');
+}
+
+/**
+ * SQLite cannot widen a CHECK in place. A roster file made before the project-manager role has the old role list,
+ * so the sessions table is rebuilt (new table, rows copied with their ids, old one dropped, renamed, indexes made
+ * again) in one transaction. Foreign keys are off for the swap, as SQLite's own recipe says, then checked.
+ * A table that already allows project-manager is left alone, so running this twice does nothing.
+ */
+function widenSessionRoles(db: DatabaseSync): void {
+  if (sessionsSql(db).includes("'project-manager'")) return;
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    tx(db, () => {
+      // Another process may have rebuilt it while this one waited for the lock.
+      if (sessionsSql(db).includes("'project-manager'")) return;
+      db.exec(SESSIONS_TABLE.replace('CREATE TABLE IF NOT EXISTS sessions', 'CREATE TABLE sessions_rebuilt'));
+      const names = (table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+      // Only columns both tables have: a stray column in an old file must not stop the copy.
+      const kept = names('sessions_rebuilt');
+      const columns = names('sessions').filter((c) => kept.includes(c)).join(', ');
+      db.exec(`INSERT INTO sessions_rebuilt (${columns}) SELECT ${columns} FROM sessions`);
+      db.exec('DROP TABLE sessions');
+      db.exec('ALTER TABLE sessions_rebuilt RENAME TO sessions');
+      db.exec(SESSIONS_INDEXES);
+      // Only references to sessions: an unrelated dangling reference elsewhere must not make every open throw.
+      const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]).map((t) => t.name);
+      let broken = 0;
+      for (const table of tables) {
+        const refs = db.prepare(`PRAGMA foreign_key_list("${table}")`).all() as { table: string }[];
+        if (!refs.some((r) => r.table === 'sessions')) continue;
+        broken += (db.prepare(`PRAGMA foreign_key_check("${table}")`).all() as { parent: string }[]).filter((r) => r.parent === 'sessions').length;
+      }
+      if (broken > 0) throw new Error(`Rebuilding the sessions table broke ${broken} reference(s) to sessions; nothing was changed.`);
+    });
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
   }
 }
 

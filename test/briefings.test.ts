@@ -102,6 +102,7 @@ const required: Record<string, RegExp[]> = {
     /kind `done` pointing at the report/, /test command with its output lines/, /screenshots/, /gaps/,
     /process caps/i, /never wait for "global quiet"/i, /only your own processes/i, /send-back round/i,
   ],
+  'project-manager': [/^# Multi-Manager: Project manager/m, /one per project/i, /launched by the front desk/i, /launch_architect/, /never build/i],
 };
 
 for (const [role, patterns] of Object.entries(required)) {

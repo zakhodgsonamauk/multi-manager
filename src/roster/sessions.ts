@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { iso, many, one } from './db.ts';
 
-export const ROLES = ['front-desk', 'architect', 'developer'] as const;
+export const ROLES = ['front-desk', 'architect', 'project-manager', 'developer'] as const;
 export type Role = (typeof ROLES)[number];
 export type SessionState = 'running' | 'stopped';
 export const FRONT_DESK_NAME = 'mm-front-desk';
@@ -137,6 +137,13 @@ export function startFrontDesk(db: DatabaseSync, name: string = FRONT_DESK_NAME,
 export function runningArchitect(db: DatabaseSync, workstreamId: number): Session | undefined {
   return one<Session>(
     db.prepare("SELECT * FROM sessions WHERE role = 'architect' AND state = 'running' AND workstream_id = ?").get(workstreamId),
+  );
+}
+
+/** The one running project manager of a project, if any. */
+export function runningProjectManager(db: DatabaseSync, projectId: number): Session | undefined {
+  return one<Session>(
+    db.prepare("SELECT * FROM sessions WHERE role = 'project-manager' AND state = 'running' AND project_id = ?").get(projectId),
   );
 }
 

@@ -19,7 +19,7 @@ export interface LaunchSpec {
   name: string;
   /** Where the tab opens: the project folder, or a developer's own copy under it. */
   folder: string;
-  role: 'architect' | 'developer';
+  role: 'architect' | 'project-manager' | 'developer';
   skipPermissions: boolean;
   briefingFile: string;
   pluginDir: string;
@@ -121,15 +121,31 @@ export function architectPrompt(project: string, workstream: string, goalId?: nu
   return `${start} Your goal is roster goal #${goalId}. Call the roster tool get_goal with goal_id ${goalId} and follow your briefing.`;
 }
 
-/** What a restarted architect is told: catch up, report, and wait for the user's go. */
-export function restartPrompt(project: string, workstream: string, reason: string, restored: boolean): string {
+/** What a new project manager is told. It lives on the project's pm workstream. */
+export function projectManagerPrompt(project: string, goalId?: number): string {
+  const start = `You are the Multi-Manager project manager for project ${project}.`;
+  if (goalId === undefined) {
+    return `${start} No goal yet. Call the roster tool list_items for anything addressed to you, then wait for the front desk.`;
+  }
+  return `${start} Your goal is roster goal #${goalId}. Call the roster tool get_goal with goal_id ${goalId} and follow your briefing.`;
+}
+
+/** What a restarted architect or project manager is told: catch up, report, and wait for the user's go. */
+export function restartPrompt(
+  project: string,
+  workstream: string,
+  reason: string,
+  restored: boolean,
+  role: 'architect' | 'project-manager' = 'architect',
+): string {
+  const who = role === 'project-manager' ? `project manager for project ${project}` : `architect for project ${project}, workstream ${workstream}`;
   const why = reason.replace(/[;\r\n]+/g, ', ').trim() || 'an unexpected stop';
   const parts = [
-    ...(restored ? [] : [`You are the Multi-Manager architect for project ${project}, workstream ${workstream}.`]),
+    ...(restored ? [] : [`You are the Multi-Manager ${who}.`]),
     `You were restarted after ${why}.`,
     ...(restored ? [] : ['Your earlier conversation could not be restored.']),
     "Re-read your progress log, check_in, list_items, then summarise status to the front desk and WAIT for the user's go before starting new work.",
-    'Do not relaunch developers until then.',
+    role === 'project-manager' ? 'Do not relaunch architects until then.' : 'Do not relaunch developers until then.',
   ];
   return parts.join(' ');
 }
@@ -138,7 +154,7 @@ export function restartPrompt(project: string, workstream: string, reason: strin
  * What a relaunched session is told when its model changed. A developer carries on with its task (it was
  * stepped mid-task, so waiting would stall it); an architect waits for the user's go, like after a restart.
  */
-export function modelChangePrompt(role: 'architect' | 'developer', model: string, restored: boolean): string {
+export function modelChangePrompt(role: 'architect' | 'project-manager' | 'developer', model: string, restored: boolean): string {
   const start = `Your model was changed to ${model}. You were relaunched on it.`;
   if (role === 'developer') {
     const state = restored

@@ -14,7 +14,7 @@ import { readActivity, type ActivityReaders, type ClaudeStatus } from './activit
  */
 export type HealthState = 'ok' | 'hung' | 'stalled' | 'dead';
 export type HealthAction = 'none' | 'nudge' | 'restart' | 'report';
-export type HealthRole = 'architect' | 'developer';
+export type HealthRole = 'architect' | 'project-manager' | 'developer';
 
 export const MAX_NUDGES = 2;
 /**
@@ -207,10 +207,19 @@ export interface StuckReport {
   item_id: number;
 }
 
-function addressee(db: DatabaseSync, session: Session, now: Date): number {
-  if (session.role === 'architect' || session.parent_id === null) return frontDesk(db, now).id;
+/**
+ * Who hears about a session's death or stall: a developer's running parent architect; an architect's running
+ * project manager; otherwise the front desk (a project manager's own report, or no running parent).
+ */
+export function addresseeFor(db: DatabaseSync, session: { role: string; parent_id: number | null }, now: Date): number {
+  if (session.role === 'project-manager' || session.parent_id === null) return frontDesk(db, now).id;
   const parent = getSession(db, session.parent_id);
-  return parent !== undefined && parent.state === 'running' ? parent.id : frontDesk(db, now).id;
+  const mayHear = session.role === 'developer' || parent?.role === 'project-manager';
+  return parent !== undefined && parent.state === 'running' && mayHear ? parent.id : frontDesk(db, now).id;
+}
+
+function addressee(db: DatabaseSync, session: Session, now: Date): number {
+  return addresseeFor(db, session, now);
 }
 
 /**
@@ -220,7 +229,7 @@ function addressee(db: DatabaseSync, session: Session, now: Date): number {
  */
 export function detectStuck(db: DatabaseSync, readers: ActivityReaders, now: Date = new Date()): StuckReport[] {
   ensure(db);
-  const sessions = many<Session>(db.prepare("SELECT * FROM sessions WHERE state = 'running' AND role IN ('architect', 'developer') AND pid IS NOT NULL ORDER BY id").all());
+  const sessions = many<Session>(db.prepare("SELECT * FROM sessions WHERE state = 'running' AND role IN ('architect', 'project-manager', 'developer') AND pid IS NOT NULL ORDER BY id").all());
   const reports: StuckReport[] = [];
   for (const session of sessions) {
     const health = sessionHealth(db, session, readers, now.getTime());

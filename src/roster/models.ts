@@ -5,7 +5,7 @@
  */
 export const WORK_MODELS = ['haiku', 'sonnet', 'opus'] as const;
 export type WorkModel = (typeof WORK_MODELS)[number];
-export type RoleLike = 'front-desk' | 'architect' | 'developer';
+export type RoleLike = 'front-desk' | 'architect' | 'project-manager' | 'developer';
 
 export function isWorkModel(value: string): value is WorkModel {
   return (WORK_MODELS as readonly string[]).includes(value);
@@ -34,19 +34,19 @@ export interface ResolveModelInput {
   modelOverride: string | null;
   complexity: number | null;
   clarity: number | null;
-  /** The project's default model; developers use it when there are no scores. Architects ignore it. Null means "not set". */
+  /** The project's default model; developers use it when there are no scores. Architects and project managers ignore it. Null means "not set". */
   projectDefaultModel: string | null;
 }
 
 /**
  * The model a tab is launched on.
- * - Architect (project managers are architects too): an explicit model if one is given or recorded,
+ * - Architect and project manager: an explicit model if one is given or recorded,
  *   else opus. The project default never applies to architects.
  * - Developer: an explicit model, else the task scores, else the project default, else sonnet.
  */
 export function resolveLaunchModel(input: ResolveModelInput): string {
   if (input.modelOverride !== null && input.modelOverride !== '') return input.modelOverride;
-  if (input.role === 'architect') return 'opus';
+  if (input.role === 'architect' || input.role === 'project-manager') return 'opus';
   if (input.role === 'developer' && isValidScore(input.complexity) && isValidScore(input.clarity)) {
     return resolveModelTier(input.complexity, input.clarity);
   }

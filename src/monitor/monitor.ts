@@ -6,10 +6,10 @@ import { releaseAll } from '../roster/claims.ts';
 import { iso, many, one, tx } from '../roster/db.ts';
 import { raiseItem } from '../roster/items.ts';
 import { listLimits } from '../roster/limits.ts';
-import { frontDesk, getSession, setClaudeSessionId, setSessionPid, type Session } from '../roster/sessions.ts';
+import { getSession, setClaudeSessionId, setSessionPid, type Session } from '../roster/sessions.ts';
 import { realActivityReaders, type ActivityReaders } from './activity.ts';
 import { planEnforcement, type Enforcement, type MonitoredSession } from './enforce.ts';
-import { detectStuck, type StuckReport } from './health.ts';
+import { addresseeFor, detectStuck, type StuckReport } from './health.ts';
 import { snapshotProcesses, type ProcessInfo } from './processes.ts';
 
 export const DEFAULT_INTERVAL_MS = 30_000;
@@ -108,12 +108,6 @@ export interface Death {
   pid: number;
   reason: 'gone' | 'pid-reused';
   item_id: number;
-}
-
-function addresseeFor(db: DatabaseSync, session: MonitoredSession, now: Date): number {
-  if (session.role === 'architect' || session.parent_id === null) return frontDesk(db, now).id;
-  const parent = getSession(db, session.parent_id);
-  return parent !== undefined && parent.state === 'running' ? parent.id : frontDesk(db, now).id;
 }
 
 /**

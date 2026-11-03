@@ -57,8 +57,8 @@ export function registerMonitorTools(server: McpServer, ctx: ToolContext, deps: 
       guard(() => {
         const role = ctx.identity.role;
         const projectId = projectIdFor(ctx, a.project);
-        if (role !== 'front-desk' && !(role === 'architect' && callerProjectId(ctx) === projectId)) {
-          throw new Error('Only the front desk or this project\'s architect may set its limits');
+        if (role !== 'front-desk' && !((role === 'architect' || role === 'project-manager') && callerProjectId(ctx) === projectId)) {
+          throw new Error('Only the front desk or this project\'s architect or project manager may set its limits');
         }
         return named(
           ctx,

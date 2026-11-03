@@ -9,8 +9,10 @@ import {
   changeSessionModel,
   launchArchitect,
   launchDeveloper,
+  launchProjectManager,
   permissionWarning,
   stopArchitect,
+  stopProjectManager,
   stopSession,
   type LaunchContext,
 } from '../launch/launcher.ts';
@@ -362,6 +364,34 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   );
 
   server.registerTool(
+    'launch_project_manager',
+    {
+      description:
+        "Front desk only: open the project manager for a project in its own Windows Terminal tab (on the project's pm workstream, created if missing; opus; one per project), or return the running one. It launches the project's architects, which then hang under it.",
+      inputSchema: { project: z.string(), goal_id: z.number().int().positive().optional().describe("A goal on the project's pm workstream") },
+    },
+    (a) =>
+      guard(() => {
+        const caller = me(ctx);
+        if (caller.role !== 'front-desk') throw new Error('Only the front desk can launch a project manager');
+        return launchProjectManager(ctx.launch, { project: a.project, goalId: a.goal_id, parentId: caller.id });
+      }),
+  );
+
+  server.registerTool(
+    'stop_project_manager',
+    {
+      description: 'Front desk only: stop the running project manager of a project and, first, every architect and developer under it. Kills their process trees, so the tabs close.',
+      inputSchema: { project: z.string() },
+    },
+    (a) =>
+      guard(() => {
+        if (me(ctx).role !== 'front-desk') throw new Error('Only the front desk can stop a project manager');
+        return stopProjectManager(ctx.launch, { project: a.project });
+      }),
+  );
+
+  server.registerTool(
     'stop_architect',
     {
       description: 'Stop the architect for a project workstream (default main) and its developer sessions. Kills its process tree, so its tab closes.',
@@ -451,7 +481,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     (a) =>
       guard(() => {
         const caller = me(ctx);
-        if (caller.role !== 'architect') throw new Error('Only an architect can log a model pull');
+        if (caller.role !== 'architect' && caller.role !== 'project-manager') throw new Error('Only an architect or project manager can log a model pull');
         const change = recordModelChange(db, { sessionId: caller.id, fromModel: caller.model, toModel: a.to_model, reason: a.reason });
         return { logged: change.id, note: 'Fable is expensive: keep these pulls rare and for high-level thinking only.' };
       }),

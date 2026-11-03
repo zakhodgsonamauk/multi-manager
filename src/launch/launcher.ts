@@ -8,7 +8,9 @@ import { resolveDbPath, type Env } from '../roster/db.ts';
 import { requireGoal, updateGoal } from '../roster/goals.ts';
 import {
   DEFAULT_PERMISSION_MODE,
+  addWorkstream,
   getProjectDefaultModel,
+  getWorkstream,
   requireProject,
   requireProjectById,
   requireWorkstream,
@@ -22,6 +24,7 @@ import {
   reviveSession,
   runningArchitect,
   runningChildren,
+  runningProjectManager,
   setClaudeSessionId,
   setSessionModel,
   setSessionPid,
@@ -36,6 +39,7 @@ import {
   buildStopCommand,
   developerPrompt,
   modelChangePrompt,
+  projectManagerPrompt,
   restartPrompt,
   sessionName,
 } from './command.ts';
@@ -62,7 +66,7 @@ export interface StopResult {
 }
 
 interface TabSpec {
-  role: 'architect' | 'developer';
+  role: 'architect' | 'project-manager' | 'developer';
   project: Project;
   workstream: Workstream;
   name: string;
@@ -97,10 +101,10 @@ export function permissionWarning(project: Project): string | null {
   );
 }
 
-/** The model a new tab runs on: an explicit model, else opus for architects, else the task scores (developers), else the project default, else sonnet. */
+/** The model a new tab runs on: an explicit model, else opus for architects and project managers, else the task scores (developers), else the project default, else sonnet. */
 function modelFor(
   ctx: LaunchContext,
-  role: 'architect' | 'developer',
+  role: 'architect' | 'project-manager' | 'developer',
   projectId: number,
   input: { model?: string | null; complexity?: number | null; clarity?: number | null },
 ): string {
@@ -212,6 +216,37 @@ export async function launchArchitect(
   return result;
 }
 
+/** The workstream a project's project manager lives on; created (on the main workstream's branch) if the project has none. */
+export const PM_WORKSTREAM = 'pm';
+
+export async function launchProjectManager(
+  ctx: LaunchContext,
+  input: { project: string; goalId?: number; parentId: number | null; extraPrompt?: string; model?: string },
+): Promise<LaunchResult> {
+  const project = requireProject(ctx.db, input.project);
+  assertNotPaused(ctx.db, project.id);
+  const existing = runningProjectManager(ctx.db, project.id);
+  if (existing !== undefined) return { session: existing, existing: true, warnings: [] };
+  const workstream =
+    getWorkstream(ctx.db, project.id, PM_WORKSTREAM) ??
+    addWorkstream(ctx.db, project.name, { name: PM_WORKSTREAM, branch: requireWorkstream(ctx.db, project.id, 'main').branch });
+  if (input.goalId !== undefined && requireGoal(ctx.db, input.goalId).workstream_id !== workstream.id) {
+    throw new Error(`Goal #${input.goalId} does not belong to ${project.name}/${workstream.name}`);
+  }
+  const result = await launchTab(ctx, {
+    role: 'project-manager',
+    project,
+    workstream,
+    // Not mm-<project>-pm: an architect already on the pm workstream owns that name, and tabs are found by name.
+    name: sessionName(project.name, 'project-manager'),
+    parentId: input.parentId,
+    model: modelFor(ctx, 'project-manager', project.id, { model: input.model }),
+    prompt: () => [projectManagerPrompt(project.name, input.goalId), input.extraPrompt].filter(Boolean).join(' '),
+  });
+  if (input.goalId !== undefined) updateGoal(ctx.db, input.goalId, { state: 'planning' });
+  return result;
+}
+
 export async function launchDeveloper(
   ctx: LaunchContext,
   input: { architectId: number; task: string; label: string; complexity?: number; clarity?: number; model?: string },
@@ -287,6 +322,13 @@ export async function stopSession(ctx: LaunchContext, sessionId: number): Promis
   return { session: requireSession(ctx.db, session.id), killed, warnings };
 }
 
+export async function stopProjectManager(ctx: LaunchContext, input: { project: string }): Promise<StopResult> {
+  const project = requireProject(ctx.db, input.project);
+  const manager = runningProjectManager(ctx.db, project.id);
+  if (manager === undefined) throw new Error(`No running project manager for ${project.name}`);
+  return stopSession(ctx, manager.id);
+}
+
 export async function stopArchitect(ctx: LaunchContext, input: { project: string; workstream?: string }): Promise<StopResult> {
   const project = requireProject(ctx.db, input.project);
   const workstream = requireWorkstream(ctx.db, project.id, input.workstream ?? 'main');
@@ -303,15 +345,17 @@ export async function stopArchitect(ctx: LaunchContext, input: { project: string
  */
 export async function restartArchitect(ctx: LaunchContext, input: { sessionId: number; reason: string }): Promise<RestartResult> {
   const old = requireSession(ctx.db, input.sessionId);
-  if (old.role !== 'architect' || old.project_id === null || old.workstream_id === null) {
-    throw new Error(`Session #${old.id} is not an architect with a project workstream`);
+  if ((old.role !== 'architect' && old.role !== 'project-manager') || old.project_id === null || old.workstream_id === null) {
+    throw new Error(`Session #${old.id} is not an architect or project manager with a project workstream`);
   }
+  const role = old.role;
   const project = requireProjectById(ctx.db, old.project_id);
   assertNotPaused(ctx.db, project.id);
   const workstream = requireWorkstreamById(ctx.db, old.workstream_id);
-  const other = runningArchitect(ctx.db, workstream.id);
+  const other = role === 'project-manager' ? runningProjectManager(ctx.db, project.id) : runningArchitect(ctx.db, workstream.id);
   if (other !== undefined && other.id !== old.id) {
-    throw new Error(`Architect #${other.id} (${other.name ?? 'unnamed'}) is already running for ${project.name}/${workstream.name}. Talk to it, or stop it first.`);
+    const where = role === 'project-manager' ? project.name : `${project.name}/${workstream.name}`;
+    throw new Error(`${role === 'project-manager' ? 'Project manager' : 'Architect'} #${other.id} (${other.name ?? 'unnamed'}) is already running for ${where}. Talk to it, or stop it first.`);
   }
   const warnings: string[] = [];
   // Leftovers: kill only a wrapper or claude.exe that is provably this session's. Most often there is none,
@@ -328,19 +372,19 @@ export async function restartArchitect(ctx: LaunchContext, input: { sessionId: n
     setClaudeSessionId(ctx.db, old.id, null);
     warnings.push(
       id === null
-        ? 'No saved conversation id for this architect, so it starts a fresh conversation and re-reads its progress log.'
+        ? `No saved conversation id for this ${role === 'project-manager' ? 'project manager' : 'architect'}, so it starts a fresh conversation and re-reads its progress log.`
         : `Conversation ${id} could not be found, so it starts a fresh conversation and re-reads its progress log.`,
     );
   }
   const result = await launchTab(ctx, {
-    role: 'architect',
+    role,
     project,
     workstream,
-    name: old.name ?? sessionName(project.name, workstream.name),
+    name: old.name ?? (role === 'project-manager' ? sessionName(project.name, 'project-manager') : sessionName(project.name, workstream.name)),
     parentId: old.parent_id,
     // Keep the model it ran on; a session with no recorded model gets opus.
-    model: modelFor(ctx, 'architect', project.id, { model: old.model }),
-    prompt: () => restartPrompt(project.name, workstream.name, input.reason, resumed),
+    model: modelFor(ctx, role, project.id, { model: old.model }),
+    prompt: () => restartPrompt(project.name, workstream.name, input.reason, resumed, role),
     reuse: old,
     resumeId: resumed ? (id ?? undefined) : undefined,
   });
@@ -409,14 +453,14 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
   const role = old.role;
   // A developer's name is its worktree, so it cannot be guessed.
   if (role === 'developer' && old.name === null) throw new Error(`Developer #${old.id} has no name, so its worktree is unknown`);
-  const name = old.name ?? sessionName(project.name, workstream.name);
+  const name = old.name ?? (role === 'project-manager' ? sessionName(project.name, 'project-manager') : sessionName(project.name, workstream.name));
   // Read before the close: a launch that gave up waiting for the process recorded no conversation id.
   const id = old.claude_session_id ?? (await readLiveConversation(ctx, old, name));
   const why: string[] = [];
   const closed = await killOwnProcess(ctx, old, why);
   if (closed !== null && closed.code !== 0) why.push(`taskkill of process ${closed.target} exited with ${closed.code}.`);
   if (closed === null || closed.code !== 0) {
-    const stop = role === 'architect' ? 'stop_architect' : 'stop_developer';
+    const stop = role === 'architect' ? 'stop_architect' : role === 'project-manager' ? 'stop_project_manager' : 'stop_developer';
     throw new Error(
       `Multi-Manager could not close ${name}'s tab, model not changed. ${why.join(' ')} ` +
         `If its tab is already gone, stop it (${stop}) and change the model again: a stopped session just records it.`,
@@ -434,8 +478,9 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
         ? `No saved conversation id for ${name}, so it starts a fresh conversation.`
         : `Conversation ${id} could not be found, so ${name} starts a fresh conversation.`,
     );
-    if (role === 'architect') {
-      prompt = `You are the Multi-Manager architect for project ${project.name}, workstream ${workstream.name}. ${change}`;
+    if (role === 'architect' || role === 'project-manager') {
+      const who = role === 'project-manager' ? `project manager for project ${project.name}` : `architect for project ${project.name}, workstream ${workstream.name}`;
+      prompt = `You are the Multi-Manager ${who}. ${change}`;
     } else {
       const task = getSessionTask(ctx.db, old.id);
       if (task === undefined) warnings.push(`No stored task for ${name}, so it is relaunched without its task: tell it again.`);
@@ -460,7 +505,7 @@ export async function changeSessionModel(ctx: LaunchContext, input: { sessionId:
     // but not when it throws earlier (settings file, terminal profile), so say so here too.
     setSessionState(ctx.db, old.id, 'stopped');
     releaseAll(ctx.db, old.id);
-    const restart = role === 'architect' ? 'restart_architect (front desk)' : 'restart_developer (its architect)';
+    const restart = role === 'developer' ? 'restart_developer (its architect)' : 'restart_architect (front desk)';
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`${name}'s tab was closed but could not be relaunched on ${input.model}: ${reason}. It is down and still on ${old.model ?? 'no recorded model'}: bring it back with ${restart}.`, { cause: error });
   }

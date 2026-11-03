@@ -35,3 +35,15 @@
 - Decision: hold the 010 merge until the user answers item #895 (merge as each task passes, recommended; or one switch-over at the end).
 - Alternatives: merge without asking (the plan sign-off implied merges were not live, so the user did not knowingly approve a live database change).
 - Who: the architect; the user decides via item #895.
+## 2026-11-03 — Task 010: the project-manager role in the roster
+Context: a project manager was an `architect` row on a workstream called `pm`; the roster did not know the role.
+Decisions:
+- New `launch_project_manager` and `stop_project_manager` tools (front desk only) instead of reusing `launch_architect` / `stop_architect`: the one-per-project rule is by project, not by workstream, and the two roles must not hide each other in `stop_architect`.
+- A project manager's tab is named `mm-<project>-project-manager`, not `mm-<project>-pm`: the running architect #286 on the pm workstream owns the latter, and tabs are found by name.
+- The `pm` workstream is created on the main workstream's branch if the project has none.
+- `restart_architect` and `restore_all` take project managers; no new restart tool (as decided).
+- The monitor's addressee rule moved to one function (`addresseeFor` in `src/monitor/health.ts`): a developer's running architect; an architect's running project manager; everything else the front desk.
+- `restorable_sessions` gains `project_managers` (each with its dead architects nested, each with its dead developers); `architects` keeps only those not nested. `restore_all` restarts a manager, then its architects, then the rest. `resume` returns `project_managers` and parents a project's architects to its relaunched manager.
+- `team_health` and `record_nudge` accept a project manager (its own architects). Grouping the status tree stays task 012.
+Alternatives: converting existing `architect` rows on `pm` (ruled out by the architect); a separate `parent` column rewrite on resume (not needed: restart keeps the row).
+- Round 1: the rebuild's reference check covers only references to `sessions` (an unrelated dangling row elsewhere must not stop every open), and the row copy takes only columns both tables have. `restore_all` re-parents an architect whose project manager was not brought back to the project's running manager, else the front desk, and lists it under `reparented`.

@@ -10,7 +10,7 @@ import { snapshotProcesses, type ProcessInfo } from '../monitor/processes.ts';
 import { one } from './db.ts';
 import { isPaused } from './pause.ts';
 import { requireProjectById, requireWorkstreamById } from './projects.ts';
-import { requireSession, runningArchitect, runningChildren, type Session } from './sessions.ts';
+import { requireSession, runningArchitect, runningChildren, runningProjectManager, type Session } from './sessions.ts';
 import type { ToolContext } from './tools.ts';
 
 /**
@@ -69,26 +69,48 @@ function dead(db: DatabaseSync, s: Session, readers: ActivityReaders): DeadSessi
   };
 }
 
-/** Architects (with their dead developers under them) that died and nobody has dealt with yet. */
+/**
+ * Project managers and architects (with their dead developers under them) that died and nobody has dealt with yet.
+ * An architect whose parent project manager is also in the list is nested under it; the rest stay in `architects`.
+ */
 export function restorableSessions(db: DatabaseSync, readers: ActivityReaders) {
   const deaths = unresolvedDeaths(db);
-  const architects = deaths.filter((s) => s.role === 'architect' && s.project_id !== null && s.workstream_id !== null);
+  const placed = (s: Session): boolean => s.project_id !== null && s.workstream_id !== null;
+  const managers = deaths.filter((s) => s.role === 'project-manager' && placed(s));
+  const managerIds = new Set(managers.map((m) => m.id));
+  const architects = deaths.filter((s) => s.role === 'architect' && placed(s));
   const listed = new Set(architects.map((a) => a.id));
+  const where = (s: Session) => {
+    const project = requireProjectById(db, s.project_id as number);
+    return {
+      project: project.name,
+      workstream: requireWorkstreamById(db, s.workstream_id as number).name,
+      conversation_file_found: s.claude_session_id === null ? false : readers.findTranscript(s.claude_session_id) !== null,
+      paused: isPaused(db, project.id),
+    };
+  };
+  const architectEntry = (a: Session) => {
+    const other = runningArchitect(db, a.workstream_id as number);
+    return {
+      ...dead(db, a, readers),
+      ...where(a),
+      replaced_by: other === undefined || other.id === a.id ? null : (other.name ?? `session #${other.id}`),
+      developers: deaths.filter((d) => d.role === 'developer' && d.parent_id === a.id).map((d) => dead(db, d, readers)),
+      developers_still_running: runningChildren(db, a.id).map((d) => d.name ?? `session #${d.id}`),
+    };
+  };
   return {
-    architects: architects.map((a) => {
-      const project = requireProjectById(db, a.project_id as number);
-      const other = runningArchitect(db, a.workstream_id as number);
+    project_managers: managers.map((m) => {
+      const other = runningProjectManager(db, m.project_id as number);
       return {
-        ...dead(db, a, readers),
-        project: project.name,
-        workstream: requireWorkstreamById(db, a.workstream_id as number).name,
-        conversation_file_found: a.claude_session_id === null ? false : readers.findTranscript(a.claude_session_id) !== null,
-        paused: isPaused(db, project.id),
-        replaced_by: other === undefined || other.id === a.id ? null : (other.name ?? `session #${other.id}`),
-        developers: deaths.filter((d) => d.role === 'developer' && d.parent_id === a.id).map((d) => dead(db, d, readers)),
-        developers_still_running: runningChildren(db, a.id).map((d) => d.name ?? `session #${d.id}`),
+        ...dead(db, m, readers),
+        ...where(m),
+        replaced_by: other === undefined || other.id === m.id ? null : (other.name ?? `session #${other.id}`),
+        architects: architects.filter((a) => a.parent_id === m.id).map(architectEntry),
+        architects_still_running: runningChildren(db, m.id).map((a) => a.name ?? `session #${a.id}`),
       };
     }),
+    architects: architects.filter((a) => a.parent_id === null || !managerIds.has(a.parent_id)).map(architectEntry),
     other_developers: deaths.filter((d) => d.role === 'developer' && (d.parent_id === null || !listed.has(d.parent_id))).map((d) => dead(db, d, readers)),
   };
 }
@@ -133,9 +155,9 @@ export function registerRecoveryTools(server: McpServer, ctx: ToolContext, optio
           ...list,
           paused: isPaused(db),
           next:
-            list.architects.length === 0
+            list.architects.length === 0 && list.project_managers.length === 0
               ? 'Nothing to bring back.'
-              : 'Tell the user which architects stopped and ask once whether to bring them back (recommend yes). Only after a yes: restore_all, or restart_architect for one. Developers are not restarted; each architect decides after the user\'s go.',
+              : 'Tell the user which project managers and architects stopped and ask once whether to bring them back (recommend yes). Only after a yes: restore_all, or restart_architect for one (it takes a project manager too). Developers are not restarted; each architect decides after the user\'s go.',
         };
       }),
   );
@@ -154,7 +176,7 @@ export function registerRecoveryTools(server: McpServer, ctx: ToolContext, optio
       guard(async () => {
         frontDeskOnly(ctx, 'restart_architect');
         const target = requireSession(db, a.session_id);
-        if (target.role !== 'architect') throw new Error(`Session #${a.session_id} is not an architect`);
+        if (target.role !== 'architect' && target.role !== 'project-manager') throw new Error(`Session #${a.session_id} is not an architect or project manager`);
         return restart(target, a.reason ?? DEFAULT_RESTART_REASON);
       }),
   );
@@ -174,25 +196,44 @@ export function registerRecoveryTools(server: McpServer, ctx: ToolContext, optio
         const list = restorableSessions(db, readers);
         const restored: Awaited<ReturnType<typeof restart>>[] = [];
         const skipped: { session_id: number; name: string; why: string }[] = [];
-        for (const arch of list.architects) {
-          if (arch.paused) {
-            skipped.push({ session_id: arch.session_id, name: arch.name, why: `${arch.project} is paused` });
-            continue;
+        const reparented: { session_id: number; name: string; parent: string }[] = [];
+        const bringBack = async (
+          entry: { session_id: number; name: string; project: string; workstream: string; paused: boolean; replaced_by: string | null },
+          manager?: { session_id: number },
+        ) => {
+          if (entry.paused) {
+            skipped.push({ session_id: entry.session_id, name: entry.name, why: `${entry.project} is paused` });
+            return;
           }
-          if (arch.replaced_by !== null) {
-            skipped.push({ session_id: arch.session_id, name: arch.name, why: `${arch.replaced_by} is already running for ${arch.project}/${arch.workstream}` });
-            continue;
+          if (entry.replaced_by !== null) {
+            skipped.push({ session_id: entry.session_id, name: entry.name, why: `${entry.replaced_by} is already running for ${entry.project}/${entry.workstream}` });
+            return;
           }
           try {
-            restored.push(await restart(requireSession(db, arch.session_id), a.reason ?? DEFAULT_RESTART_REASON));
+            // Its project manager was not brought back: hang it under the project's running one, else the front desk.
+            if (manager !== undefined && !restored.some((r) => r.session_id === manager.session_id)) {
+              const target = requireSession(db, entry.session_id);
+              const parent = runningProjectManager(db, target.project_id as number) ?? frontDeskOnly(ctx, 'restore_all');
+              db.prepare('UPDATE sessions SET parent_id = ? WHERE id = ?').run(parent.id, target.id);
+              reparented.push({ session_id: target.id, name: entry.name, parent: parent.name ?? `session #${parent.id}` });
+            }
+            restored.push(await restart(requireSession(db, entry.session_id), a.reason ?? DEFAULT_RESTART_REASON));
           } catch (error) {
-            skipped.push({ session_id: arch.session_id, name: arch.name, why: error instanceof Error ? error.message : String(error) });
+            skipped.push({ session_id: entry.session_id, name: entry.name, why: error instanceof Error ? error.message : String(error) });
           }
+        };
+        // Project managers first, then their architects (a restart keeps the row, so the parent link holds), then the rest.
+        for (const manager of list.project_managers) {
+          await bringBack(manager);
+          for (const arch of manager.architects) await bringBack(arch, manager);
         }
+        for (const arch of list.architects) await bringBack(arch);
+        const everyArchitect = [...list.project_managers.flatMap((m) => m.architects), ...list.architects];
         return {
           restored,
           skipped,
-          developers_not_restarted: list.architects.flatMap((x) => x.developers.map((d) => ({ architect: x.name, ...d }))),
+          reparented,
+          developers_not_restarted: everyArchitect.flatMap((x) => x.developers.map((d) => ({ architect: x.name, ...d }))),
           next: 'Architects will summarise and wait. Nothing new starts until the user says go.',
         };
       }),

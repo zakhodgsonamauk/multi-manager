@@ -136,7 +136,7 @@ function refuseWhileRunning(db: DatabaseSync, projectId: number, workstreamId: n
       .prepare(
         `SELECT s.id, s.name, p.name AS project, w.name AS workstream FROM sessions s
          JOIN workstreams w ON w.id = s.workstream_id JOIN projects p ON p.id = w.project_id
-         WHERE s.role = 'architect' AND s.state = 'running' AND w.project_id = ? AND (? IS NULL OR w.id = ?)
+         WHERE s.role IN ('architect', 'project-manager') AND s.state = 'running' AND w.project_id = ? AND (? IS NULL OR w.id = ?)
          ORDER BY s.id LIMIT 1`,
       )
       .get(projectId, workstreamId, workstreamId),
