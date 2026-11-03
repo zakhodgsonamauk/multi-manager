@@ -15,4 +15,4 @@ Project manager: roster session #307, goal #81, workstream `pm`.
 - B+C edits the user's personal Claude settings, which every new tab reads. Running financial-portal tabs keep their tool connection until restart; architect told not to kill them and to ask me before touching financial-portal's folder.
 
 ## Next
-- Part 1 done (item #944). Wait for #310 part 2 sign-off (front desk answers; I watch only). Follow-ups for user: delete old financial-portal index, move tell-me-a-story index.
+- Part 1 done (item #944). Wait for #310 part 2 sign-off (front desk answers; I watch only). Follow-ups done (item #946).
