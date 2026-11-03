@@ -12,5 +12,8 @@
 ## Findings
 - Pane crash: `rosterJson` returns raw text for a non-JSON answer; `buildView` then reads `waiting_for_user` off a string. Likely trigger: a too-big `status` answer replaced by Claude Code's "exceeds maximum allowed tokens" note (not proven). Live status answer today 41 KB, mostly full goal texts.
 
+## Live check
+- 2026-11-03 12:40 after the user's plugin reload: screenshot `docs/multi-manager/tasks/009-shots/live-sidebar-after-reload.png`. Sidebar draws the waiting item and the projects tree; no "roster unavailable", no "did not load" note. Status answer on a copy of today's roster: 17,586 characters (was 41,331 this morning with fewer goals).
+
 ## Next
-- Live sidebar check: needs the front desk's sidebar reloaded. Ask the front desk first, then screenshot it.
+- Goal #85 done. Nothing queued.
