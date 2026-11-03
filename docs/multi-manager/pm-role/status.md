@@ -8,7 +8,7 @@ Roster goal #89: formalise the project manager role (front desk → project mana
 Plan and testing approach signed off: 2026-11-03, item #888 ("go").
 
 ## In flight
-- 010 The roster knows the project manager role: dev #293, tab `mm-multi-manager-pm-role-dev-010-pm-role`, sonnet, branch `worktree-mm-multi-manager-pm-role-dev-010-pm-role`, round 2 (send-back 1: migration hardening).
+- 010 The roster knows the project manager role: dev #293, tab `mm-multi-manager-pm-role-dev-010-pm-role`, sonnet, branch `worktree-mm-multi-manager-pm-role-dev-010-pm-role`, round 2 accepted, ready to merge; waits for item #895.
 
 ## Merged
 - (none)
