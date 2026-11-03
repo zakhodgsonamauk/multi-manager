@@ -14,3 +14,4 @@ Folder: `docs/multi-manager/pm-role/` (status, decisions, progress); task files 
 - 2026-11-03 10:06 Sign-off raised: item #888 (to project manager #286), goal set awaiting-signoff, #286 nudged. Waiting; nothing built.
 - 2026-11-03 10:08 Item #888 answered (relayed by #286). Answer (verbatim): "go". Taken as yes to the plan, the testing approach and the recommended default (sign-offs go straight to the front desk, project manager watches). Item closed; goal #89 in progress.
 - 2026-11-03 10:10 Dispatched 010 to dev #293 (mm-multi-manager-pm-role-dev-010-pm-role), sonnet (complexity 4, clarity 4), branch `worktree-mm-multi-manager-pm-role-dev-010-pm-role`.
+- 2026-11-03 10:20 #289 reports 009 merged on main (1612de5) and pushed; its claims released. 012 no longer waits for it; task file updated with 009's changes (250-character cuts, PaneView notes).

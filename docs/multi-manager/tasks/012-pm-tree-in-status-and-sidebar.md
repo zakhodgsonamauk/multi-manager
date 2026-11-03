@@ -9,7 +9,7 @@ Today the project manager shows up as "the architect of the `pm` workstream", an
 - `status` (`src/roster/status.ts:99-147`) groups by project, then workstream, with one `runningArchitect` per workstream. The sidebar (`hooks/roster-view.ts:125-146, 176-208`) follows it: project, workstream, architect plus a developers line.
 - `team_health` (`src/roster/tools-health.ts:66-84`) groups by caller role: an architect sees its developers; the front desk sees every architect with a developer summary.
 - `list_sessions` (`sessionTree`, `src/roster/sessions.ts:147`) is already a real tree by `parent_id`.
-- Task 009 (goal #85) caps long texts in the status summary and makes the pane survive missing fields. Keep both behaviours; extend its "missing parts" handling to the new field.
+- Task 009 (goal #85) is merged (1612de5): the status summary cuts goal texts and item bodies/answers at 250 characters with `text_cut` / `body_cut` / `answer_cut` flags, and `PaneView` gained `notes: string[]` for parts that did not load. Keep both behaviours; extend the notes handling to the new field.
 
 ## Decisions already made (do not reopen)
 - `status`: each project gains `project_manager` (`null` when none runs): `{ session_id, name, state, model, last_checkin_at }`. The `pm` workstream is not listed as an ordinary workstream when a project manager runs on it (its goals still appear under the project manager). Each workstream's architect gains `managed_by` (the project manager's session id, or `null` when its parent is the front desk).
