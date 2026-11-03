@@ -36,10 +36,13 @@ export interface WorkstreamStatus {
 /** The most characters (the task allows 300; 250 leaves room under the size goal) of a goal text, item body or item answer the status summary carries. */
 export const STATUS_TEXT_MAX = 250;
 
-/** Cuts text to at most STATUS_TEXT_MAX characters, ending with the note saying where the full text lives. */
-function cutText(text: string, note: string): { text: string; cut: boolean } {
-  if (text.length <= STATUS_TEXT_MAX) return { text, cut: false };
-  return { text: `${text.slice(0, STATUS_TEXT_MAX - note.length)}${note}`, cut: true };
+/** The cut for body and answer of items under a project's open_items: mostly architect and developer traffic; list_items has the full text. */
+export const PROJECT_ITEM_TEXT_MAX = 120;
+
+/** Cuts text to at most `max` characters, ending with the note saying where the full text lives. */
+function cutText(text: string, note: string, max: number = STATUS_TEXT_MAX): { text: string; cut: boolean } {
+  if (text.length <= max) return { text, cut: false };
+  return { text: `${text.slice(0, max - note.length)}${note}`, cut: true };
 }
 
 /** A goal in the summary. `text` is cut to 250 characters (text_cut: true then); the full text is `get_goal N`. */
@@ -53,14 +56,15 @@ export interface GoalStatus {
   spent_usd: number;
 }
 
-/** An item in the summary. `body` and `answer` are cut to 250 characters (body_cut / answer_cut then); the full text is `list_items`. */
+/** An item in the summary. `body` and `answer` are cut to 250 characters, or 120 under a project's open_items (body_cut / answer_cut then); the full text is `list_items`. */
 export interface ItemStatus {
   id: number;
   kind: ItemKind;
   state: ItemState;
   body: string;
   body_cut?: true;
-  answer: string | null;
+  /** Absent until the item is answered. */
+  answer?: string;
   answer_cut?: true;
   goal_id: number | null;
   raised_by: string | null;
@@ -100,19 +104,20 @@ const ITEM_SELECT = `SELECT i.id, i.kind, i.state, i.body, i.answer, i.goal_id, 
   LEFT JOIN sessions r ON r.id = i.raised_by
   LEFT JOIN sessions a ON a.id = i.addressed_to`;
 
-function itemRows(db: DatabaseSync, where: string, params: SQLInputValue[]): ItemStatus[] {
-  const rows = many<Omit<ItemStatus, 'seen' | 'raised_by_running'> & { seen: number; raised_by_running: number }>(
+function itemRows(db: DatabaseSync, where: string, params: SQLInputValue[], max: number = STATUS_TEXT_MAX): ItemStatus[] {
+  const rows = many<Omit<ItemStatus, 'seen' | 'raised_by_running' | 'answer'> & { answer: string | null; seen: number; raised_by_running: number }>(
     db.prepare(`${ITEM_SELECT} ${where} ORDER BY i.created_at, i.id`).all(...params),
   );
   const note = ' … (full text: list_items)';
   return rows.map((row) => {
-    const body = cutText(row.body, note);
-    const answer = row.answer === null ? null : cutText(row.answer, note);
+    const body = cutText(row.body, note, max);
+    const { answer: rawAnswer, ...rest } = row;
+    const answer = rawAnswer === null ? null : cutText(rawAnswer, note, max);
     return {
-      ...row,
+      ...rest,
       body: body.text,
       ...(body.cut ? { body_cut: true as const } : {}),
-      answer: answer === null ? null : answer.text,
+      ...(answer === null ? {} : { answer: answer.text }),
       ...(answer?.cut === true ? { answer_cut: true as const } : {}),
       seen: row.seen === 1,
       raised_by_running: row.raised_by_running === 1,
@@ -142,7 +147,7 @@ function shownWorkstreams(db: DatabaseSync, project: Project): { workstream: Wor
     .filter(({ workstream, architect }) => workstream.archived_at === null || architect !== undefined);
 }
 
-function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter: number): ProjectStatus {
+function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter: number, deskId: number): ProjectStatus {
   const pm = runningProjectManager(db, project.id);
   // The pm workstream is the project manager's own seat: it is listed as the project manager, not as a workstream.
   const shown = shownWorkstreams(db, project).filter(({ workstream }) => pm === undefined || workstream.id !== pm.workstream_id);
@@ -177,10 +182,11 @@ function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter
         spent_usd: spendForGoal(db, g.id),
         };
       }),
-    open_items: itemRows(db, "WHERE i.state <> 'closed' AND (w.project_id = ? OR (i.goal_id IS NULL AND r.project_id = ?))", [
+    open_items: itemRows(db, "WHERE i.state <> 'closed' AND (w.project_id = ? OR (i.goal_id IS NULL AND r.project_id = ?)) AND NOT (i.state = 'open' AND i.addressed_to = ?)", [
       project.id,
       project.id,
-    ]),
+      deskId,
+    ], PROJECT_ITEM_TEXT_MAX),
   };
 }
 
@@ -192,6 +198,6 @@ export function statusSummary(db: DatabaseSync, now: Date = new Date(), staleAft
     waiting_for_user: itemRows(db, "WHERE i.addressed_to = ? AND i.state = 'open'", [desk.id]),
     projects: listProjects(db)
       .filter((project) => project.archived_at === null || shownWorkstreams(db, project).some((w) => w.architect !== undefined))
-      .map((project) => projectStatus(db, project, now, staleAfterMinutes)),
+      .map((project) => projectStatus(db, project, now, staleAfterMinutes, desk.id)),
   };
 }

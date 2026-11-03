@@ -36,8 +36,9 @@ test('status lists waiting items first, then each project in full', (t) => {
   assert.equal(a.workstreams[0].architect?.minutes_since_checkin, 45);
   assert.equal(a.workstreams[0].architect?.stale, true);
   assert.deepEqual(a.active_goals.map((g) => [g.id, g.state, g.spent_usd, g.workstream]), [[active.id, 'new', 2.5, 'main']]);
-  assert.deepEqual(a.open_items.map((i) => i.id), [signoff.id]);
-  assert.equal(a.open_items[0].seen, false);
+  // The signoff waits for the user: listed once, under waiting_for_user, not again under its project.
+  assert.deepEqual(a.open_items.map((i) => i.id), []);
+  assert.equal(status.waiting_for_user[0].seen, false);
   assert.deepEqual(status.projects[1].active_goals, []);
 });
 
@@ -87,7 +88,7 @@ test('status cuts long goal texts and item bodies and answers, and flags only wh
   assert.equal(short?.text, 'short goal');
   assert.equal('text_cut' in (short ?? {}), false);
 
-  const item = a.open_items.find((i) => i.id === longItem.id);
+  const item = statusSummary(db).waiting_for_user.find((i) => i.id === longItem.id);
   assert.ok(item);
   assert.equal(item.body.length <= 300, true);
   assert.equal(item.body.endsWith(' … (full text: list_items)'), true);
@@ -95,7 +96,7 @@ test('status cuts long goal texts and item bodies and answers, and flags only wh
   assert.equal(item.answer?.length !== undefined && item.answer.length <= 300, true);
   assert.equal(item.answer?.endsWith(' … (full text: list_items)'), true);
   assert.equal(item.answer_cut, true);
-  const plain = a.open_items.find((i) => i.id === shortItem.id);
+  const plain = statusSummary(db).waiting_for_user.find((i) => i.id === shortItem.id);
   assert.equal(plain?.body, 'short body');
   assert.equal('body_cut' in (plain ?? {}), false);
   assert.equal('answer_cut' in (plain ?? {}), false);
@@ -111,7 +112,7 @@ test('status with 20 big goals and 20 big items across two projects stays small,
     const p = addProject(db, { name, folder: `C:\${name}` });
     const main = requireWorkstream(db, p.id, 'main');
     // Items for the architect (from its developers) appear once, under the project. Items for the front desk
-    // appear twice, under waiting_for_user and under the project: see the return report.
+    // appear once, under waiting_for_user, and not in the project's open_items.
     const arch = registerSession(db, { role: 'architect', projectId: p.id, workstreamId: main.id, name: `mm-${name}-main` });
     for (let i = 0; i < 10; i++) {
       const goal = createGoal(db, { workstreamId: main.id, text: 'g'.repeat(5000) });

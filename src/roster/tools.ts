@@ -107,6 +107,16 @@ function nudge(ctx: ToolContext, sessionId: number, itemId: number): { to: strin
   return { to: getSession(ctx.db, sessionId)?.name ?? null, message: `check roster item #${itemId}` };
 }
 
+/** The start_front_desk answer: briefing, who you are, then the compact status (waiting items first). */
+export function frontDeskStartText(db: DatabaseSync, pluginRoot: string, desk: Session): string {
+  return [
+    briefing(pluginRoot, 'front-desk').text,
+    `## You are roster session #${desk.id} (${desk.name ?? FRONT_DESK_NAME})`,
+    '## Status (waiting items first)',
+    JSON.stringify(statusSummary(db)),
+  ].join('\n\n');
+}
+
 export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   const { db } = ctx;
 
@@ -124,12 +134,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
         const desk = startFrontDesk(db, name ?? frontDeskNameFromEnv());
         ctx.identity = { sessionId: desk.id, role: 'front-desk' };
         ctx.launch.deps.ensureTerminalProfile();
-        return [
-          briefing(ctx.pluginRoot, 'front-desk').text,
-          `## You are roster session #${desk.id} (${desk.name ?? FRONT_DESK_NAME})`,
-          '## Status (waiting items first)',
-          JSON.stringify(statusSummary(db), null, 2),
-        ].join('\n\n');
+        return frontDeskStartText(db, ctx.pluginRoot, desk);
       }),
   );
 
@@ -399,8 +404,12 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
 
   server.registerTool(
     'status',
-    { description: 'Status summary: waiting items first, then per project workstreams, architects (stale?), active goals, open items, spend today.', inputSchema: {} },
-    () => guard(() => statusSummary(db)),
+    {
+      description:
+        'Status summary (compact JSON): waiting items first, then per project workstreams, architects (stale?), active goals, open items, spend today. Items waiting for the user are listed once, under waiting_for_user.',
+      inputSchema: {},
+    },
+    () => guard(() => JSON.stringify(statusSummary(db))),
   );
 
   server.registerTool(
