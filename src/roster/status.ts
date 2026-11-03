@@ -23,21 +23,35 @@ export interface WorkstreamStatus {
   architect: ArchitectStatus | null;
 }
 
+/** The most characters (the task allows 300; 250 leaves room under the size goal) of a goal text, item body or item answer the status summary carries. */
+export const STATUS_TEXT_MAX = 250;
+
+/** Cuts text to at most STATUS_TEXT_MAX characters, ending with the note saying where the full text lives. */
+function cutText(text: string, note: string): { text: string; cut: boolean } {
+  if (text.length <= STATUS_TEXT_MAX) return { text, cut: false };
+  return { text: `${text.slice(0, STATUS_TEXT_MAX - note.length)}${note}`, cut: true };
+}
+
+/** A goal in the summary. `text` is cut to 250 characters (text_cut: true then); the full text is `get_goal N`. */
 export interface GoalStatus {
   id: number;
   workstream: string;
   text: string;
+  text_cut?: true;
   state: string;
   budget_usd: number | null;
   spent_usd: number;
 }
 
+/** An item in the summary. `body` and `answer` are cut to 250 characters (body_cut / answer_cut then); the full text is `list_items`. */
 export interface ItemStatus {
   id: number;
   kind: ItemKind;
   state: ItemState;
   body: string;
+  body_cut?: true;
   answer: string | null;
+  answer_cut?: true;
   goal_id: number | null;
   raised_by: string | null;
   /** Whether the raiser's session is still running: answering a stopped one reaches nobody. */
@@ -78,7 +92,20 @@ function itemRows(db: DatabaseSync, where: string, params: SQLInputValue[]): Ite
   const rows = many<Omit<ItemStatus, 'seen' | 'raised_by_running'> & { seen: number; raised_by_running: number }>(
     db.prepare(`${ITEM_SELECT} ${where} ORDER BY i.created_at, i.id`).all(...params),
   );
-  return rows.map((row) => ({ ...row, seen: row.seen === 1, raised_by_running: row.raised_by_running === 1 }));
+  const note = ' … (full text: list_items)';
+  return rows.map((row) => {
+    const body = cutText(row.body, note);
+    const answer = row.answer === null ? null : cutText(row.answer, note);
+    return {
+      ...row,
+      body: body.text,
+      ...(body.cut ? { body_cut: true as const } : {}),
+      answer: answer === null ? null : answer.text,
+      ...(answer?.cut === true ? { answer_cut: true as const } : {}),
+      seen: row.seen === 1,
+      raised_by_running: row.raised_by_running === 1,
+    };
+  });
 }
 
 function architectStatus(session: Session | undefined, now: Date, staleAfter: number): ArchitectStatus | null {
@@ -120,14 +147,18 @@ function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter
     // A hidden workstream's goals hide with it.
     active_goals: activeGoals(db, project.id)
       .filter((g) => shownNames.has(g.workstream.toLowerCase()))
-      .map((g) => ({
+      .map((g) => {
+        const text = cutText(g.text, ` … (full text: get_goal ${g.id})`);
+        return {
         id: g.id,
         workstream: g.workstream,
-        text: g.text,
+        text: text.text,
+        ...(text.cut ? { text_cut: true as const } : {}),
         state: g.state,
         budget_usd: g.budget_usd,
         spent_usd: spendForGoal(db, g.id),
-      })),
+        };
+      }),
     open_items: itemRows(db, "WHERE i.state <> 'closed' AND (w.project_id = ? OR (i.goal_id IS NULL AND r.project_id = ?))", [
       project.id,
       project.id,

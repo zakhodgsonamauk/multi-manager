@@ -57,6 +57,8 @@ export type PaneView = {
   isPaused: boolean;
   /** Plain lines for sessions over a process limit. */
   overLimits: string[];
+  /** Plain lines for roster calls that failed or answered oddly: the pane shows them in place of the missing parts. */
+  notes: string[];
   /** When this view was fetched, ms since the epoch. */
   fetchedAt: number;
 };

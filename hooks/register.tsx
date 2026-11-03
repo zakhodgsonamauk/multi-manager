@@ -24,11 +24,8 @@ import {
   rosterJson,
   summaryLine,
   type RosterAnswerReply,
-  type RosterHealth,
-  type RosterItem,
   type RosterNudge,
   type RosterResources,
-  type RosterStatus,
 } from './roster-view.ts'
 
 type Engine = EngineInterface
@@ -71,7 +68,7 @@ const roster = async ($: Engine, tool: string, args: Record<string, unknown> = {
     if (!connected.isConnected) throw new Error(`the roster is not connected (${connected.reason})`)
     server = connected.server
   }
-  return rosterJson(await $.mcp.call(server, tool, args))
+  return rosterJson(await $.mcp.call(server, tool, args), tool)
 }
 
 const poll = async ($: Engine, options: { fresh?: boolean } = {}): Promise<void> => {
@@ -84,16 +81,32 @@ const poll = async ($: Engine, options: { fresh?: boolean } = {}): Promise<void>
   try {
     const now = await $.clock.now()
     const needsResources = options.fresh === true || resources === undefined || now - resources.at >= RESOURCES_MS
-    const [status, health, items, freshResources] = await Promise.all([
-      roster($, 'status') as Promise<RosterStatus>,
-      roster($, 'team_health') as Promise<RosterHealth>,
-      roster($, 'list_items', { states: ['open'] }) as Promise<RosterItem[]>,
-      needsResources ? (roster($, 'resources') as Promise<RosterResources>) : Promise.resolve(undefined),
+    // One failing call does not blank the pane: the others still draw, and the failure becomes a note.
+    const settled = await Promise.allSettled([
+      roster($, 'status'),
+      roster($, 'team_health'),
+      roster($, 'list_items', { states: ['open'] }),
+      needsResources ? roster($, 'resources') : Promise.resolve(undefined),
     ])
-    if (freshResources !== undefined) resources = { at: now, value: freshResources }
-    const view = buildView({ status, health, items, resources: resources?.value ?? [] }, now)
+    const failed = settled.flatMap(r => (r.status === 'rejected' ? [r.reason as unknown] : []))
+    // The three calls made every poll all failed: the roster is unavailable, and the last good view stays.
+    // (resources is not made every poll, so it does not count.)
+    if (settled.slice(0, 3).every(r => r.status === 'rejected')) throw failed[0]
+    const [status, health, items, freshResources] = settled.map(r => (r.status === 'fulfilled' ? r.value : undefined))
+    if (freshResources !== undefined) resources = { at: now, value: freshResources as RosterResources }
+    const view = buildView(
+      { status, health, items, resources: resources?.value ?? (settled[3].status === 'rejected' ? undefined : []), failures: failed.map(e => oneLine(message(e), 160)) },
+      now,
+    )
+    // A failed call may mean the server restarted: reconnect next time.
+    if (failed.length > 0) server = undefined
     const previous = await read($, viewAtom)
-    const due = dueToasts(view, { items: await read($, announcedItems), trouble: await read($, announcedTrouble) })
+    const announced = { items: await read($, announcedItems), trouble: await read($, announcedTrouble) }
+    const due = dueToasts(view, announced)
+    // A part that failed this round says nothing about what is gone: keep what was announced for it, so
+    // recovery does not announce everything again.
+    if (settled[2].status === 'rejected') due.items = [...announced.items]
+    if (settled[0].status === 'rejected' || settled[1].status === 'rejected') due.trouble = [...announced.trouble]
     // The first view of a session only sets what counts as seen: the front desk shows what waits as it starts.
     if (previous !== null) for (const text of due.toasts) $.ui.toast(text, { timeoutMs: 8000 })
     await update($, announcedItems, () => due.items)
@@ -306,6 +319,11 @@ export const register: Register = on => {
         </Text>
       )
     if (view === null) return <Box flexDirection="column">{notice ?? <Text dimColor>Loading from the roster…</Text>}</Box>
+    const viewNotes = view.notes.map((line, index) => (
+      <Text key={`note-${index}`} dimColor wrap="wrap">
+        {line}
+      </Text>
+    ))
 
     const waiting = view.waiting.map(item => {
       const from = item.raisedBy === null ? '' : ` from ${item.raisedBy}${item.isRaiserStopped ? ' (stopped)' : ''}`
@@ -506,6 +524,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {notice}
+        {viewNotes}
         <Text bold>Waiting for you ({view.waiting.length})</Text>
         {waiting.length === 0 ? <Text dimColor>Nothing is waiting for you.</Text> : waiting}
         <Text bold>Projects</Text>

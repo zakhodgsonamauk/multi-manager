@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createGoal, updateGoal } from '../src/roster/goals.ts';
-import { closeItem, raiseItem } from '../src/roster/items.ts';
+import { createGoal, requireGoal, updateGoal } from '../src/roster/goals.ts';
+import { closeItem, listItems, raiseItem } from '../src/roster/items.ts';
 import { addProject, requireWorkstream } from '../src/roster/projects.ts';
 import { checkIn, registerSession, setSessionState, startFrontDesk } from '../src/roster/sessions.ts';
 import { reportSpend } from '../src/roster/spend.ts';
@@ -64,4 +64,64 @@ test('each waiting item says whether its raiser is still running', (t) => {
   setSessionState(db, ui.id, 'stopped');
   const waiting = statusSummary(db).waiting_for_user;
   assert.deepEqual(waiting.map((i) => [i.raised_by, i.raised_by_running]), [['mm-alpha-main', true], ['mm-alpha-ui', false]]);
+});
+
+test('status cuts long goal texts and item bodies and answers, and flags only what it cut', (t) => {
+  const db = tempRoster(t);
+  startFrontDesk(db);
+  const p = addProject(db, { name: 'alpha', folder: 'C:\\a' });
+  const main = requireWorkstream(db, p.id, 'main');
+  const longGoal = createGoal(db, { workstreamId: main.id, text: 'g'.repeat(5000) });
+  const shortGoal = createGoal(db, { workstreamId: main.id, text: 'short goal' });
+  const longItem = raiseItem(db, { kind: 'question', body: 'b'.repeat(5000), goalId: longGoal.id });
+  const shortItem = raiseItem(db, { kind: 'info', body: 'short body', goalId: longGoal.id });
+  db.prepare('UPDATE items SET answer = ? WHERE id = ?').run('a'.repeat(5000), longItem.id);
+
+  const a = statusSummary(db).projects[0];
+  const goal = a.active_goals.find((g) => g.id === longGoal.id);
+  assert.ok(goal);
+  assert.equal(goal.text.length <= 300, true);
+  assert.equal(goal.text.endsWith(` … (full text: get_goal ${longGoal.id})`), true);
+  assert.equal(goal.text_cut, true);
+  const short = a.active_goals.find((g) => g.id === shortGoal.id);
+  assert.equal(short?.text, 'short goal');
+  assert.equal('text_cut' in (short ?? {}), false);
+
+  const item = a.open_items.find((i) => i.id === longItem.id);
+  assert.ok(item);
+  assert.equal(item.body.length <= 300, true);
+  assert.equal(item.body.endsWith(' … (full text: list_items)'), true);
+  assert.equal(item.body_cut, true);
+  assert.equal(item.answer?.length !== undefined && item.answer.length <= 300, true);
+  assert.equal(item.answer?.endsWith(' … (full text: list_items)'), true);
+  assert.equal(item.answer_cut, true);
+  const plain = a.open_items.find((i) => i.id === shortItem.id);
+  assert.equal(plain?.body, 'short body');
+  assert.equal('body_cut' in (plain ?? {}), false);
+  assert.equal('answer_cut' in (plain ?? {}), false);
+  // The same cut applies to the waiting list.
+  const waiting = statusSummary(db).waiting_for_user.find((i) => i.id === longItem.id);
+  assert.equal(waiting?.body_cut, true);
+});
+
+test('status with 20 big goals and 20 big items across two projects stays small, and the full texts remain elsewhere', (t) => {
+  const db = tempRoster(t);
+  startFrontDesk(db);
+  for (const name of ['alpha', 'beta']) {
+    const p = addProject(db, { name, folder: `C:\${name}` });
+    const main = requireWorkstream(db, p.id, 'main');
+    // Items for the architect (from its developers) appear once, under the project. Items for the front desk
+    // appear twice, under waiting_for_user and under the project: see the return report.
+    const arch = registerSession(db, { role: 'architect', projectId: p.id, workstreamId: main.id, name: `mm-${name}-main` });
+    for (let i = 0; i < 10; i++) {
+      const goal = createGoal(db, { workstreamId: main.id, text: 'g'.repeat(5000) });
+      raiseItem(db, { kind: 'question', body: 'b'.repeat(5000), goalId: goal.id, addressedTo: arch.id });
+    }
+  }
+  const size = JSON.stringify(statusSummary(db), null, 2).length;
+  console.log(`status size, 20 goals x 5000 chars + 20 items x 5000 chars: ${size}`);
+  assert.equal(size < 25_000, true);
+  // list_items and get_goal read the database directly: full text.
+  assert.equal(listItems(db, {}).every((i) => i.body.length === 5000), true);
+  assert.equal(requireGoal(db, 1).text.length, 5000);
 });
