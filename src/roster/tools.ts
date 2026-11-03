@@ -461,7 +461,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     'stop_architect',
     {
       description:
-        'Stop an architect and its developer sessions: name its project and workstream (default main), or give its session_id. Kills its process tree, so its tab closes.',
+        'Stop an architect and its developer sessions: name its project and workstream (default main), or give its session_id. Kills its process tree, so its tab closes. An architect with architects under it hands them (and their live items) to the project\'s running project manager and they keep running; with no running project manager it refuses and stops nothing. After a hand-over, follow the returned `next` line.',
       inputSchema: { project: z.string().optional(), workstream: z.string().optional(), session_id: z.number().int().positive().optional() },
     },
     (a) => guard(() => stopArchitect(ctx.launch, { project: a.project, workstream: a.workstream, sessionId: a.session_id })),

@@ -81,6 +81,37 @@ export function raiseItem(db: DatabaseSync, input: ItemInput, now: Date = new Da
   return requireItem(db, Number(result.lastInsertRowid));
 }
 
+/**
+ * After `raisers` were given a new parent: live items they raised that were addressed to or watched by the old
+ * parent `fromSessionId` are routed as if raised now (same rule as `raiseItem`). Open items move to the new
+ * route and become unseen; answered items stay with their raiser and only lose a watcher that was the old
+ * parent. Returns the ids that changed. Call inside a transaction, after the parent change.
+ */
+export function rerouteItems(db: DatabaseSync, fromSessionId: number, raisers: readonly number[], now: Date = new Date()): number[] {
+  const changed: number[] = [];
+  for (const raiser of raisers) {
+    const items = many<Item>(db.prepare("SELECT * FROM items WHERE raised_by = ? AND state IN ('open', 'answered') ORDER BY id").all(raiser));
+    for (const item of items) {
+      if (item.addressed_to !== fromSessionId && item.watched_by !== fromSessionId) continue;
+      const route = defaultRoute(db, item.kind, raiser, now);
+      if (item.state === 'open') {
+        const moved = route.addressedTo !== item.addressed_to;
+        db.prepare('UPDATE items SET addressed_to = ?, watched_by = ?, seen = ?, updated_at = ? WHERE id = ?').run(
+          route.addressedTo,
+          route.watchedBy,
+          moved ? 0 : item.seen,
+          iso(now),
+          item.id,
+        );
+      } else if (item.watched_by === fromSessionId) {
+        db.prepare('UPDATE items SET watched_by = ?, updated_at = ? WHERE id = ?').run(route.watchedBy, iso(now), item.id);
+      } else continue;
+      changed.push(item.id);
+    }
+  }
+  return changed;
+}
+
 export function getItem(db: DatabaseSync, id: number): Item | undefined {
   return one<Item>(db.prepare('SELECT * FROM items WHERE id = ?').get(id));
 }

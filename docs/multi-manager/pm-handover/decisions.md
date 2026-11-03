@@ -35,3 +35,6 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 - Context: approval rules ask for plan and testing sign-off. Goal #98 text: the user's "go" (item #919: "sure, go on the follow-up") covers this; "raise a plan sign-off only if the work grows beyond it."
 - Decision: one task, within the approved follow-up, so no sign-off raised. Testing: focused unit tests on a throwaway roster (task 015 list) plus an end-to-end run on a throwaway roster with fake launches. No user-facing screen changes, so no click-through (the sidebar's stop button only shows the new refusal text through its existing pop-up).
 - Who: the architect (#304).
+
+## 2026-11-03 — Re-route reuses defaultRoute (task 015 build)
+- `rerouteItems` runs after the parent change and calls `defaultRoute`, so moved items follow exactly the rule new items follow. Answered items only lose an old-pm watcher. Hand-over result adds `handed_over` and `next`; other stop results unchanged.

@@ -4,7 +4,8 @@ import { releaseAll } from '../roster/claims.ts';
 import { assertNotPaused } from '../roster/pause.ts';
 import { getSessionTask, saveSessionTask } from '../roster/session-tasks.ts';
 import { isWorkModel, resolveLaunchModel } from '../roster/models.ts';
-import { resolveDbPath, type Env } from '../roster/db.ts';
+import { resolveDbPath, tx, type Env } from '../roster/db.ts';
+import { rerouteItems } from '../roster/items.ts';
 import { requireGoal, updateGoal } from '../roster/goals.ts';
 import {
   DEFAULT_PERMISSION_MODE,
@@ -63,6 +64,10 @@ export interface StopResult {
   session: Session;
   killed: boolean;
   warnings: string[];
+  /** Only when architects moved to a project manager instead of stopping. */
+  handed_over?: { to: { session_id: number; name: string }; architects: { session_id: number; name: string }[]; items: number[] };
+  /** Plain line the caller acts on after a hand-over. */
+  next?: string;
 }
 
 interface TabSpec {
@@ -329,19 +334,49 @@ export async function stopProjectManager(ctx: LaunchContext, input: { project: s
   return stopSession(ctx, manager.id);
 }
 
+/**
+ * Stops one architect. Architects running under it are not stopped: they move under the project's running
+ * project manager (with their developers and live items) and keep running; with no project manager to take
+ * them, nothing is stopped. Only here, not in stopSession: pause and the other stops still stop everything.
+ */
+async function stopArchitectSession(ctx: LaunchContext, architect: Session): Promise<StopResult> {
+  const handed = runningChildren(ctx.db, architect.id).filter((c) => c.role === 'architect');
+  if (handed.length === 0) return stopSession(ctx, architect.id);
+  const label = (s: Session) => s.name ?? `session #${s.id}`;
+  const names = handed.map(label).join(', ');
+  const manager = architect.project_id === null ? undefined : runningProjectManager(ctx.db, architect.project_id);
+  if (manager === undefined) {
+    const project = architect.project_id === null ? 'its project' : requireProjectById(ctx.db, architect.project_id).name;
+    throw new Error(
+      `Not stopped: ${label(architect)} has ${handed.length} architect(s) running under it and ${project} has no project manager to take them. Launch it first (launch_project_manager), or stop those architects first: ${names}.`,
+    );
+  }
+  const items = tx(ctx.db, () => {
+    const move = ctx.db.prepare('UPDATE sessions SET parent_id = ? WHERE id = ?');
+    for (const child of handed) move.run(manager.id, child.id);
+    return rerouteItems(ctx.db, architect.id, handed.map((c) => c.id));
+  });
+  const result = await stopSession(ctx, architect.id);
+  return {
+    ...result,
+    handed_over: { to: { session_id: manager.id, name: label(manager) }, architects: handed.map((c) => ({ session_id: c.id, name: label(c) })), items },
+    next: `Tell ${label(manager)} it now manages ${names} (SendMessage "check list_sessions: you now manage ${names}"), and tell each moved architect its project manager is now ${label(manager)}.`,
+  };
+}
+
 export async function stopArchitect(ctx: LaunchContext, input: { project?: string; workstream?: string; sessionId?: number }): Promise<StopResult> {
   if (input.sessionId !== undefined) {
     const session = requireSession(ctx.db, input.sessionId);
     if (session.role !== 'architect') throw new Error(`Session #${session.id} is not an architect`);
     if (session.state !== 'running') throw new Error(`Session #${session.id} is not running`);
-    return stopSession(ctx, session.id);
+    return stopArchitectSession(ctx, session);
   }
   if (input.project === undefined) throw new Error('Name the project (and workstream), or give session_id');
   const project = requireProject(ctx.db, input.project);
   const workstream = requireWorkstream(ctx.db, project.id, input.workstream ?? 'main');
   const architect = runningArchitect(ctx.db, workstream.id);
   if (architect === undefined) throw new Error(`No running architect for ${project.name}/${workstream.name}`);
-  return stopSession(ctx, architect.id);
+  return stopArchitectSession(ctx, architect);
 }
 
 /**

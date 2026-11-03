@@ -10,6 +10,8 @@ import {
   markSeen,
   openItemsFor,
   raiseItem,
+  requireItem,
+  rerouteItems,
   unseenItemsFor,
 } from '../src/roster/items.ts';
 import { addProject, addWorkstream, requireWorkstream } from '../src/roster/projects.ts';
@@ -152,4 +154,27 @@ test('the project manager sees watched items, with the answer, but cannot answer
   assert.equal(after[0].answer, ' go ');
   assert.equal(after[0].watched_by, pm.id);
   assert.equal(after[0].addressed_to, arch.id);
+});
+
+test('rerouteItems: open items naming the old parent move by the new parent; others are untouched and not returned', (t) => {
+  const { db, desk, arch } = setup(t);
+  const project = arch.project_id as number;
+  const ws = (name: string) => { addWorkstream(db, 'alpha', { name, branch: 'main' }); return requireWorkstream(db, project, name).id; };
+  const oldPm = registerSession(db, { role: 'architect', parentId: desk.id, projectId: project, workstreamId: ws('w1'), name: 'old-pm' });
+  const pm = registerSession(db, { role: 'project-manager', parentId: desk.id, projectId: project, workstreamId: ws('w2'), name: 'new-pm' });
+  const child = registerSession(db, { role: 'architect', parentId: oldPm.id, projectId: project, workstreamId: ws('w3'), name: 'child' });
+  const done = raiseItem(db, { kind: 'done', body: 'built', raisedBy: child.id });
+  const signoff = raiseItem(db, { kind: 'signoff', body: 'ok?', raisedBy: child.id });
+  const elsewhere = raiseItem(db, { kind: 'done', body: 'to the desk', raisedBy: child.id, addressedTo: desk.id });
+  markSeen(db, [done.id, signoff.id, elsewhere.id]);
+  db.prepare('UPDATE sessions SET parent_id = ? WHERE id = ?').run(pm.id, child.id);
+  const changed = rerouteItems(db, oldPm.id, [child.id]);
+  assert.deepEqual(changed, [done.id, signoff.id]);
+  assert.equal(requireItem(db, done.id).addressed_to, pm.id);
+  assert.equal(requireItem(db, done.id).seen, 0);
+  assert.equal(requireItem(db, signoff.id).addressed_to, desk.id);
+  assert.equal(requireItem(db, signoff.id).watched_by, pm.id);
+  assert.equal(requireItem(db, signoff.id).seen, 0);
+  assert.equal(requireItem(db, elsewhere.id).addressed_to, desk.id);
+  assert.equal(requireItem(db, elsewhere.id).seen, 1);
 });
