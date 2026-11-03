@@ -1,6 +1,6 @@
 # 010 — The roster knows the project manager role: launch, stop, restart, restore, pause
 
-Goal #89 (workstream `pm-role`, branch `main`). Developer branch: filled in at dispatch. Return report: `docs/multi-manager/tasks/010-pm-role-in-roster.return.md` on your branch.
+Goal #89 (workstream `pm-role`, branch `main`). Developer branch: `worktree-mm-multi-manager-pm-role-dev-010-pm-role` (dev #293). Return report: `docs/multi-manager/tasks/010-pm-role-in-roster.return.md` on your branch.
 
 ## Goal
 The user's request (verbatim): "we need to formalise the use of a project manager to handle multiple architects (who in turn handle builders/developers)".
