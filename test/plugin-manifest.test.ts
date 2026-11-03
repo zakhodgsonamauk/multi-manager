@@ -41,7 +41,7 @@ test('every user command exists, has a description and names its roster tool', (
   for (const [name, tool] of Object.entries(commands)) {
     const path = join(root, 'commands', `${name}.md`);
     assert.ok(existsSync(path), `missing commands/${name}.md`);
-    const text = readFileSync(path, 'utf8');
+    const text = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
     assert.match(text, /^---\ndescription: .+\n/, `${name}.md needs a description`);
     assert.ok(text.includes(`\`${tool}\``), `${name}.md should name \`${tool}\``);
   }
@@ -53,12 +53,13 @@ test('the architect workflow commands exist, with frontmatter, and name their ke
     'plan-goal': ['`allocate_number` kind `task`', 'templates/architect/', 'helper agents', 'kind `signoff`', 'testing approach', 'docs/multi-manager/'],
     dispatch: ['`launch_developer`', 'task file', 'One task = one branch = one worktree = one developer tab', '`paused`'],
     'review-return': ['helper agent', 'git merge --squash', 'untracked file', 'focused tests', 'Send-back round N', '`restart_developer`', '`stop_developer`'],
+    'pm-intake': ['`add_workstream`', '`create_goal`', '`launch_architect`', 'New goal', 'overlap', 'front desk'],
     'wrap-goal': ['`status.md`', 'kind `done`', 'evidence', '`update_goal`', '`report_spend`'],
   };
   for (const [name, words] of Object.entries(commands)) {
     const path = join(root, 'commands', `${name}.md`);
     assert.ok(existsSync(path), `missing commands/${name}.md`);
-    const text = readFileSync(path, 'utf8');
+    const text = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
     assert.match(text, /^---\ndescription: .+\nargument-hint: .+\n---\n/, `${name}.md needs description and argument-hint frontmatter`);
     assert.ok(text.includes('$ARGUMENTS'), `${name}.md should pass $ARGUMENTS`);
     for (const word of words) assert.ok(text.includes(word), `${name}.md should mention ${word}`);
@@ -69,7 +70,7 @@ test('the architect templates exist', () => {
   for (const name of ['status', 'task', 'return', 'decisions', 'progress']) {
     const path = join(root, 'templates', 'architect', `${name}.md`);
     assert.ok(existsSync(path), `missing templates/architect/${name}.md`);
-    assert.match(readFileSync(path, 'utf8'), /^# /, `templates/architect/${name}.md needs a heading`);
+    assert.match(readFileSync(path, 'utf8').replace(/\r\n/g, '\n'), /^# /, `templates/architect/${name}.md needs a heading`);
   }
   const task = readFileSync(join(root, 'templates', 'architect', 'task.md'), 'utf8');
   for (const section of ['## Goal', '## Tests first', '## Files expected to change', '## Out of scope', '## Test scope', 'Send-back round']) {
@@ -81,7 +82,7 @@ test('the architect templates exist', () => {
 test('commands/tick.md is the role-aware check-in tick', () => {
   const path = join(root, 'commands', 'tick.md');
   assert.ok(existsSync(path), 'missing commands/tick.md');
-  const text = readFileSync(path, 'utf8');
+  const text = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
   assert.match(text, /^---\ndescription: .+\n(argument-hint: .+\n)?---\n/);
   for (const word of ['`team_health`', '`paused`', 'paused — tick skipped', '`record_nudge`', '`restart_developer`', '`check_in`', '`raise_item`', '`stop_architect`', 'all quiet', 'MM_ROLE']) {
     assert.ok(text.includes(word), `tick.md should mention ${word}`);

@@ -1,6 +1,6 @@
 ---
 description: Check-in tick for the self-armed timer: check team health and act on it
-argument-hint: (none; the timer runs it)
+argument-hint: "(none; the timer runs it)"
 ---
 Multi-Manager check-in tick. $ARGUMENTS
 
@@ -18,8 +18,15 @@ Your role is `MM_ROLE` from the environment (your briefing says it too). No `MM_
   - `restart`: `restart_developer` with its `session_id`. Log it in `progress.md`.
   - `report`: `raise_item` kind `blocked` to the front desk with the session name, state and `reason` verbatim. Then `SendMessage` the front desk "check roster item #N".
 
+## Project manager
+- `check_in`. `list_items` (watched items too, flagged `watching: true`; they do not show in the Stop hook list).
+- For each architect in `team_health`:
+  - `nudge`: `SendMessage` the architect "Are you stuck? Report via the roster, or carry on." Then `record_nudge` with its `session_id`.
+  - `report`: after two nudges, `raise_item` kind `blocked` to the front desk with the architect, state and `reason` verbatim. Then `SendMessage` the returned nudge. Never restart an architect yourself.
+- Stop (`stop_architect`) architects whose goals are done and which have nothing assigned. Report in one line to the front desk.
+
 ## Front desk
-- `status` as well as `team_health`.
+- `status` as well as `team_health`. `team_health` nests architects under their project manager; nudge and report project managers the same way as architects.
 - Show the user ONLY what is new since your last tick: new waiting items (number, project, kind, body quoted verbatim) and new problems (stuck, hung or dead architects, with `reason` quoted verbatim). Do not repeat what the user has already seen.
 - Idle stop: stop (`stop_architect`) any architect idle past its project's idle stop time with nothing assigned. Tell the user in one line.
 - For each architect in `team_health`:

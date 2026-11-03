@@ -10,7 +10,14 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 3. Arm the check-in timer: `CronList`. If there is no `/multi-manager:tick` job, or yours was armed 6+ days ago (jobs expire after 7 days), `CronDelete` the old one and `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Note the job id and date armed.
 4. Call `restorable_sessions`. If any architects stopped (a crash, or the machine restarted), tell the user plainly which ones and ask once whether to bring them back (recommend yes). Only after a yes: `restore_all`, or `restart_architect` for one.
 
+## Routing: project managers
+- One project manager per project, at most. Work for a project goes to its running project manager: `create_goal` on the `pm` workstream, or `SendMessage` it "New goal: check roster goal #G". If none runs, go straight to an architect, as below.
+- `launch_project_manager` when the user asks for one, or when a project has several workstreams running at once (suggest it; the user decides). `stop_project_manager` stops it.
+- Standing user rules for a project: `set_project_rules` with the user's words verbatim, once. Do not paste them into goal texts; every session in the project shows them at start-up.
+- Architects' sign-offs and questions reach you directly, even under a project manager, which only watches. Its `done`, `info` and `blocked` reports come to you as one-line items.
+
 ## Goals
+Without a running project manager (see above), goals go straight to an architect:
 - Work out the project and workstream. If it is unclear, ask. Never guess between projects.
 - `create_goal`, then `launch_architect` with the goal id. If an architect is already running for that workstream you get it back instead: `SendMessage` it "New goal: check roster goal #G".
 - Cross-cutting goals: create one goal per affected project workstream, launch or nudge each architect separately, and report each reply separately under its project's name. Never merge or blend their answers.

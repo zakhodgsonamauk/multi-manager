@@ -4,7 +4,9 @@ A Claude Code plugin (in design) for giving high-level direction to several soft
 once from a single Claude Code conversation.
 
 One user-facing **front desk** session launches and directs **architect** sessions (one per project
-workstream), and each architect directs its own **developer** agents. A shared local roster tracks
+workstream), and each architect directs its own **developer** agents. A busy project can also have a
+**project manager** between the front desk and its architects: front desk, then project manager, then
+architects, then developers. A shared local roster tracks
 projects, who reports to whom, escalations, sign-offs, spend and resource use.
 
 Status: stage 1 (core) — front desk, roster, architects in Windows Terminal tabs. Windows 11 first.
@@ -60,6 +62,19 @@ the pane docks beside the chat. It already runs `/multi-manager:front-desk`. Oth
 `/multi-manager:start-architect`, `/multi-manager:stop-architect`. Architects open as tabs in the
 `multi-manager` Windows Terminal window; switch to a tab to talk to one directly. Stopping an architect
 closes its tab.
+
+**Project managers:** one per project, launched by the front desk (`launch_project_manager`; ask for one,
+or accept its suggestion when a project has several workstreams running at once; `stop_project_manager`
+stops it). It sorts your input into pieces, and for each one adds the workstream, creates the goal,
+launches or nudges the right architect (`/multi-manager:pm-intake`), watches for overlap (same files,
+migrations, production releases) and reports one line per piece. It never builds, never approves a
+sign-off, and never restarts an architect. Without one, the front desk routes work straight to an
+architect. Architects' sign-offs and questions go directly to the front desk; the project manager
+watches them. Status, team health and the pane show who manages whom.
+
+**Standing rules:** rules you state once for a project (for example "no production deploy without my
+go") are stored per project with `set_project_rules`, word for word, and shown to every session in that
+project at start-up instead of being pasted into each goal.
 
 Architects run a light workflow with `/multi-manager:plan-goal`, `/multi-manager:dispatch`,
 `/multi-manager:review-return` and `/multi-manager:wrap-goal`. Plans and state live in the project
