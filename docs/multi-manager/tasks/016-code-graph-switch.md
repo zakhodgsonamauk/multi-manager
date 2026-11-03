@@ -46,3 +46,17 @@ Server spec (same as part 1; keep it in one constant):
 
 ## Evidence required
 The pass/fail summary lines of the focused tests, typecheck and lint output.
+
+## Send-back round 1 (2026-11-03)
+1. `src/codegraph/codegraph.ts:37` — `shell: true` for `claude` breaks `add-json` on Windows: Node joins args unquoted and cmd.exe strips the JSON's quotes (`{"a":"b c"}` arrives as `{a:b c}`). Both `claude` and `code-review-graph` are real `.exe` files here (`C:\Users\zak_h\.local\bin\`). Fix: never use a shell. Put the spawn options in a small pure helper and pin in a test that `shell` is absent and `windowsHide: true` + timeout are set.
+2. Same runner: pass `env: launchEnv()` (`src/launch/runner.ts:58`) so the session's `CLAUDECODE` / `CLAUDE_CODE_*` variables don't leak into the child `claude`.
+3. The runner blocks the roster server with `spawnSync` (up to 60 s per call, 4 calls on enable). Make the runner async (`execFile`, as `runCommand` does) and `enableCodeGraph` / `disableCodeGraph` / the tool handler async.
+4. "Not found" (`codegraph.ts:55`) is too broad: `no such` matches a Python crash ("No such file or directory"). Match the real wording per command, confirmed on this PC today:
+   - `claude mcp remove X -s local` when absent: `No MCP server named "X" in local scope` (exit 1).
+   - `code-review-graph daemon remove <path>` when absent: `No repository matching '<path>' found in config.` (exit 1; source `code_review_graph/daemon_cli.py:252`).
+5. `claude mcp get` succeeds when the server exists in any scope, including global. Only skip `add-json` when its output contains `Scope: Local config` (real output starts `code-review-graph:\n  Scope: Local config (private to you in this project)`).
+6. Partial failure (`codegraph.ts:67-71`, `76-82`): when the first step succeeded and the second failed, the error must say what was already changed and that running the same command again finishes it. Tests at tool level: add succeeds + `daemon add` fails → flag not stored, error names the half-done state; disable fails → flag stays 1.
+7. Missing test: a stopped project manager of the same project is refused.
+8. `test/codegraph.test.ts`: remove the dead duplicate ternary (`c.args[1] === 'remove' ? {} : {}`).
+9. Update your `decisions.md` entry to match (no shell).
+Same test scope. Update the return report, raise done again.
