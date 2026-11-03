@@ -39,3 +39,8 @@ When `code_graph` is off, nothing changes in the launch.
 ## Evidence required
 - Focused test summary lines, typecheck and lint output.
 - One generated `.mcp.json` from a test, pasted into the return report.
+
+## Send-back round 1 (2026-11-03)
+1. `src/launch/command.ts:92` — `--mcp-config` is variadic (`claude --help`: `--mcp-config <configs...>  Load MCP servers from JSON files or strings (space-separated)`). Placed directly before the prompt, the prompt is read as a second config and the tab starts with no prompt (and a bad config). The task file wrongly said "before the prompt"; my mistake. Fix: push `--mcp-config <path>` before `--plugin-dir`, so another option always follows it.
+2. `test/command.test.ts` — the new test must assert that the argument right after the path starts with `--`, and that the prompt is still last.
+Same test scope. Update the return report, raise done again.
