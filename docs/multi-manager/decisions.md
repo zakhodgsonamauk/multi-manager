@@ -155,3 +155,9 @@ Alternatives: leave the switch to the front desk only (the project manager then 
 ## 2026-11-03 — Task 017: developer tool-connection file
 - The extra file is `<rosterDir>\sessions\<id>.mcp.json`, written through the same `writeSettings` dependency as the settings file. It is added only for developers of a project with `code_graph` on; passed as `--mcp-config` (never `--strict-mcp-config`).
 - Clean-up always lists the file (`SessionFiles.mcp`), also on launch and for projects with the switch off, so a switch turned off later leaves no stale file.
+
+## 2026-11-03 — Task 018: code-review-graph watcher lifecycle
+- The watcher steps sit behind an optional `codeGraph` entry in `LaunchDeps` (real one in `realDeps`), so launcher tests stay pure. Every step is wrapped: a failure is logged to stderr and never blocks a launch or stop.
+- "Another architect or project manager still running" is one count query on the project's sessions (state running, excluding the one just stopped). Stopping a project manager stops its architects first, so the last stop releases the watcher.
+- "Watch list empty" is read from `daemon status` (no rows under the Alias/Path rule line). Leftover watchers are found with one `Get-CimInstance Win32_Process` query on `watch --repo` and closed with `taskkill /PID <n> /T /F`; `serve` programs never match.
+- Registry prune takes a `GraphFs` object (registry path, data root, file helpers) so tests use a temp folder. A `data_dir` is deleted only if strictly inside the data root (Windows path compare; a lookalike sibling or the root itself is refused and logged).

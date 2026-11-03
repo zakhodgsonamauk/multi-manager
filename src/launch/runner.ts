@@ -15,6 +15,7 @@ import {
 } from './process.ts';
 import { findTranscriptIn } from '../monitor/activity.ts';
 import { ensureDevCopy, type DevCopyInput } from './dev-copy.ts';
+import { ensureWatcher, pruneStaleGraphData, releaseWatcher, type CodeGraphProject, type CodeGraphResult } from '../codegraph/codegraph.ts';
 import { ensureTerminalProfile } from './terminal-profile.ts';
 import { isWrapperProcess } from './wrapper.ts';
 
@@ -49,6 +50,14 @@ export interface LaunchDeps {
   readClaudeSessionId?: (pid: number) => string | null;
   /** True if the conversation's transcript (<id>.jsonl) still exists. Optional: without it a resume is always tried. */
   conversationExists?: (claudeSessionId: string) => boolean;
+  /** The code-review-graph folder watcher and stale-data clean-up. Optional so launcher tests stay pure: without it nothing runs. */
+  codeGraph?: CodeGraphLifecycle;
+}
+
+export interface CodeGraphLifecycle {
+  ensureWatcher: (project: CodeGraphProject) => Promise<CodeGraphResult>;
+  releaseWatcher: (project: CodeGraphProject, stillRunning: boolean) => Promise<CodeGraphResult>;
+  pruneStaleGraphData: () => unknown;
 }
 
 /**
@@ -172,6 +181,7 @@ export function realDeps(): LaunchDeps {
       const id = readSessionFile(pid)?.sessionId;
       return typeof id === 'string' && id !== '' ? id : null;
     },
+    codeGraph: { ensureWatcher: (project) => ensureWatcher(project), releaseWatcher: (project, stillRunning) => releaseWatcher(project, stillRunning), pruneStaleGraphData: () => pruneStaleGraphData() },
     conversationExists: (id) => findTranscriptIn(join(homedir(), '.claude', 'projects'), id) !== null,
   };
 }

@@ -103,3 +103,23 @@ export function parseProcessInfo(json: string): { name: string; commandLine: str
     return null;
   }
 }
+
+export interface ListedProcess {
+  pid: number;
+  commandLine: string;
+}
+
+/** `Select-Object ProcessId, CommandLine | ConvertTo-Json` → one object or an array of them; anything unreadable gives []. */
+export function parseProcessList(json: string): ListedProcess[] {
+  try {
+    const value = JSON.parse(json) as unknown;
+    const rows = Array.isArray(value) ? value : value === null ? [] : [value];
+    return rows.flatMap((row: { ProcessId?: unknown; CommandLine?: unknown } | null) =>
+      row !== null && typeof row === 'object' && typeof row.ProcessId === 'number' && Number.isInteger(row.ProcessId) && row.ProcessId > 0
+        ? [{ pid: row.ProcessId, commandLine: typeof row.CommandLine === 'string' ? row.CommandLine : '' }]
+        : [],
+    );
+  } catch {
+    return [];
+  }
+}

@@ -199,7 +199,21 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     const conversation = ctx.deps.readClaudeSessionId?.(pid) ?? null;
     if (conversation !== null) setClaudeSessionId(ctx.db, session.id, conversation);
   }
+  // The folder watcher keeps the index fresh while an architect or project manager of the project runs.
+  if (tab.role !== 'developer' && tab.project.code_graph === 1) {
+    await safely('Starting the code-review-graph folder watcher', () => ctx.deps.codeGraph?.ensureWatcher({ folder: tab.project.folder }));
+  }
   return { session: requireSession(ctx.db, session.id), existing: false, warnings };
+}
+
+/** Runs a code-review-graph step; a failure is logged and never blocks a launch or stop. */
+async function safely(what: string, step: () => unknown): Promise<void> {
+  try {
+    const result = (await step()) as { ok?: boolean; error?: string } | undefined;
+    if (result?.ok === false) console.error(`[code-graph] ${what}: ${result.error ?? 'failed'}`);
+  } catch (error) {
+    console.error(`[code-graph] ${what}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 export async function launchArchitect(
@@ -330,7 +344,20 @@ export async function stopSession(ctx: LaunchContext, sessionId: number): Promis
   ctx.deps.removeFiles([files.settings, files.mcp, files.wrapperPid, files.exit]);
   setSessionState(ctx.db, session.id, 'stopped');
   releaseAll(ctx.db, session.id);
+  await releaseCodeGraph(ctx, session);
   return { session: requireSession(ctx.db, session.id), killed, warnings };
+}
+
+/** After an architect or project manager stops: the folder watcher goes with the last one; an architect's stop also clears stale data. */
+async function releaseCodeGraph(ctx: LaunchContext, session: Session): Promise<void> {
+  if ((session.role !== 'architect' && session.role !== 'project-manager') || session.project_id === null) return;
+  const project = requireProjectById(ctx.db, session.project_id);
+  if (project.code_graph !== 1) return;
+  const others = ctx.db
+    .prepare("SELECT COUNT(*) AS n FROM sessions WHERE project_id = ? AND role IN ('architect','project-manager') AND state = 'running' AND id <> ?")
+    .get(project.id, session.id) as { n: number };
+  await safely('Stopping the code-review-graph folder watcher', () => ctx.deps.codeGraph?.releaseWatcher({ folder: project.folder }, others.n > 0));
+  if (session.role === 'architect') await safely('Clearing stale code-review-graph data', () => ctx.deps.codeGraph?.pruneStaleGraphData());
 }
 
 export async function stopProjectManager(ctx: LaunchContext, input: { project: string }): Promise<StopResult> {

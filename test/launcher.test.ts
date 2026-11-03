@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import type { Command, SettingsFile } from '../src/launch/command.ts';
 import { CODE_GRAPH_SERVER_SPEC } from '../src/codegraph/codegraph.ts';
-import { launchArchitect, launchDeveloper, launchProjectManager, stopArchitect, type LaunchContext } from '../src/launch/launcher.ts';
+import { launchArchitect, launchDeveloper, launchProjectManager, stopArchitect, stopProjectManager, type LaunchContext } from '../src/launch/launcher.ts';
 import type { DevCopyInput } from '../src/launch/dev-copy.ts';
 import type { LaunchDeps } from '../src/launch/runner.ts';
 import { decodeCommand, wrapperMarker } from '../src/launch/wrapper.ts';
@@ -292,4 +292,73 @@ test('stopping a session removes its .mcp.json along with the other state files'
   await stopArchitect(ctx, { project: 'alpha' });
   const mcp = join(dirname(process.env.MM_ROSTER_DB ?? ''), 'sessions', `${dev.session.id}.mcp.json`);
   assert.ok(calls.removed.slice(1).some((paths) => paths.includes(mcp)), 'removed on stop');
+});
+
+function graphSpy(ensure?: () => Promise<never>) {
+  const calls: string[] = [];
+  const codeGraph: NonNullable<LaunchDeps['codeGraph']> = {
+    ensureWatcher: async (p) => {
+      calls.push(`ensure ${p.folder}`);
+      if (ensure !== undefined) return ensure();
+      return { ok: true };
+    },
+    releaseWatcher: async (p, still) => {
+      calls.push(`release ${p.folder} ${String(still)}`);
+      return { ok: true };
+    },
+    pruneStaleGraphData: () => {
+      calls.push('prune');
+    },
+  };
+  return { calls, codeGraph };
+}
+
+test('an "on" project: launching an architect and a project manager starts the watcher', async (t) => {
+  const spy = graphSpy();
+  const { deps } = fakeDeps({ codeGraph: spy.codeGraph });
+  const { db, desk, ctx } = setup(t, deps);
+  setCodeGraph(db, 'alpha', true);
+  await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  await launchProjectManager(ctx, { project: 'alpha', parentId: desk.id });
+  assert.deepEqual(spy.calls, ['ensure C:\\work\\alpha', 'ensure C:\\work\\alpha']);
+});
+
+test('an "on" project: stopping the last one releases the watcher, an architect stop prunes; an earlier stop keeps it', async (t) => {
+  const spy = graphSpy();
+  const { deps } = fakeDeps({ codeGraph: spy.codeGraph });
+  const { db, desk, ctx } = setup(t, deps);
+  setCodeGraph(db, 'alpha', true);
+  await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  const pm = await launchProjectManager(ctx, { project: 'alpha', parentId: desk.id });
+  spy.calls.length = 0;
+  await stopProjectManager(ctx, { project: 'alpha' });
+  assert.deepEqual(spy.calls, ['release C:\\work\\alpha true']);
+  spy.calls.length = 0;
+  await stopArchitect(ctx, { project: 'alpha' });
+  assert.deepEqual(spy.calls, ['release C:\\work\\alpha false', 'prune']);
+  assert.equal(requireSession(db, pm.session.id).state, 'stopped');
+});
+
+test('an "off" project runs none of the watcher steps', async (t) => {
+  const spy = graphSpy();
+  const { deps } = fakeDeps({ codeGraph: spy.codeGraph });
+  const { desk, ctx } = setup(t, deps);
+  await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  await stopArchitect(ctx, { project: 'alpha' });
+  assert.deepEqual(spy.calls, []);
+});
+
+test('a failing watcher step never blocks a launch or a stop', async (t) => {
+  const spy = graphSpy(() => Promise.reject(new Error('daemon exploded')));
+  spy.codeGraph.releaseWatcher = () => Promise.reject(new Error('stop exploded'));
+  spy.codeGraph.pruneStaleGraphData = () => {
+    throw new Error('prune exploded');
+  };
+  const { deps } = fakeDeps({ codeGraph: spy.codeGraph });
+  const { db, desk, ctx } = setup(t, deps);
+  setCodeGraph(db, 'alpha', true);
+  const launched = await launchArchitect(ctx, { project: 'alpha', parentId: desk.id });
+  assert.equal(launched.existing, false);
+  const stopped = await stopArchitect(ctx, { project: 'alpha' });
+  assert.equal(stopped.session.state, 'stopped');
 });
