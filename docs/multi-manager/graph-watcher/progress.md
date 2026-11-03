@@ -16,3 +16,4 @@
 - 2026-11-03 14:00 016 sent back, round 1: shell quoting breaks add-json on Windows, blocking spawnSync, not-found wording, local-scope check, partial-failure message, missing tests.
 - 2026-11-03 13:56 016 round 1 return reviewed (all 9 points fixed: async no-shell runner, exact not-found wording, local-scope check, half-done messages). Merged as 2731543; focused tests 37/37 pass on the merged tree, tsc and eslint clean. Front desk warned before merge. Developer #312 stopped, its copy and branch removed.
 - 2026-11-03 13:56 Dispatched 017 (developer #313, Sonnet, 3/5) and 019 (developer #314, Haiku, 1/5) side by side; they touch different files.
+- 2026-11-03 14:00 019 reviewed inline (docs only, 10 lines) and merged; briefings test 10/10 pass on merged tree, lint clean. Developer #314 stopped, copy and branch removed.

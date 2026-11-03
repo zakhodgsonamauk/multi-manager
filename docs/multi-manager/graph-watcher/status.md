@@ -4,7 +4,7 @@ Updated: 2026-11-03 13:57. Architect: roster session #310. Goal #102. Plan signe
 
 ## In flight
 - 017 developer copies get the tool: developer #313 (tab mm-multi-manager-graph-watcher-dev-017-code-graph-dev-copies, branch worktree-mm-multi-manager-graph-watcher-dev-017-code-graph-dev-copies, Sonnet), dispatched 13:56.
-- 019 project manager instructions: developer #314 (tab mm-multi-manager-graph-watcher-dev-019-code-graph-pm-briefing, branch worktree-mm-multi-manager-graph-watcher-dev-019-code-graph-pm-briefing, Haiku), dispatched 13:56.
+
 
 ## Queued
 1. 018 watcher runs with the team, stale data cleared (tasks/018-code-graph-watcher-lifecycle.md). Starts after 017 merges (same launch/stop code).
@@ -12,6 +12,7 @@ Updated: 2026-11-03 13:57. Architect: roster session #310. Goal #102. Plan signe
 
 ## Merged
 - 016 per-project switch + set_code_graph: `2731543` (2026-11-03, 1 send-back round).
+- 019 project manager instructions: `6ec7aa1` (2026-11-03).
 
 ## Done
 - Part 1 (options B + C from report.md), 2026-11-03: code-review-graph is on-demand. Details, evidence and undo: changes.md.
