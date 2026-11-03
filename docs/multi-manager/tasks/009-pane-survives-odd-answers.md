@@ -36,3 +36,14 @@ Do the cut inside `statusSummary` / `projectStatus` so both `status` and `start_
 
 ## Evidence required
 Pass/fail summary lines of each focused run. The size printed for the 20 x 5,000 test. A pane test showing the view built when `status` is the too-big note string.
+
+## Send-back round 1 (2026-11-03)
+Part 2 (status cut at 250) is accepted as is, and so is the double listing of front-desk items (logged in pane-status/decisions.md). Fix Part 1:
+
+1. `hooks/register.tsx:93`: "every call failed" counts the `resources` slot even when it was not fetched (`Promise.resolve(undefined)`), so on a poll with cached resources a dead roster gives 3 of 4 failed. The pane then swaps the last good view for an empty one with repeated notes and wipes the announced lists. Fix: count only the calls actually made (or: status, team_health and list_items all failing = unavailable). Test: a total failure on a later poll, with resources cached, shows "Roster unavailable" and keeps the previous view.
+2. `hooks/register.tsx:103`: when `status` or `list_items` fails, `dueToasts` sees empty lists and resets the announced sets, so every item or trouble toasts again on recovery. Fix: when a part failed, keep that part's previous announced set. Test: status fails for one poll, then recovers; no repeat toasts.
+3. `hooks/roster-view.ts:160` and `:178`: `spend_today_usd`, `spent_usd`, `budget_usd`, goal `text` pass through unchecked; drawing then calls `money(undefined)` / `oneLine(undefined)` (`register.tsx:384`, `:475`) and throws. Fix in `buildView`: non-numbers become 0 (spend) or null (budget), non-strings become ''. Same for item `body` before `dueToasts`, a `developers` object missing `hung`/`stalled`/`dead` (`:173`), and null entries in lists (e.g. `binaries` at `:200`, null items in `waiting_for_user`/`open_items`/`sessions`). Test: one view built from a status with null list entries and projects/goals missing their number and text fields renders without throwing.
+4. Duplicate notes must not share a key: dedupe the notes or key by index.
+5. Move your entry from `docs/multi-manager/decisions.md` (shared project file) to `docs/multi-manager/pane-status/decisions.md`.
+
+Same test scope. Update the return report, raise done again.

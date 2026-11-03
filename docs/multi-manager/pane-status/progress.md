@@ -6,3 +6,4 @@
 - 2026-11-03 09:46 Item #879 answered. Answer (verbatim): "Sounds good, go". Item closed; goal #85 in progress.
 - 2026-11-03 09:46 Dispatched 009 to dev #291 (mm-multi-manager-pane-status-dev-009-pane-odd), sonnet (complexity 3, clarity 4).
 - 2026-11-03 09:50 PM warned of overlap with mm-multi-manager-pm-role (#292, goal #89: launch, status, team health, sidebar, briefings). Told #292 which files 009 edits. #83 merged (6343fc3); its claims are free. Pull in main before merging 009.
+- 2026-11-03 09:58 009 returned (item #887). Helper review: Part 2 good; Part 1 send back (total-failure count wrong when resources cached, repeat toasts after a part fails, unchecked number/text fields can still crash drawing). Checked defect 1 myself: confirmed. Send-back round 1 written.

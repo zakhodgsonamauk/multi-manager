@@ -1,7 +1,7 @@
 # Status — workstream `pane-status` (goal #85)
 
 ## In flight
-- 009 pane survives odd answers, status answers stay small: dev #291 (tab mm-multi-manager-pane-status-dev-009-pane-odd), sonnet, branch `worktree-mm-multi-manager-pane-status-dev-009-pane-odd`.
+- 009 (send-back round 1) pane survives odd answers, status answers stay small: dev #291 (tab mm-multi-manager-pane-status-dev-009-pane-odd), sonnet, branch `worktree-mm-multi-manager-pane-status-dev-009-pane-odd`.
 
 ## Queued
 - (none)
