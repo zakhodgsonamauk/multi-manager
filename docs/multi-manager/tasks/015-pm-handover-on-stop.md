@@ -60,3 +60,10 @@ In `test/pm-handover.test.ts` (new; copy the roster and fake-launch setup from `
 
 ## Evidence required
 Return report with: files changed in plain words, each command exactly as run with its summary lines pasted, decisions made, gaps.
+
+## Send-back round 1 (2026-11-03)
+Code is right; review verdict was merge. Three test gaps, tests only, no source change expected:
+1. `test/pm-handover.test.ts` case 5: "another architect's item is not touched" is not asserted (`a2` is itself handed). Add an architect of the same project that is NOT under the old pm (for example under the front desk or the project manager), give it an open item, and assert it is unchanged after the hand-over.
+2. The "answered item loses an old-pm watcher" branch of `rerouteItems` (`src/roster/items.ts`) is untested. Add a case that sets an answered item's `watched_by` to the old pm directly in the test database, then asserts it now names the new route's watcher and its `addressed_to` is unchanged.
+3. The task asked for `rerouteItems` to be tested on its own. Add a short test in `test/items.test.ts` calling it directly (no launcher): open done moves and becomes unseen; open signoff goes to the front desk watched by the project manager; an item not naming the old session is not returned or changed.
+Re-run the same focused tests, typecheck and lint. Append a "Round 1" section to the return report with the summary lines.
