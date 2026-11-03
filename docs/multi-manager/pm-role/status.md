@@ -4,8 +4,8 @@ Live handover. A fresh architect resumes from this file and `progress.md`.
 Updated: 2026-11-03 10:05
 
 ## Current goal
-Roster goal #89: formalise the project manager role (front desk → project manager → architects → developers). State: awaiting-signoff.
-Plan and testing approach signed off: not yet.
+Roster goal #89: formalise the project manager role (front desk → project manager → architects → developers). State: in-progress.
+Plan and testing approach signed off: 2026-11-03, item #888 ("go").
 
 ## In flight
 - (none)
