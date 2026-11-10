@@ -1,7 +1,7 @@
 # 022 — The front desk's 10-minute check-in stays out of the chat when nothing needs doing
 
 Goal #124. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/022-quiet-front-desk-tick.return.md` on that branch.
-Runs after 020 and 021 are merged (needs 020's `front_desk_digest` tool and sits beside 021's hook in `register.tsx`).
+Runs after 020 and 021 are merged (both merged on main: 0ceeb62, fe9da6e) (needs 020's `front_desk_digest` tool and sits beside 021's hook in `register.tsx`).
 
 ## Goal
 Every 10 minutes the front desk's timer fires `/multi-manager:tick`. Each one puts the prompt line, two or more tool
@@ -29,6 +29,15 @@ act on is short.
 4. **Front desk briefing** (`briefings/front-desk.md`): one or two sentences saying quiet check-ins are swallowed by
    the pane and pane answers arrive as context notes (task 021). Keep the timer as it is (it is the fallback when the
    pane is not loaded).
+
+## Notes from 020 and 021
+- 021 added a `prompt.submit` handler in `register.tsx` that attaches pane notes; it passes slash commands
+  (`e.command`) and `isMeta` prompts through untouched. Yours sits beside it as a separate handler. Find out from the
+  types whether a scheduled `/multi-manager:tick` arrives with `command` set and/or `isMeta`, and whether `{ drop }`
+  is allowed on it (the `command` field doc says a drop stops a prompt command before it is rendered).
+- 020's `front_desk_digest` answers: `quiet`, `paused`, `act_on`, `idle_past_limit`, `new_items`, `fingerprint`
+  (see `src/roster/tools-health.ts`). A paused team: let the tick through only if the tick has something to say;
+  otherwise drop it (the pane already shows paused).
 
 ## Tests first
 - `mod-test`: the decision function — quiet → drop; same fingerprint → drop; new fingerprint → pass with context;
