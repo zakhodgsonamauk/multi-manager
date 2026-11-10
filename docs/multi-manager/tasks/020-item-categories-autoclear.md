@@ -35,6 +35,18 @@ tool that says in a line or two whether the front desk has anything to act on (t
    - `fingerprint`: a short stable string built from the ids and actions above, so a caller can tell "same as last time".
    A quiet answer must be under 200 characters.
 
+5. **User clear command** (user's sign-off answer on item #1035, verbatim: "looks good, 24h is fine but we need a user
+   command of say "clear 60" which clears anything older than 60 minutes. fine on testing.")
+   - New roster tool `clear_items` (front desk only): `older_than_minutes` (integer, 1 or more), optional
+     `include_action` (default false). Closes open items addressed to the front desk raised more than that many
+     minutes ago: information items always; action items only when `include_action` is true. Returns the count and
+     the ids closed, split by category. Answered items are untouched.
+   - New command `commands/clear.md` (`/multi-manager:clear 60`, argument-hint "<minutes> [all]"): the front desk
+     calls `clear_items` with the minutes; with `all` it first lists the action items that would close (number, kind,
+     project, first line) and asks the user once before passing `include_action: true`. Reply in one line, e.g.
+     "Cleared 7 information notes older than 60 minutes (3 decisions still waiting)." If the tool is missing (roster
+     server not yet restarted), say so in one line and stop.
+
 ## Tests first
 - `test/items.test.ts`: `itemCategory` maps all five kinds; `list_items` rows carry `category`.
 - `test/monitor.test.ts` (or a new `test/items-autoclear.test.ts`): info item 25 h old closed; info item 2 h old kept;
@@ -45,10 +57,15 @@ tool that says in a line or two whether the front desk has anything to act on (t
 - New `test/front-desk-digest.test.ts`: quiet answer and its length; a stuck architect appears in `act_on`; an idle
   architect with no live goal appears in `idle_past_limit`, one with a live goal does not; `since` filters
   `new_items`; fingerprint stable across calls and changes when an item is added; non-front-desk caller refused.
+- New `test/clear-items.test.ts`: `clear_items` 60 closes info items 61 min old, keeps 59 min old, keeps action items
+  unless `include_action`; never touches answered items or items addressed to other sessions; refuses minutes < 1
+  and non-front-desk callers.
+- `test/briefings.test.ts` or `test/plugin-manifest.test.ts`: `commands/clear.md` exists with a description and names
+  `clear_items`.
 
 ## Files expected to change
 `src/roster/items.ts`, `src/roster/status.ts`, `src/monitor/monitor.ts`, `src/roster/tools.ts` or
-`src/roster/tools-health.ts` (where `team_health` lives), the tests above. Claim `src/roster/tools.ts`,
+`src/roster/tools-health.ts` (where `team_health` lives), `commands/clear.md`, the tests above. Claim `src/roster/tools.ts`,
 `src/roster/status.ts` and `src/monitor/monitor.ts` with the roster `claim` tool before editing; release on return.
 
 ## Out of scope
@@ -59,7 +76,7 @@ tool that says in a line or two whether the front desk has anything to act on (t
 
 ## Test scope
 `node --test test/items.test.ts test/status.test.ts test/monitor.test.ts test/front-desk-digest.test.ts
-test/front-desk-start.test.ts test/server.test.ts` (plus any new test file), then `npm run typecheck` and
+test/front-desk-start.test.ts test/server.test.ts test/clear-items.test.ts test/plugin-manifest.test.ts` (plus any new test file), then `npm run typecheck` and
 `npm run lint`. Never the full suite. One test run at a time.
 
 ## Evidence required

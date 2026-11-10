@@ -5,3 +5,6 @@
 - Auto-clear: open information items close 24 h after raised, or 1 h after raised once their goal is done/cancelled. Action items never auto-close. Runs in the existing background monitor pass. Alternative (close on "seen") rejected: the pane and front desk mark seen inconsistently.
 - Pane answers reach the front desk as a context note added to its next turn by the pane mod's prompt hook (the mod runs inside the front desk). Alternative (Stop hook) rejected: the front desk tab has no roster id in its environment, and hooks identifying it by name are fragile.
 - Quiet check-ins: the pane mod drops the scheduled `/multi-manager:tick` when a new small `front_desk_digest` says nothing needs doing. The timer stays as the fallback when the pane is not loaded. Alternatives: (a) remove the front desk timer and move nudges/idle-stop into server code (bigger, moves judgement out of the model); (b) keep ticks but shorten output (still 3+ chat lines every 10 minutes).
+
+## 2026-11-10 "clear 60" scope
+- User asked for "clear 60" that "clears anything older than 60 minutes". `/multi-manager:clear 60` closes information notes older than 60 minutes; decisions (sign-offs, questions, blockers) close only with `all` after one confirm, because closing a sign-off silently leaves an architect waiting forever. Alternative: close everything in one go (rejected for that reason).
