@@ -1,7 +1,7 @@
 # Status — workstream `front-desk-items` (goals #124 done, #127)
 
 ## In flight
-- 023: dev #335, tab mm-multi-manager-front-desk-items-dev-023-fd-reregister, branch worktree-mm-multi-manager-front-desk-items-dev-023-fd-reregister (haiku, complexity 2, clarity 5).
+- (none). Goal #127: 023 merged; live check of #124 continuing.
 
 ## Queued (in order)
 - (none)
@@ -11,6 +11,8 @@
 - 021 side panel: two sections, Clear / Clear all, recently answered, front desk told of pane answers, watcher nudge: commit fe9da6e (one send-back round). On merged main: test:mod 47/47, lint clean; typecheck:mod 3 errors, all pre-existing on main (BAND tests, newer API types). Pushed. Live after a plugin reload in the front desk.
 - 022 quiet check-ins: the pane drops a scheduled front desk tick when front_desk_digest says nothing new (4 s limit, any error lets it through): commit 0422b00 (one send-back round). On merged main: test:mod 64/64, briefings 11/11, lint clean, typecheck:mod 3 pre-existing errors. Pushed. tick.md front desk section is live now (falls back to team_health + status on the old roster server); the pane part needs the plugin reload.
 - Follow-ups: d42d331 commands/clear.md wording (briefings test); tick.md `paused` backticks (plugin-manifest test, reported by PM); 965e0fe dropped check-in reason reads "Multi-Manager check-in, all quiet".
+
+- 023 front desk recognised again after a roster server restart (goal #127): commit ac857c1 (no send-back). Focused tests on merged main 60/60, typecheck and lint clean. Pushed. Live after the next roster reconnect in the front desk.
 
 ## Going live
 - 020 needs the front desk's roster server restarted; 021 and 022 need a plugin reload in the front desk. Both wait for the user's go. 022's tick.md change is live on merge and falls back safely on an old roster server.
