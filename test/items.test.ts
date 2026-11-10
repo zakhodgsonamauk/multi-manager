@@ -6,6 +6,7 @@ import {
   answerReply,
   closeItem,
   formatItem,
+  itemCategory,
   listItems,
   markSeen,
   openItemsFor,
@@ -177,4 +178,15 @@ test('rerouteItems: open items naming the old parent move by the new parent; oth
   assert.equal(requireItem(db, signoff.id).seen, 0);
   assert.equal(requireItem(db, elsewhere.id).addressed_to, desk.id);
   assert.equal(requireItem(db, elsewhere.id).seen, 1);
+});
+
+test('itemCategory maps the five kinds, and list_items rows carry the category', (t) => {
+  const { db, desk } = setup(t);
+  assert.deepEqual(
+    (['signoff', 'question', 'blocked', 'done', 'info'] as const).map((k) => itemCategory(k)),
+    ['action', 'action', 'action', 'info', 'info'],
+  );
+  raiseItem(db, { kind: 'question', body: 'q', addressedTo: desk.id });
+  raiseItem(db, { kind: 'done', body: 'd', addressedTo: desk.id });
+  assert.deepEqual(listItems(db, { addressedTo: desk.id }).map((i) => [i.kind, i.category]), [['question', 'action'], ['done', 'info']]);
 });

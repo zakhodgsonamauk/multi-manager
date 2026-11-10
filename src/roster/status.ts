@@ -1,7 +1,7 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { iso, many } from './db.ts';
 import { activeGoals } from './goals.ts';
-import type { ItemKind, ItemState } from './items.ts';
+import { ACTION_KINDS, INFO_KINDS, type ItemKind, type ItemState } from './items.ts';
 import { listProjects, listWorkstreams, type Project, type Workstream } from './projects.ts';
 import { frontDesk, runningArchitect, runningProjectManager, type Session } from './sessions.ts';
 import { spendForGoal, spendToday } from './spend.ts';
@@ -92,6 +92,11 @@ export interface ProjectStatus {
 export interface StatusSummary {
   generated_at: string;
   stale_after_minutes: number;
+  /** Open decisions (sign-offs, questions, blockers) addressed to the front desk, oldest first. */
+  needs_action: ItemStatus[];
+  /** Open information items addressed to the front desk, newest first, text cut to 120 characters. */
+  for_information: ItemStatus[];
+  /** Same as needs_action; kept so older readers keep working. */
   waiting_for_user: ItemStatus[];
   projects: ProjectStatus[];
 }
@@ -104,9 +109,9 @@ const ITEM_SELECT = `SELECT i.id, i.kind, i.state, i.body, i.answer, i.goal_id, 
   LEFT JOIN sessions r ON r.id = i.raised_by
   LEFT JOIN sessions a ON a.id = i.addressed_to`;
 
-function itemRows(db: DatabaseSync, where: string, params: SQLInputValue[], max: number = STATUS_TEXT_MAX): ItemStatus[] {
+function itemRows(db: DatabaseSync, where: string, params: SQLInputValue[], max: number = STATUS_TEXT_MAX, order: string = 'i.created_at, i.id'): ItemStatus[] {
   const rows = many<Omit<ItemStatus, 'seen' | 'raised_by_running' | 'answer'> & { answer: string | null; seen: number; raised_by_running: number }>(
-    db.prepare(`${ITEM_SELECT} ${where} ORDER BY i.created_at, i.id`).all(...params),
+    db.prepare(`${ITEM_SELECT} ${where} ORDER BY ${order}`).all(...params),
   );
   const note = ' … (full text: list_items)';
   return rows.map((row) => {
@@ -192,10 +197,20 @@ function projectStatus(db: DatabaseSync, project: Project, now: Date, staleAfter
 
 export function statusSummary(db: DatabaseSync, now: Date = new Date(), staleAfterMinutes: number = STALE_AFTER_MINUTES): StatusSummary {
   const desk = frontDesk(db, now);
+  const kinds = (list: readonly string[]) => list.map((k) => `'${k}'`).join(', ');
+  const needsAction = itemRows(db, `WHERE i.addressed_to = ? AND i.state = 'open' AND i.kind IN (${kinds(ACTION_KINDS)})`, [desk.id]);
   return {
     generated_at: iso(now),
     stale_after_minutes: staleAfterMinutes,
-    waiting_for_user: itemRows(db, "WHERE i.addressed_to = ? AND i.state = 'open'", [desk.id]),
+    needs_action: needsAction,
+    for_information: itemRows(
+      db,
+      `WHERE i.addressed_to = ? AND i.state = 'open' AND i.kind IN (${kinds(INFO_KINDS)})`,
+      [desk.id],
+      PROJECT_ITEM_TEXT_MAX,
+      'i.created_at DESC, i.id DESC',
+    ),
+    waiting_for_user: needsAction,
     projects: listProjects(db)
       .filter((project) => project.archived_at === null || shownWorkstreams(db, project).some((w) => w.architect !== undefined))
       .map((project) => projectStatus(db, project, now, staleAfterMinutes, desk.id)),

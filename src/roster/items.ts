@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
-import { iso, many, one } from './db.ts';
+import { iso, many, one, tx } from './db.ts';
 import { frontDesk, getSession, requireSession } from './sessions.ts';
 
 export const ITEM_KINDS = ['signoff', 'question', 'blocked', 'done', 'info'] as const;
@@ -7,6 +7,26 @@ export type ItemKind = (typeof ITEM_KINDS)[number];
 export const ITEM_STATES = ['open', 'answered', 'closed'] as const;
 export type ItemState = (typeof ITEM_STATES)[number];
 const LIVE: readonly ItemState[] = ['open', 'answered'];
+
+/** `action` items need the user to decide something; `info` items are for information only and clear themselves. */
+export type ItemCategory = 'action' | 'info';
+export const ACTION_KINDS: readonly ItemKind[] = ['signoff', 'question', 'blocked'];
+export const INFO_KINDS: readonly ItemKind[] = ['done', 'info'];
+
+export function itemCategory(kind: ItemKind): ItemCategory {
+  return (ACTION_KINDS as readonly string[]).includes(kind) ? 'action' : 'info';
+}
+
+/** An item as `listItems` returns it: the stored row plus its category. */
+export type ItemRow = Item & { category: ItemCategory };
+
+const HOUR_MS = 3_600_000;
+/** An information item older than this is closed by the monitor. */
+export const AUTO_CLEAR_AFTER_HOURS = 24;
+/** An information item of a finished (done or cancelled) goal is closed after this long. */
+export const AUTO_CLEAR_FINISHED_GOAL_AFTER_HOURS = 1;
+
+const sqlList = (values: readonly string[]): string => values.map((v) => `'${v}'`).join(', ');
 
 export interface Item {
   id: number;
@@ -153,7 +173,7 @@ export function closeItem(db: DatabaseSync, id: number, now: Date = new Date()):
   return requireItem(db, id);
 }
 
-export function listItems(db: DatabaseSync, filter: ItemFilter = {}): Item[] {
+export function listItems(db: DatabaseSync, filter: ItemFilter = {}): ItemRow[] {
   const where: string[] = [];
   const params: SQLInputValue[] = [];
   if (filter.addressedTo !== undefined) {
@@ -174,7 +194,7 @@ export function listItems(db: DatabaseSync, filter: ItemFilter = {}): Item[] {
     params.push(filter.goalId);
   }
   const sql = `SELECT * FROM items${where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY id`;
-  return many<Item>(db.prepare(sql).all(...params));
+  return many<Item>(db.prepare(sql).all(...params)).map((item) => ({ ...item, category: itemCategory(item.kind) }));
 }
 
 export function markSeen(db: DatabaseSync, ids: readonly number[]): void {
@@ -194,4 +214,57 @@ export function formatItem(item: Item): string {
   const goal = item.goal_id === null ? '' : `, goal #${item.goal_id}`;
   const head = `#${item.id} [${item.kind}, ${item.state}${goal}] ${item.body}`;
   return item.answer === null ? head : `${head}\n  Answer (verbatim): ${item.answer}`;
+}
+
+/**
+ * Closes open information items that nobody needs any more: raised 24 hours ago or more, or raised an hour ago or
+ * more on a goal that is done or cancelled. Action items and answered items are never touched. One UPDATE, so a
+ * second pass closes nothing more. Returns how many it closed.
+ */
+export function autoClearItems(db: DatabaseSync, now: Date = new Date()): number {
+  const old = iso(new Date(now.getTime() - AUTO_CLEAR_AFTER_HOURS * HOUR_MS));
+  const finished = iso(new Date(now.getTime() - AUTO_CLEAR_FINISHED_GOAL_AFTER_HOURS * HOUR_MS));
+  const result = db
+    .prepare(
+      `UPDATE items SET state = 'closed', updated_at = ?
+       WHERE state = 'open' AND kind IN (${sqlList(INFO_KINDS)})
+         AND (created_at <= ? OR (created_at <= ? AND goal_id IN (SELECT id FROM goals WHERE state IN ('done', 'cancelled'))))`,
+    )
+    .run(iso(now), old, finished);
+  return Number(result.changes);
+}
+
+export interface ClearResult {
+  count: number;
+  information: number[];
+  action: number[];
+}
+
+/**
+ * The user's clear command: closes open items addressed to `sessionId` that were raised `olderThanMinutes` or more
+ * minutes ago. Information items always; action items only with `includeAction`. Answered items are untouched.
+ */
+export function clearItems(
+  db: DatabaseSync,
+  sessionId: number,
+  olderThanMinutes: number,
+  includeAction: boolean = false,
+  now: Date = new Date(),
+): ClearResult {
+  if (!Number.isInteger(olderThanMinutes) || olderThanMinutes < 1) throw new Error('older_than_minutes must be a whole number, 1 or more');
+  const cutoff = iso(new Date(now.getTime() - olderThanMinutes * 60_000));
+  const kinds = includeAction ? ITEM_KINDS : INFO_KINDS;
+  const rows = tx(db, () => {
+    const found = many<{ id: number; kind: ItemKind }>(
+      db
+        .prepare(`SELECT id, kind FROM items WHERE state = 'open' AND addressed_to = ? AND created_at <= ? AND kind IN (${sqlList(kinds)}) ORDER BY id`)
+        .all(sessionId, cutoff),
+    );
+    const close = db.prepare("UPDATE items SET state = 'closed', updated_at = ? WHERE id = ? AND state = 'open'");
+    for (const row of found) close.run(iso(now), row.id);
+    return found;
+  });
+  const information = rows.filter((r) => itemCategory(r.kind) === 'info').map((r) => r.id);
+  const action = rows.filter((r) => itemCategory(r.kind) === 'action').map((r) => r.id);
+  return { count: rows.length, information, action };
 }

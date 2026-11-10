@@ -161,3 +161,10 @@ Alternatives: leave the switch to the front desk only (the project manager then 
 - "Another architect or project manager still running" is one count query on the project's sessions (state running, excluding the one just stopped). Stopping a project manager stops its architects first, so the last stop releases the watcher.
 - "Watch list empty" is read from `daemon status` (no rows under the Alias/Path rule line). Leftover watchers are found with one `Get-CimInstance Win32_Process` query on `watch --repo` and closed with `taskkill /PID <n> /T /F`; `serve` programs never match.
 - Registry prune takes a `GraphFs` object (registry path, data root, file helpers) so tests use a temp folder. A `data_dir` is deleted only if strictly inside the data root (Windows path compare; a lookalike sibling or the root itself is refused and logged).
+
+## 2026-11-10 — Task 020: item categories, auto-clear, digest, clear command
+- `listItems` returns rows with a `category` field (action = signoff, question, blocked; info = done, info), so `list_items` and every caller get it from one place.
+- Auto-clear is one UPDATE inside `runTick` (`autoClearItems`), after enforcement, in the same try block; the count is `autoClosed` on the tick result. Compared on `created_at` ISO strings.
+- `start_front_desk` text leaves out `waiting_for_user` (the status tool and `statusSummary` keep it). With the copy the start text was 26,716 characters, over the 25,000 goal; without it, 24,395. Briefings do not read the key.
+- `front_desk_digest`: `act_on` covers architects and project managers (the top-level rows of the front desk's `team_health`, same `scope` and `sessionHealth`); developers are their architect's concern. Answer is compact JSON (no indent) so a quiet answer is 102 characters. Fingerprint = first 8 hex of sha1 over act_on ids+actions, idle ids, new item ids.
+- `clear_items` uses `created_at <=` the cutoff: an item raised exactly N minutes ago counts as older than N.

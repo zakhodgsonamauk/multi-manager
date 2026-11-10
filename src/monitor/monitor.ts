@@ -4,7 +4,7 @@ import { findSessionPid } from '../launch/process.ts';
 import { runCommand, type RunResult } from '../launch/runner.ts';
 import { releaseAll } from '../roster/claims.ts';
 import { iso, many, one, tx } from '../roster/db.ts';
-import { raiseItem } from '../roster/items.ts';
+import { autoClearItems, raiseItem } from '../roster/items.ts';
 import { listLimits } from '../roster/limits.ts';
 import { getSession, setClaudeSessionId, setSessionPid, type Session } from '../roster/sessions.ts';
 import { realActivityReaders, type ActivityReaders } from './activity.ts';
@@ -254,6 +254,8 @@ export interface TickResult {
   enforcements: EnforcementOutcome[];
   /** Sessions that newly looked stuck this pass (one blocked item each). */
   stuck: StuckReport[];
+  /** Information items closed this pass (old, or on a finished goal). */
+  autoClosed: number;
   errors: string[];
 }
 
@@ -292,7 +294,7 @@ let chain: Promise<unknown> = Promise.resolve();
 export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult> {
   const next = chain.then(async (): Promise<TickResult> => {
     const now = deps.now?.() ?? new Date();
-    const result: TickResult = { at: iso(now), sessions_checked: 0, deaths: [], enforcements: [], stuck: [], errors: [] };
+    const result: TickResult = { at: iso(now), sessions_checked: 0, deaths: [], enforcements: [], stuck: [], autoClosed: 0, errors: [] };
     let snapshot: ProcessInfo[];
     try {
       snapshot = await deps.snapshot();
@@ -309,6 +311,11 @@ export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult
       result.sessions_checked = monitoredSessions(db).length;
       result.deaths = detectDeaths(db, snapshot, now);
       result.enforcements = await enforce(db, deps, snapshot, now);
+    } catch (error) {
+      result.errors.push(error instanceof Error ? error.message : String(error));
+    }
+    try {
+      result.autoClosed = autoClearItems(db, now);
     } catch (error) {
       result.errors.push(error instanceof Error ? error.message : String(error));
     }

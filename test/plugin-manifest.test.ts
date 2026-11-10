@@ -37,6 +37,7 @@ test('every user command exists, has a description and names its roster tool', (
     'stop-architect': 'stop_architect',
     // The mod answers /multi-manager:pane itself; the markdown is the fallback where mods are off.
     pane: 'status',
+    clear: 'clear_items',
   };
   for (const [name, tool] of Object.entries(commands)) {
     const path = join(root, 'commands', `${name}.md`);

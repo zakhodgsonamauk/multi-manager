@@ -45,7 +45,7 @@ test('the status part of the start text is compact JSON that parses', (t) => {
   const json = text.slice(text.indexOf(marker) + marker.length);
   assert.equal(json.includes('\n'), false);
   const parsed = JSON.parse(json) as ReturnType<typeof statusSummary>;
-  assert.equal(parsed.waiting_for_user.length, 5);
+  assert.equal(parsed.needs_action.length, 5);
   assert.equal(parsed.projects.length, 3);
   console.log(`status JSON size (compact): ${json.length}`);
 });
@@ -53,7 +53,7 @@ test('the status part of the start text is compact JSON that parses', (t) => {
 test('a waiting item is listed once, under waiting_for_user; architect items stay under their project', (t) => {
   const { db } = bigRoster(t);
   const status = statusSummary(db);
-  const waitingIds = new Set(status.waiting_for_user.map((i) => i.id));
+  const waitingIds = new Set(status.needs_action.map((i) => i.id));
   assert.equal(waitingIds.size, 5);
   const projectItems = status.projects.flatMap((p) => p.open_items);
   assert.equal(projectItems.some((i) => waitingIds.has(i.id)), false);
@@ -61,5 +61,5 @@ test('a waiting item is listed once, under waiting_for_user; architect items sta
   // Project items are cut at 120 characters, waiting items at 250.
   assert.equal(PROJECT_ITEM_TEXT_MAX, 120);
   assert.equal(projectItems.every((i) => i.body.length <= PROJECT_ITEM_TEXT_MAX && i.body_cut === true), true);
-  assert.equal(status.waiting_for_user.every((i) => i.body.length <= STATUS_TEXT_MAX && i.body.length > PROJECT_ITEM_TEXT_MAX), true);
+  assert.equal(status.needs_action.every((i) => i.body.length <= STATUS_TEXT_MAX && i.body.length > PROJECT_ITEM_TEXT_MAX), true);
 });

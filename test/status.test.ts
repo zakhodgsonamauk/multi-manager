@@ -61,7 +61,7 @@ test('each waiting item says whether its raiser is still running', (t) => {
   const main = registerSession(db, { role: 'architect', parentId: desk.id, projectId: p.id, workstreamId: mainId, name: 'mm-alpha-main' });
   const ui = registerSession(db, { role: 'architect', parentId: desk.id, projectId: p.id, workstreamId: uiId, name: 'mm-alpha-ui' });
   raiseItem(db, { kind: 'question', body: 'Still here?', raisedBy: main.id });
-  raiseItem(db, { kind: 'done', body: 'Finished', raisedBy: ui.id });
+  raiseItem(db, { kind: 'blocked', body: 'Finished', raisedBy: ui.id });
   setSessionState(db, ui.id, 'stopped');
   const waiting = statusSummary(db).waiting_for_user;
   assert.deepEqual(waiting.map((i) => [i.raised_by, i.raised_by_running]), [['mm-alpha-main', true], ['mm-alpha-ui', false]]);
@@ -75,7 +75,7 @@ test('status cuts long goal texts and item bodies and answers, and flags only wh
   const longGoal = createGoal(db, { workstreamId: main.id, text: 'g'.repeat(5000) });
   const shortGoal = createGoal(db, { workstreamId: main.id, text: 'short goal' });
   const longItem = raiseItem(db, { kind: 'question', body: 'b'.repeat(5000), goalId: longGoal.id });
-  const shortItem = raiseItem(db, { kind: 'info', body: 'short body', goalId: longGoal.id });
+  const shortItem = raiseItem(db, { kind: 'question', body: 'short body', goalId: longGoal.id });
   db.prepare('UPDATE items SET answer = ? WHERE id = ?').run('a'.repeat(5000), longItem.id);
 
   const a = statusSummary(db).projects[0];
@@ -166,4 +166,21 @@ test('a project with no project manager keeps today\'s shape', (t) => {
   assert.deepEqual(a.workstreams.map((w) => w.name), ['main', 'pm']);
   assert.equal(a.workstreams[0].architect?.managed_by, null);
   assert.deepEqual(Object.keys(a.workstreams[0].architect ?? {}).sort(), ['last_checkin_at', 'managed_by', 'minutes_since_checkin', 'name', 'pid', 'session_id', 'stale']);
+});
+
+test('status splits what needs action (oldest first) from information (newest first, cut to 120); waiting_for_user is needs_action', (t) => {
+  const db = tempRoster(t);
+  const now = new Date('2026-10-21T15:00:00.000Z');
+  const desk = startFrontDesk(db, 'mm-front-desk', now);
+  const q = raiseItem(db, { kind: 'question', body: 'second', addressedTo: desk.id }, minutesBefore(now, 10));
+  const s = raiseItem(db, { kind: 'signoff', body: 'first', addressedTo: desk.id }, minutesBefore(now, 30));
+  const b = raiseItem(db, { kind: 'blocked', body: 'third', addressedTo: desk.id }, minutesBefore(now, 5));
+  const d1 = raiseItem(db, { kind: 'done', body: 'old note', addressedTo: desk.id }, minutesBefore(now, 20));
+  const d2 = raiseItem(db, { kind: 'info', body: 'n'.repeat(500), addressedTo: desk.id }, minutesBefore(now, 2));
+  const status = statusSummary(db, now);
+  assert.deepEqual(status.needs_action.map((i) => i.id), [s.id, q.id, b.id]);
+  assert.deepEqual(status.for_information.map((i) => i.id), [d2.id, d1.id]);
+  assert.equal(status.for_information[0].body.length <= 120, true);
+  assert.equal(status.for_information[0].body_cut, true);
+  assert.deepEqual(status.waiting_for_user, status.needs_action);
 });

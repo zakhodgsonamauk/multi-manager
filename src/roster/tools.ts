@@ -20,7 +20,7 @@ import {
 import { claim, release } from './claims.ts';
 import type { Env } from './db.ts';
 import { GOAL_STATES, createGoal, goalWithPlace, updateGoal } from './goals.ts';
-import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, closeItem, listItems, markSeen, raiseItem, requireItem } from './items.ts';
+import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, clearItems, closeItem, listItems, markSeen, raiseItem, requireItem } from './items.ts';
 import { listModelUsage, recordModelChange } from './model-ledger.ts';
 import { WORK_MODELS } from './models.ts';
 import {
@@ -49,7 +49,7 @@ import {
   type Session,
 } from './sessions.ts';
 import { reportSpend, spendForGoal } from './spend.ts';
-import { statusSummary } from './status.ts';
+import { statusSummary, type StatusSummary } from './status.ts';
 import { registerPauseTools } from './tools-pause.ts';
 import { registerMonitorTools } from './tools-monitor.ts';
 import { registerHealthTools } from './tools-health.ts';
@@ -111,13 +111,20 @@ function nudge(ctx: ToolContext, sessionId: number, itemId: number): { to: strin
   return { to: getSession(ctx.db, sessionId)?.name ?? null, message: `check roster item #${itemId}` };
 }
 
+function startStatus(db: DatabaseSync): Omit<StatusSummary, 'waiting_for_user'> {
+  const summary: Partial<StatusSummary> = statusSummary(db);
+  delete summary.waiting_for_user;
+  return summary as Omit<StatusSummary, 'waiting_for_user'>;
+}
+
 /** The start_front_desk answer: briefing, who you are, then the compact status (waiting items first). */
 export function frontDeskStartText(db: DatabaseSync, pluginRoot: string, desk: Session): string {
   return [
     briefing(pluginRoot, 'front-desk').text,
     `## You are roster session #${desk.id} (${desk.name ?? FRONT_DESK_NAME})`,
     '## Status (waiting items first)',
-    JSON.stringify(statusSummary(db)),
+    // The start text leaves out waiting_for_user (a copy of needs_action for old readers): it would double the decisions and break the size goal.
+    JSON.stringify(startStatus(db)),
   ].join('\n\n');
 }
 
@@ -351,6 +358,24 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   );
 
   server.registerTool(
+    'clear_items',
+    {
+      description:
+        'Front desk only: the user clear command. Closes open items addressed to the front desk that were raised older_than_minutes or more ago: information items (done, info) always; decisions (signoff, question, blocked) only when include_action is true. Answered items are untouched. Returns the count and the ids closed, split by category.',
+      inputSchema: {
+        older_than_minutes: z.number().int().min(1),
+        include_action: z.boolean().optional().describe('Default false'),
+      },
+    },
+    (a) =>
+      guard(() => {
+        const caller = me(ctx);
+        if (caller.role !== 'front-desk') throw new Error('Only the front desk can clear items');
+        return clearItems(db, caller.id, a.older_than_minutes, a.include_action === true);
+      }),
+  );
+
+  server.registerTool(
     'list_items',
     {
       description: 'List roster items. By default only items addressed to you or watched by you (flagged watching: true) that are not closed.',
@@ -429,7 +454,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     'status',
     {
       description:
-        'Status summary (compact JSON): waiting items first, then per project workstreams, architects (stale?), active goals, open items, spend today. Items waiting for the user are listed once, under waiting_for_user.',
+        'Status summary (compact JSON): needs_action first (open decisions for the user, oldest first), then for_information (open notes, newest first), then per project workstreams, architects (stale?), active goals, open items, spend today. Items waiting for the user are listed once; waiting_for_user is a copy of needs_action for older readers.',
       inputSchema: {},
     },
     () => guard(() => JSON.stringify(statusSummary(db))),
