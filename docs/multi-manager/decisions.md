@@ -182,3 +182,9 @@ Alternatives: leave the switch to the front desk only (the project manager then 
 - Recognition only checks the front desk in (updates `last_checkin_at`). It does not change name, state or anything else, and it never creates a record.
 - Tool calls retry unthrottled. The monitor's check retries at most every 30 s while unrecognised.
 - Every tool that reads identity now goes through `currentIdentity(ctx)`; a recognised identity is kept on the context.
+
+## 2026-11-10 — Task 025: digest leaves out seen items
+- `front_desk_digest` `new_items` now also requires `seen = 0`. Items already marked seen are never re-sent, with or without `since`. `quiet` and the fingerprint follow from the shorter list.
+- Items that come back unseen (for example, handed back after a re-route) show again, because the flag is the only thing that hides them.
+- `commands/tick.md` front desk section: after showing new items, call `mark_seen` with their ids. The front desk must do this itself; the digest does not mark anything.
+- The "real roster tool" test now allows `item_ids` (a parameter name, not a tool), same as `session_id`.

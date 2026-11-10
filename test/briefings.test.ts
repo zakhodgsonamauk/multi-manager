@@ -161,7 +161,7 @@ test('every snake_case tool name in a briefing or command is a real roster tool'
     ...readdirSync(join(root, 'briefings')).map((f) => join(root, 'briefings', f)),
     ...readdirSync(join(root, 'commands')).map((f) => join(root, 'commands', f)),
   ];
-  const notTools = new Set(['claude_session_id', 'to_model', 'watcher_nudge', 'session_id', 'at_least', 'recommended_action']);
+  const notTools = new Set(['claude_session_id', 'to_model', 'watcher_nudge', 'session_id', 'item_ids', 'at_least', 'recommended_action']);
   for (const file of files) {
     for (const m of readFileSync(file, 'utf8').matchAll(/`([a-z]+(?:_[a-z]+)+)`/g)) {
       if (notTools.has(m[1])) continue;
@@ -176,6 +176,9 @@ test('the front desk section of tick.md acts from the digest and names front_des
   assert.match(desk, /front_desk_digest/);
   assert.match(desk, /Do not call `status` or `team_health` unless/);
   assert.match(desk, /at most three short lines/i);
+  // Items the user has been shown are marked seen, so the next digest leaves them out.
+  assert.match(desk, /new_items[^\n]*mark_seen/);
+  assert.match(desk, /item_ids/);
   // The architect and project-manager sections stay as they were.
   assert.match(text, /## Architect\n- `check_in`\./);
   assert.match(text, /Never restart an architect yourself/);

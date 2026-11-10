@@ -3,7 +3,7 @@ import { test, type TestContext } from 'node:test';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ActivityReaders } from '../src/monitor/activity.ts';
 import { createGoal, updateGoal } from '../src/roster/goals.ts';
-import { raiseItem } from '../src/roster/items.ts';
+import { markSeen, raiseItem } from '../src/roster/items.ts';
 import { addProject, requireWorkstream } from '../src/roster/projects.ts';
 import { registerSession, startFrontDesk } from '../src/roster/sessions.ts';
 import { registerHealthTools } from '../src/roster/tools-health.ts';
@@ -96,4 +96,32 @@ test('a caller that is not the front desk is refused', async (t) => {
   const { arch, ctx, call } = setup(t);
   ctx.identity = { sessionId: arch.id, role: 'architect' };
   await assert.rejects(call(), /Only the front desk/);
+});
+
+test('an item the front desk has marked seen is left out of new_items, with or without since', async (t) => {
+  const { db, desk, call } = setup(t);
+  const item = raiseItem(db, { kind: 'signoff', body: 'approve?', addressedTo: desk.id }, new Date(NOW - 60 * MIN));
+  assert.equal((await call()).digest.new_items.length, 1);
+  markSeen(db, [item.id]);
+  assert.deepEqual((await call()).digest.new_items, []);
+  assert.deepEqual((await call({ since: new Date(NOW - 120 * MIN).toISOString() })).digest.new_items, []);
+});
+
+test('quiet is true when the only open item for the front desk is seen', async (t) => {
+  const { db, desk, call } = setup(t);
+  const item = raiseItem(db, { kind: 'info', body: 'fyi', addressedTo: desk.id }, new Date(NOW - 60 * MIN));
+  assert.equal((await call()).digest.quiet, false);
+  markSeen(db, [item.id]);
+  assert.equal((await call()).digest.quiet, true);
+});
+
+test('an open item that becomes unseen again shows in new_items', async (t) => {
+  const { db, desk, call } = setup(t);
+  const item = raiseItem(db, { kind: 'question', body: 'which?', addressedTo: desk.id }, new Date(NOW - 60 * MIN));
+  markSeen(db, [item.id]);
+  assert.deepEqual((await call()).digest.new_items, []);
+  // An item handed back to the front desk comes back unseen (what rerouting does to the flag).
+  db.prepare('UPDATE items SET seen = 0 WHERE id = ?').run(item.id);
+  assert.deepEqual((await call()).digest.new_items.map((i) => i.id), [item.id]);
+  assert.equal((await call()).digest.quiet, false);
 });

@@ -108,7 +108,7 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
     'front_desk_digest',
     {
       description:
-        'Front desk only: does anything need you right now? Compact JSON: quiet (true when nothing below is non-empty), paused, act_on (sessions team_health recommends acting on), idle_past_limit (architects idle past the idle_stop_minutes of their project with no live goal), new_items (open items for the front desk raised since the optional ISO time `since`) and a fingerprint that stays the same while nothing changes.',
+        'Front desk only: does anything need you right now? Compact JSON: quiet (true when nothing below is non-empty), paused, act_on (sessions team_health recommends acting on), idle_past_limit (architects idle past the idle_stop_minutes of their project with no live goal), new_items (open items for the front desk that are not marked seen yet, raised since the optional ISO time `since`; items already marked seen are left out) and a fingerprint that stays the same while nothing changes.',
       inputSchema: { since: z.string().optional().describe('ISO time; only items raised after it are listed') },
     },
     ({ since }) =>
@@ -150,7 +150,7 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
                LEFT JOIN projects p ON p.id = w.project_id
                LEFT JOIN sessions r ON r.id = i.raised_by
                LEFT JOIN projects rp ON rp.id = r.project_id
-               WHERE i.state = 'open' AND i.addressed_to = ? AND (? IS NULL OR i.created_at > ?) ORDER BY i.id`,
+               WHERE i.state = 'open' AND i.seen = 0 AND i.addressed_to = ? AND (? IS NULL OR i.created_at > ?) ORDER BY i.id`,
             )
             .all(caller.id, sinceIso, sinceIso),
         );
