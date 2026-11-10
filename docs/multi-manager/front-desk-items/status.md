@@ -1,7 +1,7 @@
 # Status — workstream `front-desk-items` (goals #124 done, #127)
 
 ## In flight
-- (none). Goal #127: 023 merged; live check of #124 continuing.
+- (none). Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go).
 
 ## Queued (in order)
 - (none)
@@ -24,6 +24,12 @@
 - /multi-manager:clear 60: closed the 2 h old done report, kept the 31 min note and both decisions.
 - Panel: "Needs your action" on top with Send/Close; "For information" one line each with Clear and Clear all.
 - Not tested live: answering from the panel (needs a click in the panel); covered by mod tests only.
+
+## Live check of goal #124 in the real front desk (2026-11-10, screenshots only)
+- Panel shows the new layout ("Nothing waiting." when empty).
+- User cleared #1047 from the panel: dim line "Cleared #1047 from the panel." in the chat, and the front desk then said "I was told you cleared #1047 from it" (the note reached the model).
+- 09:45 scheduled check-in dropped: only "Running scheduled task" and "Prompt dropped by a hook: Multi-Manager check-in, all quiet"; band "Last check 09:45 — all quiet".
+- Not yet seen live: a panel *answer* (only a clear so far).
 
 ## Findings
 - Residual: each quiet check-in still leaves 2 short engine lines in the front desk chat. Removing them needs the pane to start check-ins itself instead of the 10-minute timer (possible follow-up, not started).
