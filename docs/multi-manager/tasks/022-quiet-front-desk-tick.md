@@ -60,3 +60,19 @@ editing; release on return.
 
 ## Evidence required
 Test summary lines; the spike finding quoted from the API types with line numbers.
+
+## Send-back round 1 (2026-11-10)
+Merge main into your branch first (the briefings test failure is fixed there, d42d331).
+1. **No timeout on the digest call** — `hooks/register.tsx:320`. Time inside a `$` call does not count against the
+   hook budget, so a hung roster holds the front desk's tick. Race the call against a `$.clock` wait of about 4 s;
+   if the wait wins, `next(e)` unchanged. Test: a digest that never answers lets the tick through within the limit.
+2. **"since" taken after the call** — `register.tsx:326`, stored at `:337`. An item raised during the call can be
+   skipped forever. Read the clock BEFORE calling `front_desk_digest` and store that time.
+3. **Drop reason shown to the user** — `register.tsx:332`. Read the `PromptSubmitResult` `drop` docs (around
+   line 10011-10019 of the types) again: if an empty reason, or another field, keeps the drop silent, use it. If not,
+   keep the reason as short as possible (e.g. `·`) and say so in the report; I will check it live.
+4. **Old-roster fallback lost idle stop** — `commands/tick.md` front desk section: when falling back to
+   `team_health` + `status`, keep the idle-stop rule as it was.
+5. **Tests**: a tick with pane notes queued does not attach or empty the notes; a pass where `next` itself drops
+   leaves `lastTick` unchanged. Optional: `isCollapsed: false` on your new mount so it adds no typecheck error.
+Update your return report (round 2 section) and raise done again.
