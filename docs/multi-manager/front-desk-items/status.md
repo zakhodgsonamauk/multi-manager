@@ -1,8 +1,7 @@
 # Status — workstream `front-desk-items` (goals #124, #127 done; #129 in progress)
 
 ## In flight
-- Goal #129 (signed off #1055 "yes go"):
-  - 024 panel runs check-ins itself (send-back round 1): dev #337 (sonnet), tab mm-multi-manager-front-desk-items-dev-024-pane-check-ins, branch worktree-mm-multi-manager-front-desk-items-dev-024-pane-check-ins.
+- Goal #129 (signed off #1055 "yes go"): 024 and 025 merged; end-to-end test in a throwaway test front desk next, then going live waits for the user's go.
 - Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go, item #1051).
 
 ## Queued (in order)
@@ -17,6 +16,8 @@
 - 023 front desk recognised again after a roster server restart (goal #127): commit ac857c1 (no send-back). Focused tests on merged main 60/60, typecheck and lint clean. Pushed. Live after the next roster reconnect in the front desk.
 
 - 025 digest skips items already seen; front desk told to mark_seen after showing items (goal #129): commit e91e25c (no send-back). Focused tests on merged main 29/29, typecheck and lint clean. Pushed. tick.md part live now; digest part live after the next roster reconnect in the front desk.
+
+- 024 the panel runs the front desk's check-ins itself; model's tick timer refused while the panel's loop is alive (goal #129): commit 759d35c (one send-back round). On merged main: test:mod 76/76, briefings/manifest/hooks 21/21, lint clean, typecheck:mod 3 pre-existing. Pushed. Live after a plugin reload in the front desk; briefing change applies to new front desks now.
 
 ## Going live
 - 020 needs the front desk's roster server restarted; 021 and 022 need a plugin reload in the front desk. Both wait for the user's go. 022's tick.md change is live on merge and falls back safely on an old roster server.
