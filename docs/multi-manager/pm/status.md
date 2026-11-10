@@ -1,24 +1,25 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-10 11:32
+Updated: 2026-11-10 12:20
 
 Project manager: roster session #327, goal #81, workstream `pm`.
 
 ## Architects
-- #336 front-desk-items, goal #129 (front desk pointer #128): quiet check-ins leave nothing in chat; digest re-sends seen items. Plan approved 11:31; building.
+- (none running)
 
 ## Goals
-- #99 / #100 code-review-graph investigation: done.
-- #101 / #102 code-review-graph B + C and per-project switch: done.
+- #99 / #100, #101 / #102 code-review-graph: done.
 - #123 test fix: done (ef990e6, flaky test).
-- #122 / #124 front-desk items: done, switched on by the user 09:38.
-- #127 front desk re-registers after roster restart: merged (ac857c1), 389/389. Waiting for the user's go on one more reconnect (#1051).
+- #122 / #124 front-desk items: done, switched on 09:38.
+- #127 front desk re-registers after roster restart: merged (ac857c1).
+- #128 / #129 quiet check-ins leave nothing in chat; digest skips seen items: merged (759d35c, e91e25c). 392/392.
+- #127 and #129 wait for one reconnect + plugin reload in the front desk: question #1063 (covers #1051).
 
 ## Overlaps
 - (none)
 
 ## Next
-- After the reconnect: confirm the front desk was recognised without start_front_desk. If not, start an architect on front-desk-items.
-- Not seen live yet: answering a sign-off/question from the panel reaching the front desk.
+- After the reconnect: confirm the front desk recognised itself without start_front_desk, the old timer deleted itself, and quiet check-ins leave nothing. If not, start an architect on front-desk-items.
+- Not seen live yet: answering a sign-off/question from the panel; panel's backup path.
+- Empty test windows from end-to-end tests: user to close by hand.
 - Parked for the user's go: switch financial-portal's code-review-graph on.
-- Possible next step offered (not started): panel starts check-ins itself, removing the last 2 system lines per quiet tick.
