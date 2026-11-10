@@ -1,22 +1,24 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-10 09:39
+Updated: 2026-11-10 09:54
 
 Project manager: roster session #327, goal #81, workstream `pm`.
 
 ## Architects
-- #329 front-desk-items, goal #124 (front desk pointer #122): front-desk items UI, categories, auto-clearing, pane replies reaching the front desk, quieter ticks. Plan approved 08:53 (plus a user "clear 60" command); building, 2 developers.
+- (none running)
 
 ## Goals
 - #99 / #100 code-review-graph investigation: done.
 - #101 / #102 code-review-graph B + C and per-project switch: done.
-- #123 test fix: done (ef990e6, flaky test, 366/366).
-- #122 / #124 front-desk items: built and switched on by the user 09:38.
-- #127 follow-up (live check of #124, sessions re-register after roster server restart): #329 on it.
+- #123 test fix: done (ef990e6, flaky test).
+- #122 / #124 front-desk items: done, switched on by the user 09:38.
+- #127 front desk re-registers after roster restart: merged (ac857c1), 389/389. Waiting for the user's go on one more reconnect (#1051).
 
 ## Overlaps
-- (#328 stopped; no overlap left.)
-- #329 changes front desk and tick skills, live on merge. Any roster server / plugin / tab restart needs the user's go.
+- (none)
 
 ## Next
+- After the reconnect: confirm the front desk was recognised without start_front_desk. If not, start an architect on front-desk-items.
+- Not seen live yet: answering a sign-off/question from the panel reaching the front desk.
 - Parked for the user's go: switch financial-portal's code-review-graph on.
+- Possible next step offered (not started): panel starts check-ins itself, removing the last 2 system lines per quiet tick.
