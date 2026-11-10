@@ -17,7 +17,7 @@ import {
 } from './pause.ts';
 import { requireProject, requireProjectById, requireWorkstreamById } from './projects.ts';
 import { frontDesk, getSession, requireSession, type Session } from './sessions.ts';
-import type { ToolContext } from './tools.ts';
+import { currentIdentity, type ToolContext } from './tools.ts';
 
 async function guard(fn: () => unknown): Promise<CallToolResult> {
   try {
@@ -29,8 +29,9 @@ async function guard(fn: () => unknown): Promise<CallToolResult> {
 }
 
 function me(ctx: ToolContext): Session {
-  if (ctx.identity.sessionId === null) throw new Error('This session is not registered with the roster');
-  return requireSession(ctx.db, ctx.identity.sessionId);
+  const id = currentIdentity(ctx).sessionId;
+  if (id === null) throw new Error('This session is not registered with the roster');
+  return requireSession(ctx.db, id);
 }
 
 function frontDeskOnly(ctx: ToolContext, tool: string): Session {

@@ -175,3 +175,10 @@ Alternatives: leave the switch to the front desk only (the project manager then 
 - Paused digest: drop (the pane shows paused). Quiet digest: drop and forget the fingerprint (keep the time as `since`), so trouble that clears and returns is shown again. Same fingerprint as the last one let through: drop. Everything else, and every error: let through (digest added as context only when it has the expected shape).
 - "Last check HH:MM — word" (local time) is added to the band and status line from a `lastCheck` atom, cleared when a tick is let through. `lastTick` (fingerprint, time) and `lastCheck` live in `$.state`, so a reload keeps them.
 - `tick.md` front desk section: replaces steps 1-3 for the front desk; fallback order is digest in context, then `front_desk_digest`, then today's `team_health` + `status`.
+
+## 2026-11-10 — Task 023: front desk recognised after a server restart
+- Recognition lives in a new `src/roster/identity.ts` probe, injected into the tool context. It runs only when the environment gives no identity: no `MM_SESSION_ID`, and `MM_ROLE` absent or `front-desk`. Any other environment identity is used as before and the session file is never read.
+- Match rule: the parent process's session file `name` must equal the front-desk record's name, or `MM_FRONT_DESK_NAME` (else the default) when the record has none. No record, no name, unreadable file, or a different name: stays unregistered with the old message.
+- Recognition only checks the front desk in (updates `last_checkin_at`). It does not change name, state or anything else, and it never creates a record.
+- Tool calls retry unthrottled. The monitor's check retries at most every 30 s while unrecognised.
+- Every tool that reads identity now goes through `currentIdentity(ctx)`; a recognised identity is kept on the context.

@@ -11,7 +11,7 @@ import { one } from './db.ts';
 import { isPaused } from './pause.ts';
 import { requireProjectById, requireWorkstreamById } from './projects.ts';
 import { requireSession, runningArchitect, runningChildren, runningProjectManager, type Session } from './sessions.ts';
-import type { ToolContext } from './tools.ts';
+import { currentIdentity, type ToolContext } from './tools.ts';
 
 /**
  * Crash and reboot recovery. Architects are NEVER restarted automatically: restorable_sessions lists them,
@@ -28,8 +28,9 @@ async function guard(fn: () => unknown): Promise<CallToolResult> {
 }
 
 function frontDeskOnly(ctx: ToolContext, tool: string): Session {
-  if (ctx.identity.sessionId === null) throw new Error('This session is not registered with the roster');
-  const caller = requireSession(ctx.db, ctx.identity.sessionId);
+  const id = currentIdentity(ctx).sessionId;
+  if (id === null) throw new Error('This session is not registered with the roster');
+  const caller = requireSession(ctx.db, id);
   if (caller.role !== 'front-desk') throw new Error(`Only the front desk can call ${tool}`);
   return caller;
 }

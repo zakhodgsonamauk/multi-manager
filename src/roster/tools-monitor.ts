@@ -7,7 +7,7 @@ import { allocateNumber } from './counters.ts';
 import { getLimits, getStallMinutes, listLimits, setLimits } from './limits.ts';
 import { listProjects, requireProject, requireProjectById } from './projects.ts';
 import { getSession } from './sessions.ts';
-import type { ToolContext } from './tools.ts';
+import { currentIdentity, type ToolContext } from './tools.ts';
 
 async function guard(fn: () => unknown): Promise<CallToolResult> {
   try {
@@ -19,7 +19,7 @@ async function guard(fn: () => unknown): Promise<CallToolResult> {
 }
 
 function callerProjectId(ctx: ToolContext): number | null {
-  const id = ctx.identity.sessionId;
+  const id = currentIdentity(ctx).sessionId;
   return id === null ? null : (getSession(ctx.db, id)?.project_id ?? null);
 }
 
@@ -55,7 +55,7 @@ export function registerMonitorTools(server: McpServer, ctx: ToolContext, deps: 
     },
     (a) =>
       guard(() => {
-        const role = ctx.identity.role;
+        const role = currentIdentity(ctx).role;
         const projectId = projectIdFor(ctx, a.project);
         if (role !== 'front-desk' && !((role === 'architect' || role === 'project-manager') && callerProjectId(ctx) === projectId)) {
           throw new Error('Only the front desk or this project\'s architect or project manager may set its limits');

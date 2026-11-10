@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { realActivityReaders, type ActivityReaders } from '../monitor/activity.ts';
 import { many } from './db.ts';
 import { requireSession, type Session } from './sessions.ts';
-import type { ToolContext } from './tools.ts';
+import { currentIdentity, type ToolContext } from './tools.ts';
 
 /**
  * Mutes and unmutes the session-voice plugin per session. session-voice stays silent for a Claude Code
@@ -88,8 +88,9 @@ export function registerVoiceTools(server: McpServer, ctx: ToolContext, options:
   };
 
   const me = (): Session => {
-    if (ctx.identity.sessionId === null) throw new Error('This session is not registered with the roster');
-    return requireSession(db, ctx.identity.sessionId);
+    const id = currentIdentity(ctx).sessionId;
+    if (id === null) throw new Error('This session is not registered with the roster');
+    return requireSession(db, id);
   };
 
   server.registerTool(

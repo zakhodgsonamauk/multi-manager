@@ -18,6 +18,7 @@ import {
   type LaunchContext,
 } from '../launch/launcher.ts';
 import { claim, release } from './claims.ts';
+import type { FrontDeskProbe } from './identity.ts';
 import type { Env } from './db.ts';
 import { GOAL_STATES, createGoal, goalWithPlace, updateGoal } from './goals.ts';
 import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, clearItems, closeItem, listItems, markSeen, raiseItem, requireItem } from './items.ts';
@@ -69,6 +70,20 @@ export interface ToolContext {
   launch: LaunchContext;
   /** Runs the `claude mcp` and `code-review-graph` commands; tests pass a fake. Default: the real commands. */
   codeGraphRunner?: CodeGraphRunner;
+  /** Recognises the front desk by its Claude Code process when the environment gives no identity. */
+  probe?: FrontDeskProbe;
+}
+
+/**
+ * This server's identity, looking again for the front desk first when the environment gave none. Once
+ * recognised it is kept on ctx. `throttled` limits the look to once per RECOGNISE_RETRY_MS (the monitor's check).
+ */
+export function currentIdentity(ctx: ToolContext, options: { throttled?: boolean } = {}): Identity {
+  if (ctx.identity.sessionId === null && ctx.probe !== undefined) {
+    const found = ctx.probe.recognise(options);
+    if (found !== null) ctx.identity = found;
+  }
+  return ctx.identity;
 }
 
 export function identityFromEnv(env: Env): Identity {
@@ -91,13 +106,14 @@ async function guard(fn: () => unknown): Promise<CallToolResult> {
 }
 
 export function me(ctx: ToolContext): Session {
-  if (ctx.identity.sessionId === null) {
+  const { sessionId } = currentIdentity(ctx);
+  if (sessionId === null) {
     throw new Error(
       'This session is not registered with the roster. Front desk: run /multi-manager:front-desk first. ' +
         'Architects and developers get their identity from the launcher.',
     );
   }
-  return requireSession(ctx.db, ctx.identity.sessionId);
+  return requireSession(ctx.db, sessionId);
 }
 
 function projectIdFor(ctx: ToolContext, project: string | undefined): number {
@@ -314,7 +330,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
     },
     (a) =>
       guard(() => {
-        const item = raiseItem(db, { kind: a.kind, body: a.body, goalId: a.goal_id, raisedBy: ctx.identity.sessionId, addressedTo: a.addressed_to });
+        const item = raiseItem(db, { kind: a.kind, body: a.body, goalId: a.goal_id, raisedBy: currentIdentity(ctx).sessionId, addressedTo: a.addressed_to });
         const reply: { item: typeof item; nudge: ReturnType<typeof nudge>; watcher_nudge?: ReturnType<typeof nudge> } = {
           item,
           nudge: nudge(ctx, item.addressed_to, item.id),
@@ -443,7 +459,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
       guard(() =>
         reportSpend(db, {
           usd: a.usd,
-          sessionId: ctx.identity.sessionId,
+          sessionId: currentIdentity(ctx).sessionId,
           goalId: a.goal_id,
           projectId: a.project === undefined ? undefined : requireProject(db, a.project).id,
         }),
@@ -472,7 +488,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
           project: a.project,
           workstream: a.workstream,
           goalId: a.goal_id,
-          parentId: ctx.identity.sessionId ?? frontDesk(db).id,
+          parentId: currentIdentity(ctx).sessionId ?? frontDesk(db).id,
         }),
       ),
   );
