@@ -1,7 +1,8 @@
-# Status — workstream `front-desk-items` (goals #124 done, #127)
+# Status — workstream `front-desk-items` (goals #124, #127 done; #129 planning)
 
 ## In flight
-- (none). Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go).
+- Goal #129 (planning): 024 panel runs check-ins itself (quiet ones leave nothing in the chat); 025 digest skips items already seen. Plan sign-off to be raised; nothing built.
+- Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go, item #1051).
 
 ## Queued (in order)
 - (none)

@@ -24,3 +24,5 @@
 - 2026-11-10 09:44 New standing rule via PM (user, verbatim): "make sure multi-manager keeps committing/pushing/merging to be up to date in the repo also". Passed to dev #335. Never commit the three old untracked files without the user's say.
 - 2026-11-10 09:52 023 returned (item #1049). Reviewed the diff myself (small; every identity read now goes through currentIdentity). Squash-merged ac857c1. Focused tests on merged main 60/60, typecheck and lint clean. Pushed. Dev #335 stopped, copy and branch removed, item closed.
 - 2026-11-10 09:57 Live: 09:45 front desk check-in dropped (two engine lines only, new wording live), band shows last check. Front desk confirmed it heard the #1047 panel clear. Goal #127 wrapped.
+- 2026-11-10 11:27 Goal #129 received (roster session #336). Tick job `c3ce72c4` armed 2026-11-10.
+- 2026-11-10 11:45 Facts checked in the plugin API types: drop reasons are always shown; the panel can start a check-in with `$.command.run`. Digest bug: `new_items` ignores `seen`, and nothing tells the front desk to mark items seen. Tasks 024 (panel runs check-ins) and 025 (digest skips seen) written.
