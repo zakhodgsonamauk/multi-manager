@@ -27,3 +27,4 @@
 - 2026-11-10 11:27 Goal #129 received (roster session #336). Tick job `c3ce72c4` armed 2026-11-10.
 - 2026-11-10 11:45 Facts checked in the plugin API types: drop reasons are always shown; the panel can start a check-in with `$.command.run`. Digest bug: `new_items` ignores `seen`, and nothing tells the front desk to mark items seen. Tasks 024 (panel runs check-ins) and 025 (digest skips seen) written.
 - 2026-11-10 11:48 Sign-off raised: item #1055 (front desk, PM #327 watching). Goal awaiting-signoff. Both nudged. Waiting; nothing built.
+- 2026-11-10 11:52 Front desk (peer message): it did call mark_seen on #1053 (~10:06) and #1054 (~11:25) before the re-sends. Confirms the main cause is the digest query ignoring `seen` (src/roster/tools-health.ts:153), already task 025 part 1. My sign-off text over-stated the missing mark_seen instruction; noted in task 025.

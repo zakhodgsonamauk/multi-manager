@@ -5,7 +5,8 @@ Goal #129. Branch: `worktree-mm-multi-manager-front-desk-items-dev-025-digest-se
 ## Why
 The front desk's check-in re-sent item #1053, which the user had already seen. `front_desk_digest`
 (`src/roster/tools-health.ts`, the `new_items` query around line 143) lists every open item addressed to the front
-desk raised after `since`; it ignores the item's `seen` flag. When `since` is missing (the model calls the digest
+desk raised after `since`; it ignores the item's `seen` flag. (Front desk confirmed it had called `mark_seen` on
+#1053 at about 10:06 and #1054 at about 11:25, before the digests that re-sent them: the query is the main cause.) When `since` is missing (the model calls the digest
 itself, or the panel's first check after a reload), every open item comes back as "new". Also, nothing tells the front
 desk to mark items seen after showing them, so the flag is set only when the model thinks to.
 
