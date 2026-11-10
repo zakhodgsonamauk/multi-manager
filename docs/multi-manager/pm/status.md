@@ -1,11 +1,11 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-10 11:25
+Updated: 2026-11-10 11:32
 
 Project manager: roster session #327, goal #81, workstream `pm`.
 
 ## Architects
-- #336 front-desk-items, goal #129 (front desk pointer #128): quiet check-ins leave nothing in chat; digest re-sends seen items. Plan sign-off expected.
+- #336 front-desk-items, goal #129 (front desk pointer #128): quiet check-ins leave nothing in chat; digest re-sends seen items. Plan approved 11:31; building.
 
 ## Goals
 - #99 / #100 code-review-graph investigation: done.
