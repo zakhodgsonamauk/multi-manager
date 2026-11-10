@@ -82,3 +82,11 @@ test/front-desk-start.test.ts test/server.test.ts test/clear-items.test.ts test/
 ## Evidence required
 The test summary lines; the measured length of a quiet `front_desk_digest` answer and of `start_front_desk` in the
 size test.
+
+## Send-back round 1 (2026-11-10)
+Small fixes; the rest passed review. `commands/clear.md` goes live the moment it merges, so it must be unambiguous.
+1. `commands/clear.md`: spell the order out. Plain `clear N`: one `clear_items` call (information only), one-line reply. `clear N all`: FIRST the information-only call, then list the decisions that would close, keeping only items whose `addressed_to` is the front desk (`list_items` also returns watched items), ask once, then call again with `include_action: true`. One-line reply naming both counts.
+2. `src/monitor/monitor.ts:314`: give auto-clear its own try/catch so an enforcement error does not skip it (and vice versa); record the error in the tick result the same way as the others.
+3. `src/roster/items.ts:249-266` `clearItems`: wrap the select and the updates in the existing transaction helper (`tx`) so the count reported matches what closed.
+4. Tests: auto-clear closes a 2 h old info item on a **cancelled** goal; an info item addressed to an architect is also auto-closed (pin the rule).
+Update your return report (round 2 section) and raise done again.
