@@ -1,6 +1,6 @@
 # 025 — The check-in digest stops re-sending items the user has already seen
 
-Goal #129. Branch: `worktree-mm-multi-manager-front-desk-items-dev-025-digest-seen`. Return report: `docs/multi-manager/tasks/025-digest-skips-seen.return.md` on that branch.
+Goal #129. Developer #338 (haiku), tab `mm-multi-manager-front-desk-items-dev-025-digest-seen`. Branch: `worktree-mm-multi-manager-front-desk-items-dev-025-digest-seen`. Return report: `docs/multi-manager/tasks/025-digest-skips-seen.return.md` on that branch.
 
 ## Why
 The front desk's check-in re-sent item #1053, which the user had already seen. `front_desk_digest`

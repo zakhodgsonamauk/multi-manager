@@ -1,6 +1,6 @@
 # 024 — The panel runs the front desk's check-ins itself, so a quiet one leaves nothing in the chat
 
-Goal #129. Branch: `worktree-mm-multi-manager-front-desk-items-dev-024-pane-check-ins`. Return report: `docs/multi-manager/tasks/024-pane-runs-check-ins.return.md` on that branch.
+Goal #129. Developer #337 (sonnet), tab `mm-multi-manager-front-desk-items-dev-024-pane-check-ins`. Branch: `worktree-mm-multi-manager-front-desk-items-dev-024-pane-check-ins`. Return report: `docs/multi-manager/tasks/024-pane-runs-check-ins.return.md` on that branch.
 
 ## Why
 Today the front desk's model arms a 10-minute timer (`CronCreate`, prompt `/multi-manager:tick`). Task 022 made the

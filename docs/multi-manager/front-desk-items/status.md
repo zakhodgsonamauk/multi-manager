@@ -1,7 +1,9 @@
-# Status — workstream `front-desk-items` (goals #124, #127 done; #129 planning)
+# Status — workstream `front-desk-items` (goals #124, #127 done; #129 in progress)
 
 ## In flight
-- Goal #129 (planning): 024 panel runs check-ins itself (quiet ones leave nothing in the chat); 025 digest skips items already seen. Plan sign-off to be raised; nothing built.
+- Goal #129 (signed off #1055 "yes go"):
+  - 024 panel runs check-ins itself: dev #337 (sonnet), tab mm-multi-manager-front-desk-items-dev-024-pane-check-ins, branch worktree-mm-multi-manager-front-desk-items-dev-024-pane-check-ins.
+  - 025 digest skips seen items: dev #338 (haiku), tab mm-multi-manager-front-desk-items-dev-025-digest-seen, branch worktree-mm-multi-manager-front-desk-items-dev-025-digest-seen.
 - Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go, item #1051).
 
 ## Queued (in order)
