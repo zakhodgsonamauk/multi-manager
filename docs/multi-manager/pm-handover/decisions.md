@@ -38,3 +38,12 @@ One dated entry per decision, newest last. Never rewrite an old entry: add a new
 
 ## 2026-11-03 — Re-route reuses defaultRoute (task 015 build)
 - `rerouteItems` runs after the parent change and calls `defaultRoute`, so moved items follow exactly the rule new items follow. Answered items only lose an old-pm watcher. Hand-over result adds `handed_over` and `next`; other stop results unchanged.
+
+## 2026-11-10 — Goal #123: fix the test, not the code
+
+- Context: test/pm-role.test.ts "restore_all: when the project manager is replaced" failed every run since some time after 2026-11-03, with no code change. It fails the same way at e114138 and at 24123ba (the commit that added it).
+- Cause: the test's setup called registerRecoveryTools with a fake process list, then registerRosterTools, which registers the same tools again with the machine's real process list (src/roster/tools.ts:594). The test's fake server keeps the last registration. So restore_all read the real Windows process list: the test passed only when a real process happened to own pid 4004 (the fake id of the replacement project manager). Even with the fake list, the test never said the replacement was alive.
+- Decision: test-only fix. Register the fake recovery tools after registerRosterTools (pm-role and pm-handover test setups), and let the pm-role test mark processes started after the crash as alive. The restore_all code is correct and unchanged.
+- Alternatives: give registerRosterTools a recovery-options parameter (touches the shared roster tool code the front-desk-items architect is working in; not needed); make the fake server refuse duplicate registrations (these setups also register the pause tools twice, so it would need more changes; not needed).
+- No separate plan sign-off: one small test fix under the user's go on item #1028.
+- Who: the architect (#328).

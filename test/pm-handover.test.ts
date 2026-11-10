@@ -56,9 +56,10 @@ async function setup(t: TestContext) {
   const ctx: ToolContext = { db, identity: { sessionId: desk.id, role: 'front-desk' }, pluginRoot: 'I:\\mm', launch };
   const tools = new Map<string, Handler>();
   const server = { registerTool: (name: string, _config: unknown, handler: Handler) => tools.set(name, handler) } as unknown as McpServer;
-  registerPauseTools(server, ctx);
-  registerRecoveryTools(server, ctx, { snapshot: afterReboot, readers });
   registerRosterTools(server, ctx);
+  registerPauseTools(server, ctx);
+  // After registerRosterTools, which registers these too with the machine's real process list (last one wins).
+  registerRecoveryTools(server, ctx, { snapshot: afterReboot, readers });
   const call = async (name: string, args: Record<string, unknown> = {}) => {
     const result = await tools.get(name)!(args);
     const text = result.content.map((c) => c.text).join('\n');

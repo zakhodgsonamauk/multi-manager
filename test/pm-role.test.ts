@@ -80,9 +80,19 @@ function setup(t: TestContext) {
   const ctx: ToolContext = { db, identity: { sessionId: desk.id, role: 'front-desk' }, pluginRoot: 'I:\\mm', launch };
   const tools = new Map<string, Handler>();
   const server = { registerTool: (name: string, _config: unknown, handler: Handler) => tools.set(name, handler) } as unknown as McpServer;
-  registerPauseTools(server, ctx);
-  registerRecoveryTools(server, ctx, { snapshot: afterReboot, readers });
   registerRosterTools(server, ctx);
+  registerPauseTools(server, ctx);
+  // The restore tools re-read the process list first. After a reboot only System is left, plus any process
+  // id a test adds here for a session started since (otherwise restore_all would mark that one dead too).
+  const startedSinceReboot: number[] = [];
+  const snapshot = async (): Promise<ProcessInfo[]> => [
+    ...(await afterReboot()),
+    ...startedSinceReboot.map((pid) => ({ pid, ppid: 0, name: 'claude.exe', created: 1, commandLine: null })),
+  ];
+  // Registered after registerRosterTools, which registers these tools too with the machine's real process
+  // list: the last registration wins, and the real list made results depend on which process ids happened
+  // to be in use on the machine.
+  registerRecoveryTools(server, ctx, { snapshot, readers });
   const as = (sessionId: number) => {
     ctx.identity = { sessionId, role: requireSession(db, sessionId).role };
   };
@@ -92,7 +102,7 @@ function setup(t: TestContext) {
     if (result.isError === true) throw new Error(text);
     return JSON.parse(text);
   };
-  return { db, desk, launch, ctx, fake, as, call };
+  return { db, desk, launch, ctx, fake, as, call, startedSinceReboot };
 }
 
 test('launch_project_manager: pm workstream created, opus, its briefing, MM_ROLE, parent is the front desk', async (t) => {
@@ -290,9 +300,11 @@ test('monitor: a dead or stuck architect under a running project manager raises 
 });
 
 test('restore_all: when the project manager is replaced, its architects go under the running one and it says so', async (t) => {
-  const { call, launch, desk, db, arch, pm } = await crashAll(t);
+  const { call, launch, desk, db, arch, pm, startedSinceReboot } = await crashAll(t);
   const { session: newer } = await launchProjectManager(launch, { project: 'alpha', parentId: desk.id });
+  startedSinceReboot.push(newer.pid as number); // the replacement is alive; only the old one died
   const done = await call('restore_all');
+  assert.equal(requireSession(db, newer.id).state, 'running', 'the running replacement is not mistaken for dead');
   assert.deepEqual(done.skipped.map((s: { session_id: number }) => s.session_id), [pm.id]);
   assert.deepEqual(done.restored.map((r: { session_id: number }) => r.session_id), [arch.id]);
   assert.equal(requireSession(db, arch.id).parent_id, newer.id);
