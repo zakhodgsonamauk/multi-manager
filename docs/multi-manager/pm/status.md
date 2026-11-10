@@ -1,11 +1,11 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-10 08:38
+Updated: 2026-11-10 08:57
 
 Project manager: roster session #327, goal #81, workstream `pm`.
 
 ## Architects
-- #329 front-desk-items, goal #124 (front desk pointer #122): front-desk items UI, categories, auto-clearing, pane replies reaching the front desk, quieter ticks. Plan sign-off expected.
+- #329 front-desk-items, goal #124 (front desk pointer #122): front-desk items UI, categories, auto-clearing, pane replies reaching the front desk, quieter ticks. Plan approved 08:53 (plus a user "clear 60" command); building, 2 developers.
 
 ## Goals
 - #99 / #100 code-review-graph investigation: done.
