@@ -18,3 +18,4 @@ Append-only, dated.
   - Test fix: workstream pm-handover, goal #123, architect #328.
   - Front-desk items (categories, auto-clear, pane replies reaching front desk, quieter ticks): new workstream front-desk-items, goal #124, architect #329. Goal #122 in progress as the front desk's pointer.
   Overlap: both may touch roster server tool code; each told to pull latest main before merging. #124 changes front desk/tick skills live on merge. Closed #1028, reported #1029.
+- 2026-11-10 08:38 #328 done (item #1032): flaky test, not a product bug (test's fake process list was overridden by the real one; passed only when a real pid 4004 existed). Tests-only fix ef990e6. Checked: on origin/main, full npm test 366/366. Stopped #328 (processes gone), goal #123 done, reported #1033. Spend reported $1 (my estimate).
