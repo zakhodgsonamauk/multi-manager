@@ -1,6 +1,6 @@
 # 020 — Item categories, auto-clear and a small "anything to do?" answer (roster server)
 
-Goal #124. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/020-item-categories-autoclear.return.md` on that branch.
+Goal #124. Branch: `worktree-mm-multi-manager-front-desk-items-dev-020-item-categories`. Return report: `docs/multi-manager/tasks/020-item-categories-autoclear.return.md` on that branch.
 
 ## Goal
 The front desk's list of roster items mixes "you must decide this" with "for your information", and nothing ever clears

@@ -1,12 +1,11 @@
 # Status — workstream `front-desk-items` (goal #124)
 
 ## In flight
-- (none; plan sign-off pending)
+- 020: dev #331, tab mm-multi-manager-front-desk-items-dev-020-item-categories, branch worktree-mm-multi-manager-front-desk-items-dev-020-item-categories (sonnet, complexity 3, clarity 5). Includes the user's "clear 60" command.
+- 021: dev #332, tab mm-multi-manager-front-desk-items-dev-021-pane-items-ui, branch worktree-mm-multi-manager-front-desk-items-dev-021-pane-items-ui (sonnet, complexity 3, clarity 4).
 
 ## Queued (in order)
-1. 020 Item categories, auto-clear, status split, `front_desk_digest` tool (roster server). Parallel with 021.
-2. 021 Side panel: "Needs your action" / "For information" sections, Clear / Clear all, recently answered, front desk told of pane answers, watcher nudge fix (pane only). Parallel with 020.
-3. 022 Quiet front desk check-in: the pane drops check-ins with nothing new; tick.md uses the digest. After 020 and 021.
+1. 022 Quiet front desk check-in: the pane drops check-ins with nothing new; tick.md uses the digest. After 020 and 021.
 
 ## Merged
 - (none)
@@ -20,4 +19,4 @@
 - No item ever closes itself; answered items stay until closed by hand.
 
 ## Next
-- Plan sign-off (goal #124).
+- Review 020 and 021 returns; then dispatch 022.

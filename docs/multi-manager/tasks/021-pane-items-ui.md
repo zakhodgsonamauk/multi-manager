@@ -1,6 +1,6 @@
 # 021 — Side panel: two item sections, quick clearing, and the front desk hears pane answers
 
-Goal #124. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/021-pane-items-ui.return.md` on that branch.
+Goal #124. Branch: `worktree-mm-multi-manager-front-desk-items-dev-021-pane-items-ui`. Return report: `docs/multi-manager/tasks/021-pane-items-ui.return.md` on that branch.
 
 ## Goal
 The front desk's side panel (the Multi-Manager pane, `hooks/register.tsx` + `hooks/roster-view.ts`) shows every open
