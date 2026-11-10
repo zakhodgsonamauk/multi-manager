@@ -1,6 +1,6 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-10 08:57
+Updated: 2026-11-10 09:24
 
 Project manager: roster session #327, goal #81, workstream `pm`.
 
@@ -11,7 +11,7 @@ Project manager: roster session #327, goal #81, workstream `pm`.
 - #99 / #100 code-review-graph investigation: done.
 - #101 / #102 code-review-graph B + C and per-project switch: done.
 - #123 test fix: done (ef990e6, flaky test, 366/366).
-- #122 / #124 front-desk items: in progress.
+- #122 / #124 front-desk items: built, 379/379; waiting for the user's go on restart + reload (#1046).
 
 ## Overlaps
 - (#328 stopped; no overlap left.)
