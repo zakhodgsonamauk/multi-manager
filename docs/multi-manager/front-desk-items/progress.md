@@ -26,3 +26,4 @@
 - 2026-11-10 09:57 Live: 09:45 front desk check-in dropped (two engine lines only, new wording live), band shows last check. Front desk confirmed it heard the #1047 panel clear. Goal #127 wrapped.
 - 2026-11-10 11:27 Goal #129 received (roster session #336). Tick job `c3ce72c4` armed 2026-11-10.
 - 2026-11-10 11:45 Facts checked in the plugin API types: drop reasons are always shown; the panel can start a check-in with `$.command.run`. Digest bug: `new_items` ignores `seen`, and nothing tells the front desk to mark items seen. Tasks 024 (panel runs check-ins) and 025 (digest skips seen) written.
+- 2026-11-10 11:48 Sign-off raised: item #1055 (front desk, PM #327 watching). Goal awaiting-signoff. Both nudged. Waiting; nothing built.
