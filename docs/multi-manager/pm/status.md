@@ -1,8 +1,8 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-03 14:10
+Updated: 2026-11-10 08:27
 
-Project manager: roster session #307, goal #81, workstream `pm`.
+Project manager: roster session #327, goal #81, workstream `pm`.
 
 ## Architects
 - (none running)
@@ -15,4 +15,5 @@ Project manager: roster session #307, goal #81, workstream `pm`.
 - (none)
 
 ## Next
+- Test failure on main (restore_all, project manager replaced): reported item #1028, waiting for the user on whether to fix.
 - Parked for the user's go: switch financial-portal's code-review-graph on (needs a front desk or project manager tab started after the merge).
