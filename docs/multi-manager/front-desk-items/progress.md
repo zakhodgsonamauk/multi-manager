@@ -10,3 +10,5 @@
 - 2026-11-10 09:08 021 returned (item #1038). Helper review: send back (note queue emptied before the prompt goes through; raiser/project missing on 020 server; Clear all stops at first failure; minor kind word, unbounded expanded list, narrow-pane layout; missing tests). Three typecheck:mod errors confirmed pre-existing on main. Send-back round 1 written.
 - 2026-11-10 09:12 021 round 1 returned (item #1040). Checked the fix diff; squash-merged fe9da6e. On merged main: test:mod 47/47, lint clean, typecheck:mod 3 pre-existing BAND errors only. Pushed. Dev #332 stopped, copy and branch removed, item closed.
 - 2026-11-10 09:14 Dispatched 022 to dev #334 (sonnet, complexity 4, clarity 4).
+- 2026-11-10 09:20 022 returned (item #1041). It flagged the briefings test failing on main: commands/clear.md (020) backticked two status field names. 020's test scope missed that test. Fixed on main (clear.md wording), briefings test 10/10. Helper review of 022 running.
+- 2026-11-10 09:24 022 helper review: send back (no timeout on digest call; since taken after the call; drop reason may show; fallback lost idle stop; tests). Round 1 written.
