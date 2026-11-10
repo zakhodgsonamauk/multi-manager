@@ -1,7 +1,7 @@
 # Status — workstream `front-desk-items` (goal #124)
 
 ## In flight
-- 022: being dispatched.
+- 022: dev #334, tab mm-multi-manager-front-desk-items-dev-022-quiet-tick, branch worktree-mm-multi-manager-front-desk-items-dev-022-quiet-tick (sonnet, complexity 4, clarity 4).
 
 ## Queued (in order)
 - (none)

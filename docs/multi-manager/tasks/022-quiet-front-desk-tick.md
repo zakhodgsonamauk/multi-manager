@@ -1,6 +1,6 @@
 # 022 — The front desk's 10-minute check-in stays out of the chat when nothing needs doing
 
-Goal #124. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/022-quiet-front-desk-tick.return.md` on that branch.
+Goal #124. Branch: `worktree-mm-multi-manager-front-desk-items-dev-022-quiet-tick`. Return report: `docs/multi-manager/tasks/022-quiet-front-desk-tick.return.md` on that branch.
 Runs after 020 and 021 are merged (both merged on main: 0ceeb62, fe9da6e) (needs 020's `front_desk_digest` tool and sits beside 021's hook in `register.tsx`).
 
 ## Goal
