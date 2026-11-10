@@ -36,8 +36,8 @@ act on is short.
   types whether a scheduled `/multi-manager:tick` arrives with `command` set and/or `isMeta`, and whether `{ drop }`
   is allowed on it (the `command` field doc says a drop stops a prompt command before it is rendered).
 - 020's `front_desk_digest` answers: `quiet`, `paused`, `act_on`, `idle_past_limit`, `new_items`, `fingerprint`
-  (see `src/roster/tools-health.ts`). A paused team: let the tick through only if the tick has something to say;
-  otherwise drop it (the pane already shows paused).
+  (see `src/roster/tools-health.ts`). `paused` true: drop the tick (it would only say
+  "paused — tick skipped"; the pane already shows paused).
 
 ## Tests first
 - `mod-test`: the decision function — quiet → drop; same fingerprint → drop; new fingerprint → pass with context;
