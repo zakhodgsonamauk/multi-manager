@@ -15,3 +15,6 @@
 - "Recently answered" shows age ("5 min ago") rather than a clock time: no locale or time-zone guesswork inside the mod.
 - Information items can only be read and cleared in the pane, not answered. A done report the user wants to reply to goes through the chat.
 - The new `prompt.submit` hook only reads its own queue and adds a context entry; it never rewrites the prompt, so task 022 can add its own handler beside it.
+
+## 2026-11-10 Goal #127: recognise the front desk by its own Claude Code session file
+- After a roster server restart, the front desk is recognised when the server's parent process's session file (~/.claude/sessions/<pid>.json) names it the roster's front-desk name. Alternatives: give the front desk tab MM_ROLE=front-desk in its environment (only helps tabs opened after the change, and the tab deliberately clears identity variables); persist "last front desk server pid" in the database (breaks on every new server pid).
