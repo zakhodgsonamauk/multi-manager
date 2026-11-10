@@ -41,6 +41,7 @@ const required: Record<string, RegExp[]> = {
     /restart_architect/,
     /set_code_graph/,
     /may also switch/,
+    /swallows check-ins/,
   ],
   architect: [
     /^# Multi-Manager: Architect/m,
@@ -167,4 +168,15 @@ test('every snake_case tool name in a briefing or command is a real roster tool'
       assert.ok(tools.has(m[1]), `${file} names \`${m[1]}\`, which is not a registered roster tool`);
     }
   }
+});
+
+test('the front desk section of tick.md acts from the digest and names front_desk_digest', () => {
+  const text = readFileSync(join(import.meta.dirname, '..', 'commands', 'tick.md'), 'utf8').replace(/\r\n/g, '\n');
+  const desk = text.slice(text.indexOf('## Front desk'));
+  assert.match(desk, /front_desk_digest/);
+  assert.match(desk, /Do not call `status` or `team_health` unless/);
+  assert.match(desk, /at most three short lines/i);
+  // The architect and project-manager sections stay as they were.
+  assert.match(text, /## Architect\n- `check_in`\./);
+  assert.match(text, /Never restart an architect yourself/);
 });

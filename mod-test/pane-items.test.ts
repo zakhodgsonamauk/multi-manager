@@ -3,7 +3,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { PaneItem } from '../types'
-import { buildView, infoLine, paneNotesText, pruneAnswered, recentLine } from '../hooks/roster-view.ts'
+import { bandLine, buildView, decideTick, infoLine, isScheduledTick, lastCheckText, paneNotesText, pruneAnswered, readDigest, recentLine } from '../hooks/roster-view.ts'
 
 const NOW = Date.parse('2026-10-21T10:00:00.000Z')
 const ago = (minutes: number): string => new Date(NOW - minutes * 60_000).toISOString()
@@ -100,4 +100,47 @@ test('buildView with a 020-shaped status names the raiser and project of informa
   expect(view.info[0]?.project).toBe('shop')
   expect(view.action[0]?.project).toBe('shop')
   expect(view.notes).toEqual([])
+})
+
+const digest = (over: Record<string, unknown> = {}) => readDigest({ quiet: false, paused: false, fingerprint: 'abc', ...over })
+
+test('a quiet check-in is dropped and the fingerprint forgotten', () => {
+  expect(decideTick(digest({ quiet: true, fingerprint: 'q' }), 'abc')).toEqual({ action: 'drop', word: 'all quiet', forgetFingerprint: true })
+})
+
+test('a check-in with the same fingerprint as the last one let through is dropped', () => {
+  expect(decideTick(digest(), 'abc')).toEqual({ action: 'drop', word: 'nothing new', forgetFingerprint: false })
+})
+
+test('a check-in with a new fingerprint goes through with the digest', () => {
+  expect(decideTick(digest({ fingerprint: 'def' }), 'abc')).toEqual({ action: 'pass-with-digest', fingerprint: 'def' })
+  expect(decideTick(digest(), null)).toEqual({ action: 'pass-with-digest', fingerprint: 'abc' })
+})
+
+test('a paused roster drops the check-in, even with trouble', () => {
+  expect(decideTick(digest({ paused: true }), null)).toEqual({ action: 'drop', word: 'paused', forgetFingerprint: false })
+})
+
+test('no digest (roster away, tool missing, odd answer) lets the check-in through unchanged', () => {
+  expect(decideTick(undefined, 'abc')).toEqual({ action: 'pass' })
+  for (const odd of [null, 'x', 5, {}, { quiet: 'yes', paused: false, fingerprint: 'a' }, { quiet: true, paused: false }]) {
+    expect(readDigest(odd)).toBeUndefined()
+  }
+})
+
+test("only the timer's own tick counts: a typed tick and other scheduled prompts are left alone", () => {
+  const scheduled = { kind: 'scheduled-trigger' }
+  expect(isScheduledTick({ text: '/multi-manager:tick', origin: scheduled })).toBe(true)
+  expect(isScheduledTick({ text: '/multi-manager:tick', origin: scheduled, command: { name: 'multi-manager:tick' } })).toBe(true)
+  expect(isScheduledTick({ text: 'rendered body', origin: scheduled, command: { name: 'multi-manager:tick' } })).toBe(true)
+  expect(isScheduledTick({ text: '/multi-manager:tick', origin: { kind: 'composer' } })).toBe(false)
+  expect(isScheduledTick({ text: '/multi-manager:status', origin: scheduled, command: { name: 'multi-manager:status' } })).toBe(false)
+  expect(isScheduledTick({ text: 'water the plants', origin: scheduled })).toBe(false)
+})
+
+test('the band names the last swallowed check, beside or in place of the usual line', () => {
+  const at = new Date(2026, 9, 21, 9, 40).getTime()
+  expect(lastCheckText({ at, word: 'all quiet' })).toBe('Last check 09:40 — all quiet')
+  expect(bandLine(null, null)).toBeUndefined()
+  expect(bandLine(null, { at, word: 'nothing new' })).toBe('MM: Last check 09:40 — nothing new')
 })

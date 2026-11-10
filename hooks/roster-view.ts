@@ -398,3 +398,66 @@ export function quote(body: string): string {
 export function money(usd: number): string {
   return `$${usd.toFixed(2)}`
 }
+
+/** The slash command the front desk's timer fires. */
+export const TICK_COMMAND = 'multi-manager:tick'
+
+/** What the front desk's timer prompt looks like to `prompt.submit`: only the timer's own firing counts, never one the user typed. */
+export function isScheduledTick(e: { text: string; origin: { kind: string }; command?: { name: string } }): boolean {
+  if (e.origin.kind !== 'scheduled-trigger') return false
+  return e.command?.name === TICK_COMMAND || e.text.trim().split(/\s+/)[0] === `/${TICK_COMMAND}`
+}
+
+/** What `front_desk_digest` answers (the parts the pane reads). */
+export type RosterDigest = { quiet: boolean; paused: boolean; fingerprint: string }
+
+/** The digest if it has the expected shape, else undefined (an odd answer lets the tick through). */
+export function readDigest(value: unknown): RosterDigest | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const d = value as Record<string, unknown>
+  if (typeof d.quiet !== 'boolean' || typeof d.paused !== 'boolean' || typeof d.fingerprint !== 'string') return undefined
+  return { quiet: d.quiet, paused: d.paused, fingerprint: d.fingerprint }
+}
+
+/** What the pane says about the last check it swallowed (shown in the band and status line). */
+export type LastCheck = { at: number; word: 'all quiet' | 'nothing new' | 'paused' }
+
+/**
+ * What to do with a scheduled check-in, given the digest (undefined when it could not be had: roster away, digest tool
+ * missing, odd answer) and the fingerprint of the last check-in let through (null: none yet).
+ * Never drops on a missing digest.
+ */
+export type TickDecision =
+  | { action: 'pass' }
+  | { action: 'pass-with-digest'; fingerprint: string }
+  | { action: 'drop'; word: LastCheck['word']; forgetFingerprint: boolean }
+
+export function decideTick(digest: RosterDigest | undefined, lastFingerprint: string | null): TickDecision {
+  if (digest === undefined) return { action: 'pass' }
+  // Paused: the tick would only say "paused — tick skipped", and the pane shows paused already. The fingerprint is kept.
+  if (digest.paused) return { action: 'drop', word: 'paused', forgetFingerprint: false }
+  // Quiet: forget the fingerprint, so trouble that goes and comes back is shown again.
+  if (digest.quiet) return { action: 'drop', word: 'all quiet', forgetFingerprint: true }
+  if (digest.fingerprint === lastFingerprint) return { action: 'drop', word: 'nothing new', forgetFingerprint: false }
+  return { action: 'pass-with-digest', fingerprint: digest.fingerprint }
+}
+
+/** "Last check 09:40 — all quiet" (local time). */
+export function lastCheckText(check: LastCheck): string {
+  const d = new Date(check.at)
+  const two = (n: number): string => String(n).padStart(2, '0')
+  return `Last check ${two(d.getHours())}:${two(d.getMinutes())} — ${check.word}`
+}
+
+/** The band and status line with the last swallowed check-in added. */
+export function bandLine(view: PaneView | null, check: LastCheck | null): string | undefined {
+  const line = summaryLine(view)
+  if (check === null) return line
+  const text = lastCheckText(check)
+  return line === undefined ? `MM: ${text}` : `${line} · ${text}`
+}
+
+/** The context entry that carries the digest to the model on a check-in that is let through. */
+export function digestContext(digest: unknown): string {
+  return `Multi-Manager check-in digest (from the pane; act from this, do not call status or team_health unless it lacks a detail you need): ${JSON.stringify(digest)}`
+}

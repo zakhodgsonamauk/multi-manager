@@ -168,3 +168,10 @@ Alternatives: leave the switch to the front desk only (the project manager then 
 - `start_front_desk` text leaves out `waiting_for_user` (the status tool and `statusSummary` keep it). With the copy the start text was 26,716 characters, over the 25,000 goal; without it, 24,395. Briefings do not read the key.
 - `front_desk_digest`: `act_on` covers architects and project managers (the top-level rows of the front desk's `team_health`, same `scope` and `sessionHealth`); developers are their architect's concern. Answer is compact JSON (no indent) so a quiet answer is 102 characters. Fingerprint = first 8 hex of sha1 over act_on ids+actions, idle ids, new item ids.
 - `clear_items` uses `created_at <=` the cutoff: an item raised exactly N minutes ago counts as older than N.
+
+## 2026-11-10 — Task 022: quiet front desk check-in
+- One `prompt.submit` handler, not two: the engine refuses a second unmatched `on("prompt.submit")`. The pane-notes handler now starts with `if (isScheduledTick(e)) return handleTick(...)`.
+- A tick is recognised by origin `scheduled-trigger` plus either `command.name === 'multi-manager:tick'` or text starting `/multi-manager:tick` (the types do not say whether a scheduled command arrives with `command` set, so both are accepted). A tick typed by the user has origin `composer` and is never touched.
+- Paused digest: drop (the pane shows paused). Quiet digest: drop and forget the fingerprint (keep the time as `since`), so trouble that clears and returns is shown again. Same fingerprint as the last one let through: drop. Everything else, and every error: let through (digest added as context only when it has the expected shape).
+- "Last check HH:MM — word" (local time) is added to the band and status line from a `lastCheck` atom, cleared when a tick is let through. `lastTick` (fingerprint, time) and `lastCheck` live in `$.state`, so a reload keeps them.
+- `tick.md` front desk section: replaces steps 1-3 for the front desk; fallback order is digest in context, then `front_desk_digest`, then today's `team_health` + `status`.

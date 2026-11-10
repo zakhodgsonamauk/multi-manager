@@ -142,6 +142,10 @@ declare module 'claude-code' {
       expandedInfo: number[];
       /** Whether the "Recently answered" list is open (collapsed by default). */
       isRecentOpen: boolean;
+      /** The last scheduled check-in the pane swallowed (nothing to act on), shown in the band; null once a check-in was let through. */
+      lastCheck: { at: number; word: 'all quiet' | 'nothing new' | 'paused' } | null;
+      /** The last check-in let through to the model: its digest fingerprint and time (ms). Empty fingerprint after a quiet check (the time stays); null when none yet. */
+      lastTick: { fingerprint: string; at: number } | null;
     };
   }
 }

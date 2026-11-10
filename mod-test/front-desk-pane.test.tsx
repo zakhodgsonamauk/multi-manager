@@ -75,6 +75,10 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     /** Replaces the whole status or team_health answer (a project manager's tree, or an older roster's shape). */
     statusOverride: undefined as unknown,
     healthOverride: undefined as unknown,
+    /** What front_desk_digest answers; undefined: the tool does not exist (an older roster). */
+    digest: undefined as unknown,
+    /** Tools that never answer (a hung roster). */
+    hang: new Set<string>(),
   }
   const answer = (tool: string, args: Record<string, unknown>): unknown => {
     switch (tool) {
@@ -133,6 +137,9 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
         }
       case 'list_items':
         return roster.items.map(i => ({ ...i, raised_by: 2, state: 'open', addressed_to: 1 }))
+      case 'front_desk_digest':
+        if (roster.digest === undefined) throw new Error('Unknown tool: front_desk_digest')
+        return roster.digest
       case 'resources':
         return roster.projects
           ? [{ session_id: 2, name: 'mm-arch-shop', role: 'architect', process_count: 12, max_processes: 40, over_max: false, binaries: [] }]
@@ -159,6 +166,7 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     on('mcp.connect', () => ({ value: { isConnected: true, server: 'plugin:multi-manager:roster' } }))
     on('mcp.call', (_, e) => {
       roster.calls.push({ tool: e.tool, args: e.args })
+      if (roster.hang.has(e.tool)) return new Promise<never>(() => undefined)
       const failure = e.tool === 'close_item' ? roster.closeFail[Number(e.args.item_id)] : undefined
       if (failure !== undefined) return { value: { content: [{ type: 'text', text: failure }], isError: true } }
       const refusal = roster.refuse[e.tool]
@@ -831,4 +839,185 @@ test('Clear all carries on past a failed close, treats already-closed as cleared
   expect(fake.toolCalls('close_item').map(c => c.args)).toEqual([{ item_id: 22 }, { item_id: 21 }, { item_id: 20 }])
   expect(fake.roster.toasts).toContain('Could not clear 1 of 3: Item #22 is not yours to close')
   expect(fake.roster.logs).toEqual(['Cleared #21 from the panel.', 'Cleared #20 from the panel.'])
+})
+
+const TICK = { kind: 'scheduled-trigger' } as const
+const tick = ($: Engine, extra: Record<string, unknown> = {}) =>
+  $.prompt.submit({ text: '/multi-manager:tick', wait: false, origin: TICK, command: { name: 'multi-manager:tick', args: '' }, ...extra } as never)
+const QUIET = { quiet: true, paused: false, act_on: [], idle_past_limit: [], new_items: [], fingerprint: 'q0' }
+const TROUBLE = { quiet: false, paused: false, act_on: [{ id: 2, name: 'mm-arch-shop', action: 'nudge' }], idle_past_limit: [], new_items: [], fingerprint: 'f1' }
+
+test('a quiet scheduled check-in is dropped, nothing reaches the chat, and the band says when it ran', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.digest = QUIET
+  await startFrontDesk($, clock)
+
+  const result = await tick($)
+  expect(result.drop).toBeDefined()
+  expect(fake.roster.prompts).toEqual([]) // never reached the engine beneath
+  expect(fake.roster.logs).toEqual([]) // no transcript line
+  expect(fake.toolCalls('front_desk_digest')).toHaveLength(1)
+  expect(fake.toolCalls('front_desk_digest')[0]?.args).toEqual({}) // nothing let through yet: no `since`
+  expect(fake.roster.status.at(-1)).toMatch(/^MM: 1 architect busy · Last check \d\d:\d\d — all quiet$/)
+  const ui = await $.ui.mount({ ...BAND, props: { ...BAND.props, isCollapsed: false }, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text' }))?.text).toMatch(/Last check \d\d:\d\d — all quiet/)
+  await ui.unmount()
+})
+
+test('a check-in with news goes through with the digest; the same news again is swallowed', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  await startFrontDesk($, clock)
+
+  const first = await tick($)
+  expect(first.drop).toBeUndefined()
+  expect(fake.roster.prompts).toEqual(['/multi-manager:tick'])
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain(JSON.stringify(TROUBLE))
+
+  // Ten minutes on, same fingerprint: swallowed; `since` is the time of the one let through.
+  await clock.advance(600_000)
+  const second = await tick($)
+  expect(second.drop).toBeDefined()
+  expect(fake.roster.prompts).toHaveLength(1)
+  expect(fake.toolCalls('front_desk_digest').at(-1)?.args).toEqual({ since: '2026-10-21T10:05:00.000Z' })
+  expect(fake.roster.status.at(-1)).toMatch(/Last check \d\d:\d\d — nothing new$/)
+
+  // New fingerprint: through again, and the "last check" note goes.
+  fake.roster.digest = { ...TROUBLE, fingerprint: 'f2' }
+  const third = await tick($)
+  expect(third.drop).toBeUndefined()
+  expect(fake.roster.prompts).toHaveLength(2)
+})
+
+test('trouble that clears and comes back is shown again', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  await startFrontDesk($, clock)
+  await tick($)
+  fake.roster.digest = QUIET
+  expect((await tick($)).drop).toBeDefined()
+  fake.roster.digest = TROUBLE
+  expect((await tick($)).drop).toBeUndefined()
+  expect(fake.roster.prompts).toHaveLength(2)
+})
+
+test('a paused roster drops the check-in', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = { ...TROUBLE, paused: true }
+  await startFrontDesk($, clock)
+  expect((await tick($)).drop).toBeDefined()
+  expect(fake.roster.status.at(-1)).toMatch(/Last check \d\d:\d\d — paused$/)
+})
+
+test('the check-in goes through unchanged when the digest cannot be had or is odd', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+
+  // Old roster: no digest tool.
+  expect((await tick($)).drop).toBeUndefined()
+  // Odd answer.
+  fake.roster.digest = { hello: 'there' }
+  expect((await tick($)).drop).toBeUndefined()
+  // Roster refuses.
+  fake.roster.refuse.front_desk_digest = 'Only the front desk can call front_desk_digest'
+  expect((await tick($)).drop).toBeUndefined()
+  expect(fake.roster.prompts).toHaveLength(3)
+  expect(fake.roster.contexts.every(c => c === undefined)).toBe(true)
+})
+
+test('a tick the user typed, and other scheduled prompts, are never swallowed', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = QUIET
+  await startFrontDesk($, clock)
+
+  const typed = { text: '/multi-manager:tick', wait: false, origin: { kind: 'composer' }, command: { name: 'multi-manager:tick', args: '' } }
+  expect((await $.prompt.submit(typed as never)).drop).toBeUndefined()
+  expect((await $.prompt.submit({ text: 'water the plants', wait: false, origin: TICK } as never)).drop).toBeUndefined()
+  expect(fake.roster.prompts).toHaveLength(2)
+  expect(fake.toolCalls('front_desk_digest')).toEqual([])
+})
+
+test('a session that is not the front desk lets its scheduled tick through', async ($, on) => {
+  const clock = mock.clock(on)
+  const env: Record<string, string> = {}
+  on('env.get', (_, e) => ({ value: env[e.name] }))
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = QUIET
+  await startFrontDesk($, clock)
+  env.MM_ROLE = 'architect'
+  expect((await tick($)).drop).toBeUndefined()
+  expect(fake.toolCalls('front_desk_digest')).toEqual([])
+})
+
+test('a digest that never answers lets the tick through within the limit', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = QUIET
+  fake.roster.hang.add('front_desk_digest')
+  await startFrontDesk($, clock)
+
+  let result: { drop?: string } | undefined
+  const pending = tick($).then(r => (result = r))
+  await clock.advance(3000)
+  expect(result).toBeUndefined() // still waiting
+  await clock.advance(1500)
+  await pending
+  expect(result?.drop).toBeUndefined()
+  expect(fake.roster.prompts).toEqual(['/multi-manager:tick'])
+  expect(fake.roster.contexts.at(-1)).toBeUndefined()
+})
+
+test('a check-in neither attaches nor empties the pane notes', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  await startFrontDesk($, clock)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.input({ key: 'answer-12', text: 'go' })
+  await ui.unmount()
+
+  await tick($)
+  expect(fake.roster.contexts.at(-1)).toEqual([expect.stringContaining('check-in digest')])
+  expect(fake.roster.contexts.at(-1)?.join('')).not.toContain('answered item #12')
+  await submit($, 'next real turn')
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain('answered item #12')
+})
+
+test('a check-in that the engine beneath drops is not remembered as let through', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  await startFrontDesk($, clock)
+  fake.roster.promptMode = 'drop'
+  expect((await tick($)).drop).toBeDefined()
+  fake.roster.promptMode = 'ok'
+  // Same fingerprint, but the first never entered: this one must go through.
+  expect((await tick($)).drop).toBeUndefined()
+  expect(fake.roster.prompts).toHaveLength(2)
+  expect(fake.toolCalls('front_desk_digest').at(-1)?.args).toEqual({})
 })

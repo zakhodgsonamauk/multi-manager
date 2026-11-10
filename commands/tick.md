@@ -6,7 +6,7 @@ Multi-Manager check-in tick. $ARGUMENTS
 
 Your role is `MM_ROLE` from the environment (your briefing says it too). No `MM_ROLE` means you are the front desk. Developers have no tick: if you are a developer, say "no tick for developers" and stop.
 
-1. FIRST call `team_health`. If `paused` is true, say "paused — tick skipped" and stop. Do nothing else.
+1. FIRST call `team_health` (the front desk: see its section below, which replaces steps 1 to 3). If paused is true, say "paused — tick skipped" and stop. Do nothing else.
 2. Act on each session's `recommended_action`, as below for your role. `none` means leave it alone.
 3. Keep the output short. If nothing changed and nothing needed action, say one line: "all quiet". Never a wall of text.
 
@@ -26,9 +26,11 @@ Your role is `MM_ROLE` from the environment (your briefing says it too). No `MM_
 - Stop (`stop_architect`) architects whose goals are done and which have nothing assigned. Report in one line to the front desk.
 
 ## Front desk
-- `status` as well as `team_health`. `team_health` nests architects under their project manager; nudge and report project managers the same way as architects.
-- Show the user ONLY what is new since your last tick: new waiting items (number, project, kind, body quoted verbatim) and new problems (stuck, hung or dead architects, with `reason` quoted verbatim). Do not repeat what the user has already seen.
-- Idle stop: stop (`stop_architect`) any architect idle past its project's idle stop time with nothing assigned. Tell the user in one line.
-- For each architect in `team_health`:
-  - `nudge`: `SendMessage` the architect "Are you stuck? Report via the roster, or carry on." Then `record_nudge` with its `session_id`.
-  - `report`: tell the user plainly which architect, what state, and the `reason` verbatim. Ask what to do.
+The pane swallows check-ins with nothing to act on, so a tick that reaches you has news, or the pane is not loaded. Output at most three short lines, impact first. Never a wall of text, never "all quiet" on a tick with a digest.
+- A digest (JSON with `quiet`, paused, act_on, idle_past_limit, new_items, `fingerprint`) is in your context from the pane: act from it. Do not call `status` or `team_health` unless you need a detail it lacks.
+- No digest in your context (the pane is not loaded): call `front_desk_digest` first. If it says paused true, say "paused — tick skipped" and stop. If `quiet` is true, say "all quiet" and stop. Only if that tool is missing (an older roster server), fall back to calling `team_health` (stop if paused) and `status`, show only what is new since your last tick, and stop (`stop_architect`) any architect idle past its project's idle stop time with nothing assigned (tell the user in one line). Nudge and report each session by its `recommended_action`, as below.
+- new_items: show each new item the user has not seen (number, project, kind, body quoted verbatim). Do not repeat what the user has already seen.
+- idle_past_limit: stop (`stop_architect`) each architect listed, with nothing assigned. Tell the user in one line.
+- act_on: for each session listed, by its `action`:
+  - `nudge`: `SendMessage` it "Are you stuck? Report via the roster, or carry on." Then `record_nudge` with its `id`. Project managers are nudged and reported the same way as architects.
+  - `report`: tell the user plainly which session, what state, and the `reason` verbatim. Ask what to do.

@@ -11,13 +11,17 @@
 //   SendMessage tool's own delivery); any that cannot be are handed to the front desk as a queued prompt.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, PromptSubmitInput, PromptSubmitResult, Register } from 'claude-code'
 
 import type { PaneConfirm, PaneItem, PaneNote, PaneView } from '../types'
 import {
   ageText,
+  bandLine,
   buildView,
+  decideTick,
+  digestContext,
   dueToasts,
+  isScheduledTick,
   infoLine,
   kindWord,
   money,
@@ -25,9 +29,10 @@ import {
   paneNotesText,
   pruneAnswered,
   quote,
+  readDigest,
   recentLine,
   rosterJson,
-  summaryLine,
+  type LastCheck,
   type RosterAnswerReply,
   type RosterNudge,
   type RosterResources,
@@ -40,6 +45,8 @@ const TITLE = 'Multi-Manager'
 const POLL_MS = 15_000
 /** The process snapshot behind `resources` is the costly call: refresh it at most this often unless a button asks. */
 const RESOURCES_MS = 60_000
+/** How long a check-in waits for the roster's digest before it goes through unchanged. */
+const DIGEST_WAIT_MS = 4000
 
 const isFrontDesk = atom({ plugin: 'multi-manager', key: 'isFrontDesk' } as const, false)
 const viewAtom = atom({ plugin: 'multi-manager', key: 'view' } as const, null)
@@ -52,6 +59,8 @@ const paneNotes = atom({ plugin: 'multi-manager', key: 'paneNotes' } as const, [
 const recentAnswers = atom({ plugin: 'multi-manager', key: 'recentAnswers' } as const, [])
 const expandedInfo = atom({ plugin: 'multi-manager', key: 'expandedInfo' } as const, [])
 const isRecentOpen = atom({ plugin: 'multi-manager', key: 'isRecentOpen' } as const, false)
+const lastCheck = atom({ plugin: 'multi-manager', key: 'lastCheck' } as const, null)
+const lastTick = atom({ plugin: 'multi-manager', key: 'lastTick' } as const, null)
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
@@ -124,7 +133,7 @@ const poll = async ($: Engine, options: { fresh?: boolean } = {}): Promise<void>
     // Forget opened information lines whose items have gone.
     await update($, expandedInfo, ids => (ids.every(id => view.info.some(i => i.id === id)) ? ids : ids.filter(id => view.info.some(i => i.id === id))))
     await update($, unavailable, () => null)
-    $.ui.status(summaryLine(view))
+    $.ui.status(bandLine(view, await read($, lastCheck)))
   } catch (error) {
     server = undefined // reconnect next time, in case the roster server restarted
     await update($, unavailable, () => oneLine(message(error), 160))
@@ -301,6 +310,53 @@ const hideProject = ($: Engine, project: string) =>
 
 const openPane = ($: Engine) => $.ui.open({ id: PANE, title: TITLE })
 
+/**
+ * The front desk's 10-minute check-in (a scheduled /multi-manager:tick): when the roster's digest says nothing needs
+ * doing, the prompt is dropped, so it leaves nothing in the chat and starts no turn; the pane shows "Last check". Any
+ * doubt (roster away, digest tool missing, odd answer, a throw) lets the tick through unchanged.
+ */
+const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmitInput) => Promise<PromptSubmitResult>): Promise<PromptSubmitResult> => {
+  const previous = await read($, lastTick)
+  // Read the clock BEFORE asking: an item raised during the call is then still newer than the stored time.
+  const asked = await $.clock.now()
+  let digest: unknown
+  // A roster that hangs must not hold the tick: past the limit the tick goes through unchanged.
+  const stop = new AbortController()
+  const timedOut = Symbol('timed out')
+  try {
+    const answer = roster($, 'front_desk_digest', previous === null ? {} : { since: new Date(previous.at).toISOString() })
+    answer.catch(() => undefined) // a late failure after the wait won is not an unhandled rejection
+    const winner = await Promise.race([answer, $.clock.sleep(DIGEST_WAIT_MS, { signal: stop.signal }).then(() => timedOut)])
+    if (winner === timedOut) {
+      server = undefined
+      return next(e)
+    }
+    digest = winner
+  } catch {
+    server = undefined // reconnect next time, in case the roster server restarted
+    return next(e)
+  } finally {
+    stop.abort()
+  }
+  const decision = decideTick(readDigest(digest), previous?.fingerprint ?? null)
+  const now = asked
+  if (decision.action === 'drop') {
+    await update($, lastCheck, (): LastCheck => ({ at: now, word: decision.word }))
+    // Forget the fingerprint but keep the time: `since` still holds back items the user has already been shown.
+    if (decision.forgetFingerprint && previous !== null) await update($, lastTick, () => ({ fingerprint: '', at: previous.at }))
+    $.ui.status(bandLine(await read($, viewAtom), await read($, lastCheck)))
+    // The types show a drop's reason to the user, with no silent form: keep it to one mark.
+    return { drop: '·' }
+  }
+  if (decision.action === 'pass') return next(e)
+  const result = await next({ ...e, context: [...(e.context ?? []), digestContext(digest)] })
+  if (result.drop === undefined) {
+    await update($, lastTick, () => ({ fingerprint: decision.fingerprint, at: now }))
+    await update($, lastCheck, () => null)
+  }
+  return result
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
@@ -337,6 +393,8 @@ export const register: Register = on => {
   // notes ride along as one context entry and the queue empties. Kept apart from any other prompt.submit handling.
   on('prompt.submit', async ($, e, next) => {
     if (!(await read($, isFrontDesk)) || (await isOtherRole($))) return next(e)
+    // The timer's own check-in is judged by the digest first; a tick the user typed (composer origin) is not.
+    if (isScheduledTick(e)) return handleTick($, e, next)
     // A prompt the person did not type (isMeta) takes no rewrite when it starts a turn, and a slash command's text is
     // pinned: both pass untouched and the notes wait for the next real turn.
     if (e.isMeta === true || e.command !== undefined) return next(e)
@@ -357,7 +415,7 @@ export const register: Register = on => {
       isPaneAutoOpened = true
       void openPane($)
     }
-    const line = summaryLine(await read($, viewAtom))
+    const line = bandLine(await read($, viewAtom), await read($, lastCheck))
     if (e.props.hasSurvey || line === undefined) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     return (
