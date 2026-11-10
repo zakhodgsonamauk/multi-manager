@@ -3,7 +3,6 @@
 ## In flight
 - Goal #129 (signed off #1055 "yes go"):
   - 024 panel runs check-ins itself: dev #337 (sonnet), tab mm-multi-manager-front-desk-items-dev-024-pane-check-ins, branch worktree-mm-multi-manager-front-desk-items-dev-024-pane-check-ins.
-  - 025 digest skips seen items: dev #338 (haiku), tab mm-multi-manager-front-desk-items-dev-025-digest-seen, branch worktree-mm-multi-manager-front-desk-items-dev-025-digest-seen.
 - Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go, item #1051).
 
 ## Queued (in order)
@@ -16,6 +15,8 @@
 - Follow-ups: d42d331 commands/clear.md wording (briefings test); tick.md `paused` backticks (plugin-manifest test, reported by PM); 965e0fe dropped check-in reason reads "Multi-Manager check-in, all quiet".
 
 - 023 front desk recognised again after a roster server restart (goal #127): commit ac857c1 (no send-back). Focused tests on merged main 60/60, typecheck and lint clean. Pushed. Live after the next roster reconnect in the front desk.
+
+- 025 digest skips items already seen; front desk told to mark_seen after showing items (goal #129): commit e91e25c (no send-back). Focused tests on merged main 29/29, typecheck and lint clean. Pushed. tick.md part live now; digest part live after the next roster reconnect in the front desk.
 
 ## Going live
 - 020 needs the front desk's roster server restarted; 021 and 022 need a plugin reload in the front desk. Both wait for the user's go. 022's tick.md change is live on merge and falls back safely on an old roster server.
