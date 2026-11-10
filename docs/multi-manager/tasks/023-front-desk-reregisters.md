@@ -1,6 +1,6 @@
 # 023 — The front desk is recognised again after its roster server restarts
 
-Goal #127. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/023-front-desk-reregisters.return.md` on that branch.
+Goal #127. Branch: `worktree-mm-multi-manager-front-desk-items-dev-023-fd-reregister`. Return report: `docs/multi-manager/tasks/023-front-desk-reregisters.return.md` on that branch.
 
 ## Goal
 After the user reconnected the roster tool connection (goal #124 switch-on), the front desk's first roster call failed:

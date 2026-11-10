@@ -1,10 +1,10 @@
 # Status — workstream `front-desk-items` (goals #124 done, #127)
 
 ## In flight
-- Goal #127: plan sign-off pending.
+- 023: dev #335, tab mm-multi-manager-front-desk-items-dev-023-fd-reregister, branch worktree-mm-multi-manager-front-desk-items-dev-023-fd-reregister (haiku, complexity 2, clarity 5).
 
 ## Queued (in order)
-1. 023 Front desk recognised again after its roster server restarts (goal #127).
+- (none)
 
 ## Merged
 - 020 item categories, auto-clear, status split, front_desk_digest, clear_items, /multi-manager:clear: commit 0ceeb62 (one send-back round). Focused tests on merged main 50/50, typecheck and lint clean. Pushed. Live only after the front desk's roster server restarts (except commands/clear.md, live now; it says so if the tool is missing).
