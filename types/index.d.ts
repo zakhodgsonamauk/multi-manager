@@ -4,12 +4,18 @@
 /** How an architect is doing, in the words the pane shows. */
 export type PaneSessionState = 'busy' | 'idle' | 'stuck' | 'dead' | 'no news';
 
+export type PaneItemCategory = 'action' | 'info';
+
 /** One roster item waiting for the user (addressed to the front desk, still open). */
 export type PaneItem = {
   id: number;
   kind: string;
   body: string;
   raisedBy: string | null;
+  /** The project it belongs to, found from the raiser's name (or the roster's own field); null when unknown. */
+  project: string | null;
+  /** `action` needs the user (sign-off, question, blocker); `info` is for information only (done report, note). */
+  category: PaneItemCategory;
   /** True when the session that raised it has stopped: an answer would reach nobody. */
   isRaiserStopped: boolean;
   minutesAgo: number | null;
@@ -66,7 +72,12 @@ export type PaneProject = {
 /** Everything the pane, band and status line draw, built from one round of roster calls. */
 export type PaneView = {
   projects: PaneProject[];
+  /** Every open item, as the roster listed them (the band, status line and toasts count these). */
   waiting: PaneItem[];
+  /** Items needing the user's action, oldest first. */
+  action: PaneItem[];
+  /** Information-only items, newest first. */
+  info: PaneItem[];
   isPaused: boolean;
   /** Plain lines for sessions over a process limit. */
   overLimits: string[];
@@ -82,9 +93,30 @@ export type PaneConfirm =
   | { kind: 'stop'; project: string; workstream: string; name: string }
   | { kind: 'close-item'; id: number }
   | { kind: 'close-goal'; id: number }
+  | { kind: 'clear-info' }
   | { kind: 'hide-workstream'; project: string; workstream: string }
   | { kind: 'hide-project'; project: string }
   | null;
+
+/** One thing the user did from the panel that the front desk model has not been told about yet. */
+export type PaneNote = {
+  id: number;
+  kind: string;
+  /** The raiser's name, or null. */
+  raisedBy: string | null;
+  /** The user's answer exactly as typed; absent when the item was cleared or closed without one. */
+  answer?: string;
+};
+
+/** An answer the user sent from the panel, kept for 24 hours in the "Recently answered" list. */
+export type PaneAnswered = {
+  id: number;
+  kind: string;
+  project: string | null;
+  answer: string;
+  /** ms since the epoch. */
+  at: number;
+};
 
 declare module 'claude-code' {
   interface PluginState {
@@ -102,6 +134,14 @@ declare module 'claude-code' {
       confirm: PaneConfirm;
       /** Item ids with an answer on its way, so the Send button is not pressed twice. */
       sendingItems: number[];
+      /** Panel actions the front desk model has not heard about yet; emptied by its next turn. */
+      paneNotes: PaneNote[];
+      /** Answers sent from the panel in the last 24 hours. */
+      recentAnswers: PaneAnswered[];
+      /** Ids of information lines the user opened to read the full text. */
+      expandedInfo: number[];
+      /** Whether the "Recently answered" list is open (collapsed by default). */
+      isRecentOpen: boolean;
     };
   }
 }

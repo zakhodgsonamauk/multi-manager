@@ -13,14 +13,19 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { PaneConfirm, PaneView } from '../types'
+import type { PaneConfirm, PaneItem, PaneNote, PaneView } from '../types'
 import {
+  ageText,
   buildView,
   dueToasts,
+  infoLine,
   kindWord,
   money,
   oneLine,
+  paneNotesText,
+  pruneAnswered,
   quote,
+  recentLine,
   rosterJson,
   summaryLine,
   type RosterAnswerReply,
@@ -43,6 +48,10 @@ const announcedItems = atom({ plugin: 'multi-manager', key: 'announcedItems' } a
 const announcedTrouble = atom({ plugin: 'multi-manager', key: 'announcedTrouble' } as const, [])
 const confirmAtom = atom({ plugin: 'multi-manager', key: 'confirm' } as const, null)
 const sendingItems = atom({ plugin: 'multi-manager', key: 'sendingItems' } as const, [])
+const paneNotes = atom({ plugin: 'multi-manager', key: 'paneNotes' } as const, [])
+const recentAnswers = atom({ plugin: 'multi-manager', key: 'recentAnswers' } as const, [])
+const expandedInfo = atom({ plugin: 'multi-manager', key: 'expandedInfo' } as const, [])
+const isRecentOpen = atom({ plugin: 'multi-manager', key: 'isRecentOpen' } as const, false)
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
@@ -112,6 +121,8 @@ const poll = async ($: Engine, options: { fresh?: boolean } = {}): Promise<void>
     await update($, announcedItems, () => due.items)
     await update($, announcedTrouble, () => due.trouble)
     await update($, viewAtom, () => view)
+    // Forget opened information lines whose items have gone.
+    await update($, expandedInfo, ids => (ids.every(id => view.info.some(i => i.id === id)) ? ids : ids.filter(id => view.info.some(i => i.id === id))))
     await update($, unavailable, () => null)
     $.ui.status(summaryLine(view))
   } catch (error) {
@@ -164,6 +175,24 @@ const deliver = async ($: Engine, nudges: readonly RosterNudge[], what: string):
   $.ui.toast(`Done: ${what}. The front desk will pass the word on.`)
 }
 
+/** Finds an open item in the last view, to say what was acted on. */
+const findItem = async ($: Engine, id: number): Promise<PaneItem | undefined> => (await read($, viewAtom))?.waiting.find(i => i.id === id)
+
+/**
+ * The user answered or cleared an item from the panel: queue a note for the front desk's next turn, show one dim line in
+ * the chat, and (for an answer) keep it in the 24-hour list. The model hears of it in the prompt.submit hook below.
+ */
+const recordAction = async ($: Engine, id: number, answerText?: string): Promise<void> => {
+  const item = await findItem($, id)
+  const note: PaneNote = { id, kind: item?.kind ?? 'item', raisedBy: item?.raisedBy ?? null, ...(answerText === undefined ? {} : { answer: answerText }) }
+  await update($, paneNotes, queue => [...queue, note])
+  if (answerText !== undefined) {
+    const now = await $.clock.now()
+    await update($, recentAnswers, list => [...pruneAnswered(list, now), { id, kind: note.kind, project: item?.project ?? null, answer: answerText, at: now }])
+  }
+  $.ui.log(answerText === undefined ? `Cleared #${id} from the panel.` : `Answered #${id} from the panel.`)
+}
+
 const answer = async ($: Engine, itemId: number, text: string): Promise<void> => {
   if (text.trim() === '') {
     $.ui.toast('Type an answer first.')
@@ -175,9 +204,12 @@ const answer = async ($: Engine, itemId: number, text: string): Promise<void> =>
     // The user's words exactly as typed: no trimming, no rewording.
     const result = (await roster($, 'answer_item', { item_id: itemId, answer: text })) as RosterAnswerReply
     drafts.delete(itemId)
+    await recordAction($, itemId, text)
+    // A project manager that watches the item gets its own nudge: deliver it the way the raiser's is.
+    const nudges = [result.nudge, result.watcher_nudge ?? null].filter((n): n is RosterNudge => n !== null)
     // The raiser has stopped: the answer is on record, but there is nobody to nudge and nothing to queue.
-    if (result.nudge === null) $.ui.toast(result.note ?? `Answer saved for #${itemId}. Its raiser is stopped, so nobody was told.`)
-    else await deliver($, [result.nudge], `answer sent for item #${itemId}`)
+    if (nudges.length === 0) $.ui.toast(result.note ?? `Answer saved for #${itemId}. Its raiser is stopped, so nobody was told.`)
+    else await deliver($, nudges, `answer sent for item #${itemId}`)
   } catch (error) {
     $.ui.toast(`Could not send the answer: ${oneLine(message(error), 120)}`)
   } finally {
@@ -222,7 +254,30 @@ const closeItem = ($: Engine, id: number) =>
   act($, async () => {
     await roster($, 'close_item', { item_id: id })
     drafts.delete(id)
+    await recordAction($, id)
     $.ui.toast(`Closed #${id}.`)
+  })
+
+/** Clears information items (one, or all of them): closed without a word to anyone but the front desk. */
+const clearInfo = ($: Engine, ids: readonly number[]) =>
+  act($, async () => {
+    // Carry on past a failure. An item the server already cleared meanwhile counts as cleared.
+    let failed = 0
+    let lastReason = ''
+    for (const id of ids) {
+      try {
+        await roster($, 'close_item', { item_id: id })
+      } catch (error) {
+        if (!/already (closed|cleared)/i.test(message(error))) {
+          failed += 1
+          lastReason = message(error)
+          continue
+        }
+      }
+      await recordAction($, id)
+    }
+    if (failed > 0) $.ui.toast(`Could not clear ${failed} of ${ids.length}: ${oneLine(lastReason, 100)}`)
+    else $.ui.toast(ids.length === 1 ? `Cleared #${ids[0]}.` : `Cleared ${ids.length} items.`)
   })
 
 const closeGoal = ($: Engine, id: number, state: 'done' | 'cancelled') =>
@@ -278,6 +333,23 @@ export const register: Register = on => {
     return { text: opened.isPlaced ? 'Multi-Manager pane opened.' : 'The Multi-Manager pane will show when there is room for it.' }
   }).catch(($, e, next) => next(e))
 
+  // The front desk model hears what the user did from the panel: on its next turn, whatever started it, the queued
+  // notes ride along as one context entry and the queue empties. Kept apart from any other prompt.submit handling.
+  on('prompt.submit', async ($, e, next) => {
+    if (!(await read($, isFrontDesk)) || (await isOtherRole($))) return next(e)
+    // A prompt the person did not type (isMeta) takes no rewrite when it starts a turn, and a slash command's text is
+    // pinned: both pass untouched and the notes wait for the next real turn.
+    if (e.isMeta === true || e.command !== undefined) return next(e)
+    const queued = await read($, paneNotes)
+    const text = paneNotesText(queued)
+    if (text === undefined) return next(e)
+    const result = await next({ ...e, context: [...(e.context ?? []), text] })
+    // Empty the queue only once the prompt went in, and only of the notes attached: more may have been queued meanwhile.
+    // A dropped prompt, or a throw above, leaves every note queued.
+    if (result.drop === undefined) await update($, paneNotes, queue => queue.slice(queued.length))
+    return result
+  }).catch(($, e, next) => next(e))
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!(await read($, isFrontDesk))) return next(e)
     // Open the pane unasked only where the surface docks it beside the transcript.
@@ -325,9 +397,15 @@ export const register: Register = on => {
       </Text>
     ))
 
-    const waiting = view.waiting.map(item => {
+    const now = await $.clock.now()
+    const expanded = await read($, expandedInfo)
+    const recent = pruneAnswered(await read($, recentAnswers), now)
+    const isRecentShown = await read($, isRecentOpen)
+
+    const waiting = view.action.map(item => {
       const from = item.raisedBy === null ? '' : ` from ${item.raisedBy}${item.isRaiserStopped ? ' (stopped)' : ''}`
-      const age = item.minutesAgo === null ? '' : ` · ${item.minutesAgo} min ago`
+      const project = item.project === null ? '' : ` (${item.project})`
+      const age = item.minutesAgo === null ? '' : ` · ${ageText(item.minutesAgo)}`
       const isSending = sending.includes(item.id)
       const isConfirmingClose = confirm?.kind === 'close-item' && confirm.id === item.id
       const close = (
@@ -342,6 +420,7 @@ export const register: Register = on => {
         <Box key={`item-${item.id}`} flexDirection="column" marginBottom={1}>
           <Text bold>
             #{item.id} {kindWord(item.kind)}
+            {project}
             {from}
             {age}
           </Text>
@@ -377,6 +456,38 @@ export const register: Register = on => {
         </Box>
       )
     })
+
+    const info = view.info.map(item => {
+      const isOpen = expanded.includes(item.id)
+      return (
+        <Box key={`info-${item.id}`} flexDirection="column">
+          <Box flexDirection="row" gap={1}>
+            <Button key={`info-clear-${item.id}`} label="Clear" dimColor onPress={() => void clearInfo($, [item.id])} />
+            <Button
+              key={`info-toggle-${item.id}`}
+              label={`${isOpen ? '▾' : '▸'} ${infoLine(item)}`}
+              plain
+              dimColor
+              onPress={() => void update($, expandedInfo, ids => (ids.includes(item.id) ? ids.filter(id => id !== item.id) : [...ids, item.id]))}
+            />
+          </Box>
+          {isOpen && <Markdown key={`info-body-${item.id}`} text={quote(item.body)} />}
+        </Box>
+      )
+    })
+    const isConfirmingClearAll = confirm?.kind === 'clear-info'
+    const infoHeader = isConfirmingClearAll ? (
+      <Box flexDirection="row" gap={1}>
+        <Text>Clear all {view.info.length}?</Text>
+        <Button key="info-clear-all-yes" label="Yes, clear all" variant="primary" onPress={() => void clearInfo($, view.info.map(i => i.id))} />
+        <Button key="info-clear-all-no" label="Cancel" onPress={cancel} />
+      </Box>
+    ) : (
+      <Box flexDirection="row" gap={1}>
+        <Text bold>For information ({view.info.length})</Text>
+        <Button key="info-clear-all" label="Clear all" dimColor onPress={() => void update($, confirmAtom, (): PaneConfirm => ({ kind: 'clear-info' }))} />
+      </Box>
+    )
 
     const projects = view.projects.map(project => {
       const budget = project.dailyBudgetUsd === null ? '' : ` of ${money(project.dailyBudgetUsd)}`
@@ -534,8 +645,27 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {notice}
         {viewNotes}
-        <Text bold>Waiting for you ({view.waiting.length})</Text>
-        {waiting.length === 0 ? <Text dimColor>Nothing is waiting for you.</Text> : waiting}
+        {view.action.length > 0 && <Text bold>Needs your action ({view.action.length})</Text>}
+        {waiting}
+        {view.info.length > 0 && infoHeader}
+        {info}
+        {view.waiting.length === 0 && <Text dimColor>Nothing waiting.</Text>}
+        {recent.length > 0 && (
+          <Button
+            key="recent-toggle"
+            label={`${isRecentShown ? '▾' : '▸'} Recently answered (${recent.length})`}
+            plain
+            dimColor
+            onPress={() => void update($, isRecentOpen, open => !open)}
+          />
+        )}
+        {isRecentShown &&
+          recent.map(a => (
+            <Text key={`recent-${a.id}-${a.at}`} dimColor wrap="wrap">
+              {'  '}
+              {recentLine(a, now)}
+            </Text>
+          ))}
         <Text bold>Projects</Text>
         {projects.length === 0 ? <Text dimColor>No projects yet.</Text> : projects}
         {view.overLimits.length > 0 && <Text bold>Over a limit</Text>}

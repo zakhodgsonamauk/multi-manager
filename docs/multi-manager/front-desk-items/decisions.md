@@ -8,3 +8,10 @@
 
 ## 2026-11-10 "clear 60" scope
 - User asked for "clear 60" that "clears anything older than 60 minutes". `/multi-manager:clear 60` closes information notes older than 60 minutes; decisions (sign-offs, questions, blockers) close only with `all` after one confirm, because closing a sign-off silently leaves an architect waiting forever. Alternative: close everything in one go (rejected for that reason).
+
+## 2026-11-10 Task 021: pane details
+- Project name on an item: the roster's `project` field when present (task 020), otherwise worked out from the raiser's session name (`mm-<project>-...`, longest project name that fits). Unknown stays blank.
+- Closing an action item with the old Close button counts as a clear: the front desk hears about it too, same as Clear on an information line.
+- "Recently answered" shows age ("5 min ago") rather than a clock time: no locale or time-zone guesswork inside the mod.
+- Information items can only be read and cleared in the pane, not answered. A done report the user wants to reply to goes through the chat.
+- The new `prompt.submit` hook only reads its own queue and adds a context entry; it never rewrites the prompt, so task 022 can add its own handler beside it.

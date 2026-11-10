@@ -1,7 +1,7 @@
 // Pure helpers for the front desk pane: turn the roster tools' JSON into what the pane draws,
 // the one-line summary, and which toasts are due. No `$` here, so the logic reads plainly.
 
-import type { PaneArchitect, PaneItem, PaneProject, PaneProjectManager, PaneSessionState, PaneView } from '../types'
+import type { PaneAnswered, PaneArchitect, PaneItem, PaneItemCategory, PaneNote, PaneProject, PaneProjectManager, PaneSessionState, PaneView } from '../types'
 
 // The roster tools' answers, as far as the pane reads them (src/roster/status.ts, tools-health.ts,
 // monitor/enforce.ts). Everything is optional-safe: a field the roster stops sending draws as unknown.
@@ -13,6 +13,9 @@ export type RosterItem = {
   body: string
   raised_by?: string | number | null
   created_at?: string
+  /** Task 020 adds these to the roster; the pane reads them when present and works out its own when not. */
+  category?: string
+  project?: string
 }
 
 export type RosterStatus = {
@@ -29,6 +32,9 @@ export type RosterStatus = {
     }[]
     active_goals: { id: number; workstream: string; text: string; spent_usd: number; budget_usd: number | null }[]
   }[]
+  /** The roster from task 020 on; waiting_for_user is then the same as needs_action. */
+  needs_action?: (RosterItem & { raised_by: string | null; raised_by_running?: boolean })[]
+  for_information?: (RosterItem & { raised_by: string | null; raised_by_running?: boolean })[]
   waiting_for_user: (RosterItem & { raised_by: string | null; raised_by_running?: boolean })[]
 }
 
@@ -58,7 +64,7 @@ export type RosterResources = {
 export type RosterNudge = { to: string | null; message: string }
 
 /** What answer_item hands back: a nudge to deliver, or null with a note when the raiser has stopped. */
-export type RosterAnswerReply = { nudge: RosterNudge | null; note?: string }
+export type RosterAnswerReply = { nudge: RosterNudge | null; watcher_nudge?: RosterNudge | null; note?: string }
 
 /**
  * The text of an MCP result, parsed as the roster's JSON. A tool error throws with the roster's words. An answer
@@ -169,9 +175,16 @@ export function buildView(input: RosterAnswers, now: number): PaneView {
     sessions.flatMap(s => [s, ...flatHealth(Array.isArray(s.architects) ? s.architects.filter(isRecord) : [])])
   const health = new Map(flatHealth(healthSessions).map(s => [s.session_id, s]))
   const resources = new Map(resourceRows.map(r => [r.session_id, r]))
-  const raisedBy = new Map(waitingForUser.map(i => [i.id, i.raised_by]))
+  // The 020 roster splits its answer into needs_action and for_information (waiting_for_user is needs_action only);
+  // an older one has waiting_for_user alone. Read every list so each item gets its raiser's name either way.
+  const named = [
+    ...waitingForUser,
+    ...list<RosterStatus['waiting_for_user'][number]>(status.needs_action, 'items needing action', true),
+    ...list<RosterStatus['waiting_for_user'][number]>(status.for_information, 'information items', true),
+  ]
+  const raisedBy = new Map(named.map(i => [i.id, i.raised_by]))
   // An older roster sends no raised_by_running: count its raisers as running, as before.
-  const stopped = new Set(waitingForUser.filter(i => i.raised_by !== null && i.raised_by_running === false).map(i => i.id))
+  const stopped = new Set(named.filter(i => i.raised_by !== null && i.raised_by_running === false).map(i => i.id))
 
   const projects: PaneProject[] = statusProjects.map(p => {
     const workstreams = list<RosterStatus['projects'][number]['workstreams'][number]>(p.workstreams, `workstreams of ${String(p.name)}`, false)
@@ -216,15 +229,20 @@ export function buildView(input: RosterAnswers, now: number): PaneView {
     .filter(i => i.state === 'open')
     .map(i => {
       const named = raisedBy.get(i.id)
+      const raiser = named ?? (typeof i.raised_by === 'string' ? i.raised_by : null)
       return {
         id: i.id,
         kind: i.kind,
         body: str(i.body),
-        raisedBy: named ?? (typeof i.raised_by === 'string' ? i.raised_by : null),
+        raisedBy: raiser,
+        project: typeof i.project === 'string' && i.project !== '' ? i.project : projectOf(raiser, projects.map(p => p.name)),
+        category: categoryOf(i.kind, i.category),
         isRaiserStopped: stopped.has(i.id),
         minutesAgo: minutesSince(i.created_at, now),
       }
     })
+  const action = waiting.filter(i => i.category === 'action').sort((a, b) => byAge(b, a) || a.id - b.id)
+  const info = waiting.filter(i => i.category === 'info').sort((a, b) => byAge(a, b) || b.id - a.id)
 
   const overLimits: string[] = []
   for (const r of resourceRows) {
@@ -243,7 +261,66 @@ export function buildView(input: RosterAnswers, now: number): PaneView {
 
   const notes = [...(input.failures ?? [])]
   if (missing.length > 0) notes.push(`Some roster details did not load: ${missing.join(', ')}.`)
-  return { projects, waiting, isPaused: isRecord(input.health) && input.health.paused === true, overLimits, notes, fetchedAt: now }
+  return { projects, waiting, action, info, isPaused: isRecord(input.health) && input.health.paused === true, overLimits, notes, fetchedAt: now }
+}
+
+/** Sign-offs, questions and blockers need the user; everything else is information. A category the roster sends wins. */
+export function categoryOf(kind: string, given?: unknown): PaneItemCategory {
+  if (given === 'action' || given === 'info') return given
+  return kind === 'signoff' || kind === 'question' || kind === 'blocked' ? 'action' : 'info'
+}
+
+/** The project a session name belongs to: names look like "mm-<project>-...", so the longest project name that fits. */
+export function projectOf(raiser: string | null, projects: readonly string[]): string | null {
+  if (raiser === null) return null
+  const found = projects.filter(p => p !== '' && (raiser === `mm-${p}` || raiser.startsWith(`mm-${p}-`)))
+  return found.sort((a, b) => b.length - a.length)[0] ?? null
+}
+
+/** Compares by age in minutes (smaller is newer); an item with no age counts as the newest. */
+function byAge(a: PaneItem, b: PaneItem): number {
+  return (a.minutesAgo ?? -1) - (b.minutesAgo ?? -1)
+}
+
+export function ageText(minutes: number | null): string {
+  if (minutes === null) return ''
+  if (minutes < 120) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  return hours < 48 ? `${hours} h ago` : `${Math.floor(hours / 24)} d ago`
+}
+
+/** The compact line for an information item: kind, project, raiser, age, then the first line of its body. */
+export function infoLine(item: PaneItem, max = 70): string {
+  const head = [`#${item.id} ${kindWord(item.kind)}`, item.project, item.raisedBy, ageText(item.minutesAgo)].filter(x => x !== null && x !== '')
+  const first = item.body.split('\n').find(line => line.trim() !== '') ?? ''
+  return oneLine(`${head.join(' · ')}${first === '' ? '' : ` · ${first}`}`, max)
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Answers sent from the panel in the last 24 hours. */
+export function pruneAnswered(list: readonly PaneAnswered[], now: number): PaneAnswered[] {
+  return list.filter(a => now - a.at < DAY_MS)
+}
+
+export function recentLine(a: PaneAnswered, now: number): string {
+  const minutes = Math.max(0, Math.floor((now - a.at) / 60_000))
+  return `#${a.id} ${kindWord(a.kind)}${a.project === null ? '' : `, ${a.project}`}: ${oneLine(a.answer, 80)} (${ageText(minutes)})`
+}
+
+/**
+ * The note handed to the front desk model about what the user did from the panel, or undefined when nothing is queued.
+ * Answers are quoted exactly as typed.
+ */
+export function paneNotesText(notes: readonly PaneNote[]): string | undefined {
+  if (notes.length === 0) return undefined
+  const parts = notes.map(n => {
+    const from = n.raisedBy === null ? '' : `, from ${n.raisedBy}`
+    return n.answer === undefined
+      ? `cleared item #${n.id} (${n.kind}${from})`
+      : `answered item #${n.id} (${n.kind}${from}): "${n.answer}" — do not answer it again`
+  })
+  return `Multi-Manager pane: since your last turn the user, from the side panel, ${parts.join('; ')}.`
 }
 
 /** Every architect in the view, with its place. */

@@ -36,13 +36,14 @@ const BAND = {
   },
 } as const
 
-type Item = { id: number; kind: string; body: string; raised_by: string | null; raised_by_running?: boolean; created_at: string }
+type Item = { id: number; kind: string; body: string; raised_by: string | null; raised_by_running?: boolean; created_at: string; project?: string }
 
 const SIGN_OFF: Item = {
   id: 12,
   kind: 'signoff',
   body: 'Plan for checkout:\n1. Cart page\n2. **Payment** step',
   raised_by: 'mm-arch-shop',
+  project: 'shop',
   created_at: '2026-10-21T10:00:00.000Z',
 }
 
@@ -60,7 +61,15 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     status: [] as (string | undefined)[],
     prompts: [] as string[],
     /** What answer_item hands back: a nudge, or null with a note when the raiser is stopped. */
-    answerReply: null as null | { nudge: null; note: string },
+    answerReply: null as null | { nudge: null | { to: string; message: string }; watcher_nudge?: { to: string; message: string }; note?: string },
+    /** The context entries the engine's prompt.submit received, one list per prompt. */
+    contexts: [] as (readonly string[] | undefined)[],
+    /** What the engine's prompt.submit does: let the prompt in, drop it, or throw. */
+    promptMode: 'ok' as 'ok' | 'drop' | 'throw',
+    /** close_item refusals by item id. */
+    closeFail: {} as Record<number, string>,
+    /** Transcript lines written with $.ui.log. */
+    logs: [] as string[],
     /** Tools that answer with this error instead (a refusal). */
     refuse: {} as Record<string, string>,
     /** Replaces the whole status or team_health answer (a project manager's tree, or an older roster's shape). */
@@ -150,6 +159,8 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     on('mcp.connect', () => ({ value: { isConnected: true, server: 'plugin:multi-manager:roster' } }))
     on('mcp.call', (_, e) => {
       roster.calls.push({ tool: e.tool, args: e.args })
+      const failure = e.tool === 'close_item' ? roster.closeFail[Number(e.args.item_id)] : undefined
+      if (failure !== undefined) return { value: { content: [{ type: 'text', text: failure }], isError: true } }
       const refusal = roster.refuse[e.tool]
       if (refusal !== undefined) return { value: { content: [{ type: 'text', text: refusal }], isError: true } }
       return { value: { content: [{ type: 'text', text: JSON.stringify(answer(e.tool, e.args)) }], isError: false } }
@@ -160,7 +171,14 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     })
     on('prompt.submit', (_, e) => {
       roster.prompts.push(e.text)
-      return { text: e.text }
+      roster.contexts.push(e.context)
+      if (roster.promptMode === 'throw') throw new Error('boom')
+      if (roster.promptMode === 'drop') return { drop: 'no' }
+      return { text: e.text, ...(e.context === undefined ? {} : { context: e.context }) }
+    })
+    on('ui.log', (_, e) => {
+      roster.logs.push(e.text)
+      return { value: undefined }
     })
     on('ui.toast', (_, e) => {
       roster.toasts.push(e.text)
@@ -203,7 +221,7 @@ test('the pane lists projects, architects and waiting items on terminal and desk
     expect((await ui.find({ type: 'Text', text: /^ *main \(branch/ }))?.text).toContain('main (branch main): mm-arch-shop — busy, quiet 2 min, 12 processes (limit 40)')
     expect(await ui.find({ type: 'Text', text: /1 developer \(1 fine\)/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Goal #3 \(main\): Build checkout · \$1\.25 of \$5\.00/ })).toBeDefined()
-    expect((await ui.find({ type: 'Text', text: /^#12/ }))?.text).toBe('#12 sign-off from mm-arch-shop · 5 min ago')
+    expect((await ui.find({ type: 'Text', text: /^#12/ }))?.text).toBe('#12 sign-off (shop) from mm-arch-shop · 5 min ago')
     // The body is quoted verbatim: every line kept, behind "> ".
     expect((await ui.find({ type: 'Markdown', key: 'body-12' }))?.text).toBe('> Plan for checkout:\n> 1. Cart page\n> 2. **Payment** step')
     expect(await ui.find({ type: 'Input', key: 'answer-12' })).toBeDefined()
@@ -341,7 +359,7 @@ test('a toast announces each new item once, polling every 15 seconds', async ($,
   // What waited when the front desk started is shown by the briefing, not toasted.
   expect(fake.roster.toasts).toEqual([])
 
-  fake.roster.items = [...fake.roster.items, { id: 13, kind: 'question', body: 'Which payment provider?', raised_by: 'mm-arch-shop', created_at: '2026-10-21T10:04:00.000Z' }]
+  fake.roster.items = [...fake.roster.items, { id: 13, kind: 'question', body: 'Which payment provider?', raised_by: 'mm-arch-shop', project: 'shop', created_at: '2026-10-21T10:04:00.000Z' }]
   await clock.advance(POLL_MS)
   expect(fake.roster.toasts).toEqual(['New question from mm-arch-shop: Which payment provider?'])
   await clock.advance(POLL_MS)
@@ -458,14 +476,14 @@ test('an item whose raiser has stopped is labelled, and answering it tells nobod
   const clock = mock.clock(on)
   mock.env(on, {})
   const fake = fakeRoster({
-    items: [{ id: 14, kind: 'done', body: 'Done: cart page', raised_by: 'mm-arch-old', raised_by_running: false, created_at: '2026-10-21T10:00:00.000Z' }],
+    items: [{ id: 14, kind: 'question', body: 'Done: cart page', raised_by: 'mm-arch-old', raised_by_running: false, created_at: '2026-10-21T10:00:00.000Z' }],
   })
   fake.install(on)
   fake.roster.answerReply = { nudge: null, note: 'Answer saved. mm-arch-old is stopped, so nobody was told.' }
   await startFrontDesk($, clock)
 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /^#14/ }))?.text).toContain('#14 done report from mm-arch-old (stopped)')
+  expect((await ui.find({ type: 'Text', text: /^#14/ }))?.text).toContain('#14 question from mm-arch-old (stopped)')
   await ui.input({ key: 'answer-14', text: 'Thanks, merge it.' })
   await ui.unmount()
   expect(fake.toolCalls('answer_item').map(c => c.args)).toEqual([{ item_id: 14, answer: 'Thanks, merge it.' }])
@@ -640,4 +658,177 @@ test('a status from before project managers draws as before, with no note about 
   expect(await ui.find({ type: 'Text', text: /did not load/ })).toBeUndefined()
   expect((await ui.find({ type: 'Text', text: /^ *main \(branch/ }))?.text).toMatch(/^ {2}main \(branch main\): mm-arch-shop/)
   await ui.unmount()
+})
+
+const INFO_ITEMS: Item[] = [
+  { id: 20, kind: 'done', body: 'Done: cart page\nsecond line', raised_by: 'mm-arch-shop', project: 'shop', created_at: '2026-10-21T09:50:00.000Z' },
+  { id: 21, kind: 'info', body: 'FYI the build is slow today', raised_by: 'mm-arch-shop', project: 'shop', created_at: '2026-10-21T10:01:00.000Z' },
+  { id: 22, kind: 'done', body: 'Done: blog theme', raised_by: 'mm-arch-blog', project: 'blog', created_at: '2026-10-21T10:03:00.000Z' },
+]
+const QUESTION: Item = { id: 13, kind: 'question', body: 'Which payment provider?', raised_by: 'mm-arch-shop', project: 'shop', created_at: '2026-10-21T10:04:00.000Z' }
+
+test('the pane shows an action section first and a compact information section, and renders both', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [SIGN_OFF, QUESTION, ...INFO_ITEMS] })
+  fake.install(on)
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^Needs your action/ }))?.text).toBe('Needs your action (2)')
+  expect((await ui.find({ type: 'Text', text: /^For information/ }))?.text).toBe('For information (3)')
+  expect(await ui.find({ type: 'Text', text: /^Waiting for you/ })).toBeUndefined()
+  // Oldest action first: #12 (10:00) then #13 (10:04). Information newest first: 22, 21, 20.
+  expect((await ui.find({ type: 'Button', key: 'info-toggle-22' }))?.props.label).toBe('▸ #22 done report · blog · mm-arch-blog · 2 min ago · Done: blog theme')
+  expect(await ui.find({ type: 'Input', key: 'answer-20' })).toBeUndefined()
+  expect(await ui.find({ type: 'Markdown', key: 'info-body-20' })).toBeUndefined()
+  await ui.press({ key: 'info-toggle-20' })
+  expect((await ui.find({ type: 'Markdown', key: 'info-body-20' }))?.text).toBe('> Done: cart page\n> second line')
+  await ui.unmount()
+})
+
+test('an empty section is not drawn; with nothing waiting one dim line says so', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  await startFrontDesk($, clock)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /^Needs your action/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^For information/ })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^Nothing waiting/ }))?.text).toBe('Nothing waiting.')
+  await ui.unmount()
+})
+
+test('Clear closes one information item at once; Clear all asks once, then closes them all', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [SIGN_OFF, ...INFO_ITEMS] })
+  fake.install(on)
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'info-clear-21' })
+  expect(fake.toolCalls('close_item').map(c => c.args)).toEqual([{ item_id: 21 }])
+  expect(fake.roster.sent).toEqual([])
+
+  await ui.press({ key: 'info-clear-all' })
+  expect(fake.toolCalls('close_item')).toHaveLength(1)
+  await ui.press({ key: 'info-clear-all-no' })
+  expect(fake.toolCalls('close_item')).toHaveLength(1)
+  await ui.press({ key: 'info-clear-all' })
+  await ui.press({ key: 'info-clear-all-yes' })
+  await ui.unmount()
+  expect(fake.toolCalls('close_item').map(c => c.args)).toEqual([{ item_id: 21 }, { item_id: 22 }, { item_id: 21 }, { item_id: 20 }])
+})
+
+test('answer delivers both the raiser nudge and the project manager watcher nudge', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.answerReply = { nudge: { to: 'mm-arch-shop', message: 'check roster item #12' }, watcher_nudge: { to: 'mm-shop-pm', message: 'item #12 was answered' } }
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.input({ key: 'answer-12', text: 'go ahead' })
+  await ui.unmount()
+  expect(fake.roster.sent).toEqual([
+    { to: 'mm-arch-shop', text: 'check roster item #12' },
+    { to: 'mm-shop-pm', text: 'item #12 was answered' },
+  ])
+})
+
+test('the front desk hears pane actions once, on its next turn, and the chat shows a dim line', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [SIGN_OFF, ...INFO_ITEMS] })
+  fake.install(on)
+  await startFrontDesk($, clock)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.input({ key: 'answer-12', text: 'go ahead' })
+  await ui.press({ key: 'info-clear-21' })
+  expect(fake.roster.logs).toEqual(['Answered #12 from the panel.', 'Cleared #21 from the panel.'])
+
+  await $.prompt.submit({ text: 'what is new?', wait: false, origin: { kind: 'composer' } })
+  expect(fake.roster.contexts.at(-1)).toEqual([
+    'Multi-Manager pane: since your last turn the user, from the side panel, answered item #12 (signoff, from mm-arch-shop): "go ahead" — do not answer it again; cleared item #21 (info, from mm-arch-shop).',
+  ])
+  await $.prompt.submit({ text: 'and now?', wait: false, origin: { kind: 'composer' } })
+  expect(fake.roster.contexts.at(-1)).toBeUndefined()
+
+  // The answer stays in the collapsed "Recently answered" list.
+  expect((await ui.find({ type: 'Button', key: 'recent-toggle' }))?.props.label).toBe('▸ Recently answered (1)')
+  expect(await ui.find({ type: 'Text', text: /^ *#12 sign-off, shop/ })).toBeUndefined()
+  await ui.press({ key: 'recent-toggle' })
+  expect((await ui.find({ type: 'Text', text: /^ *#12 sign-off, shop/ }))?.text).toBe('  #12 sign-off, shop: go ahead (0 min ago)')
+  await ui.unmount()
+})
+
+const submit = ($: Engine, text: string, extra: Record<string, unknown> = {}) =>
+  $.prompt.submit({ text, wait: false, origin: { kind: 'composer' }, ...extra } as never)
+
+test('a session that is not the front desk adds no pane note to its prompts, even with one queued', async ($, on) => {
+  const clock = mock.clock(on)
+  const env: Record<string, string> = {}
+  on('env.get', (_, e) => ({ value: env[e.name] }))
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.input({ key: 'answer-12', text: 'go' })
+  await ui.unmount()
+  // The note is queued; now the environment says this is an architect: the note is not added and stays queued.
+  env.MM_ROLE = 'architect'
+  await submit($, 'not the desk')
+  expect(fake.roster.contexts.at(-1)).toBeUndefined()
+  delete env.MM_ROLE
+  await submit($, 'the desk again')
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain('answered item #12')
+})
+
+test('the note stays queued when the prompt is dropped, when next throws, and for meta and slash-command prompts', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.input({ key: 'answer-12', text: 'go' })
+  await ui.unmount()
+
+  // Meta and slash-command prompts pass untouched; the note waits.
+  await submit($, 'tick', { isMeta: true })
+  expect(fake.roster.contexts.at(-1)).toBeUndefined()
+  await submit($, '/some:command', { command: { name: 'some:command', args: '' } })
+  expect(fake.roster.contexts.at(-1)).toBeUndefined()
+
+  fake.roster.promptMode = 'drop'
+  await submit($, 'one')
+  fake.roster.promptMode = 'throw'
+  await submit($, 'two').catch(() => undefined)
+  fake.roster.promptMode = 'ok'
+  fake.roster.contexts.length = 0
+  await submit($, 'three')
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain('answered item #12')
+  fake.roster.contexts.length = 0
+  await submit($, 'four')
+  expect(fake.roster.contexts.at(-1)).toBeUndefined()
+})
+
+test('Clear all carries on past a failed close, treats already-closed as cleared, and says how many failed', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [SIGN_OFF, ...INFO_ITEMS] })
+  fake.install(on)
+  fake.roster.closeFail = { 22: 'Item #22 is not yours to close', 21: 'Item #21 is already closed' }
+  await startFrontDesk($, clock)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'info-clear-all' })
+  await ui.press({ key: 'info-clear-all-yes' })
+  await ui.unmount()
+  expect(fake.toolCalls('close_item').map(c => c.args)).toEqual([{ item_id: 22 }, { item_id: 21 }, { item_id: 20 }])
+  expect(fake.roster.toasts).toContain('Could not clear 1 of 3: Item #22 is not yours to close')
+  expect(fake.roster.logs).toEqual(['Cleared #21 from the panel.', 'Cleared #20 from the panel.'])
 })
