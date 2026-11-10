@@ -1,7 +1,7 @@
-# Status — workstream `front-desk-items` (goals #124, #127 done; #129 in progress)
+# Status — workstream `front-desk-items` (goals #124, #127, #129 done)
 
 ## In flight
-- Goal #129 (signed off #1055 "yes go"): 024 and 025 merged; end-to-end test in a throwaway test front desk next, then going live waits for the user's go.
+- (none). Goal #129 done; 024 needs a plugin reload and 025 a roster reconnect in the front desk (user's go, bundle with #1051).
 - Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go, item #1051).
 
 ## Queued (in order)
@@ -20,6 +20,7 @@
 - 024 the panel runs the front desk's check-ins itself; model's tick timer refused while the panel's loop is alive (goal #129): commit 759d35c (one send-back round). On merged main: test:mod 76/76, briefings/manifest/hooks 21/21, lint clean, typecheck:mod 3 pre-existing. Pushed. Live after a plugin reload in the front desk; briefing change applies to new front desks now.
 
 ## Going live
+- Goal #129: plugin reload (024) and roster reconnect (025) in the front desk, one go with #127's reconnect (item #1051). Until then the real front desk keeps the old timer and its 2 lines per quiet check-in.
 - 020 needs the front desk's roster server restarted; 021 and 022 need a plugin reload in the front desk. Both wait for the user's go. 022's tick.md change is live on merge and falls back safely on an old roster server.
 
 ## End-to-end test (2026-11-10, throwaway test front desk on its own empty roster, closed by pid)
@@ -36,12 +37,20 @@
 - 09:45 scheduled check-in dropped: only "Running scheduled task" and "Prompt dropped by a hook: Multi-Manager check-in, all quiet"; band "Last check 09:45 — all quiet".
 - Not yet seen live: a panel *answer* (only a clear so far).
 
+## End-to-end test of goal #129 (2026-11-10, throwaway test front desk on its own roster, closed by pid)
+- Start-up: the front desk's CronCreate of the tick was refused; it said "Check-in timer: not set. The Multi-Manager panel runs the check-ins itself" (e2e129-1).
+- 11:56 quiet check-in: nothing in the chat; band "Last check 11:56 — all quiet" (e2e129-2).
+- 12:06 check-in after a test note was raised: the panel started /multi-manager:tick itself; the front desk showed the note verbatim and marked it seen (e2e129-3).
+- 12:16 check-in: quiet again, nothing in the chat, the seen note not re-sent (e2e129-4).
+- Not seen live: the fallback when the panel cannot start the command; the old-timer "delete it" note (new front desk had no old timer). Mod tests cover both.
+
 ## Findings
-- Residual: each quiet check-in still leaves 2 short engine lines in the front desk chat. Removing them needs the pane to start check-ins itself instead of the 10-minute timer (possible follow-up, not started).
+- Residual 2-lines-per-quiet-check-in: fixed by 024 (goal #129), live after the plugin reload.
+- The status line under the prompt is drawn with a ⚠ mark before "multi-manager:"; seen in the test front desk, cause not confirmed (likely the engine's drawing of a plugin status line).
 - Pane answers reach only the raiser (`hooks/register.tsx` answer → `answer_item` → nudge raiser); the front desk model is never told. The front desk tab has no `MM_SESSION_ID`, so the Stop/SessionStart hooks do nothing there.
 - The pane drops `watcher_nudge`: a watching project manager is not told when the user answers from the pane.
 - No item ever closes itself; answered items stay until closed by hand.
 
 ## Next
 - Going live waits for the user's go: front desk roster server restart (020) and plugin reload (021, 022).
-- Optional follow-up on the user's go: pane-driven check-ins, so quiet ones leave no lines at all.
+- After the go: screenshot-only look at the real front desk over two check-ins (quiet leaves nothing; the old timer gets one "delete it" check-in).
