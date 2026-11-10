@@ -345,8 +345,9 @@ const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmi
     // Forget the fingerprint but keep the time: `since` still holds back items the user has already been shown.
     if (decision.forgetFingerprint && previous !== null) await update($, lastTick, () => ({ fingerprint: '', at: previous.at }))
     $.ui.status(bandLine(await read($, viewAtom), await read($, lastCheck)))
-    // The types show a drop's reason to the user, with no silent form: keep it to one mark.
-    return { drop: '·' }
+    // The engine shows a drop's reason as one line ("Prompt dropped by a hook: <reason>"), with no silent form, so
+    // the reason says plainly what happened rather than looking like an error.
+    return { drop: `Multi-Manager check-in, ${decision.word}` }
   }
   if (decision.action === 'pass') return next(e)
   const result = await next({ ...e, context: [...(e.context ?? []), digestContext(digest)] })
