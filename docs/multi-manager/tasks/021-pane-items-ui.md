@@ -58,3 +58,25 @@ In `mod-test/` (run by `npm run test:mod`), pure functions in `roster-view.ts` w
 ## Evidence required
 Test summary lines. If the mod-test harness can render the pane to text, include the rendered text of a pane with
 two action items, three info items and one recent answer. Screenshots of the live pane are the architect's job.
+
+## Send-back round 1 (2026-11-10)
+Task 020 is now merged on main (commit 0ceeb62): pull it in first (`git merge main` on your branch). Its `status` has
+`needs_action` and `for_information` (`waiting_for_user` = `needs_action` only); `list_items` rows carry `category`;
+`raised_by` is a session id number with no `project` field.
+1. **Notes can be lost** — `hooks/register.tsx:330` empties the queue before `next(...)`. Empty it only after
+   `next({...e, context})` returns without a drop, removing exactly the notes you attached (the queue may have grown
+   meanwhile). On a throw, keep the queue. Leave `isMeta` prompts that start a turn untouched (the types say they take
+   no rewrite); keep the notes for the next real turn.
+2. **Info lines lose raiser and project on the 020 server** — `hooks/roster-view.ts:175` maps raiser names only from
+   `status.waiting_for_user`. Also map `status.for_information` (and `needs_action`) when present, so every item gets
+   raiser and project on both old and new servers.
+3. **Clear all stops at the first failure** — `register.tsx:260-266`. Carry on past failures (an item auto-cleared by
+   the server meanwhile is a likely one: treat "already closed" as success), then show one pop-up with how many failed.
+4. **Recently answered** — `roster-view.ts:298` prints the raw kind; use `kindWord` like the headers.
+5. **`expandedInfo` grows forever** — `register.tsx:451`: drop ids of items no longer in the view.
+6. **Narrow pane** — `register.tsx:448`: the info line (up to 100 chars) sits beside Clear in one row. Make the line
+   wrap or shrink so Clear always stays visible; cap at ~70 characters.
+7. **Tests**: a dropped prompt keeps the queue; a throwing `next` keeps the queue; an `isMeta` prompt and a slash
+   command prompt (`e.command`) — say what you chose for each and test it; the "not the front desk" test must queue a
+   note first so it proves the gate; Clear all with one `close_item` failing; `buildView` with a 020-shaped status.
+Update your return report (round 2 section) and raise done again.
