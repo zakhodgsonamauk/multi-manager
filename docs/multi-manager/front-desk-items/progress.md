@@ -12,3 +12,4 @@
 - 2026-11-10 09:14 Dispatched 022 to dev #334 (sonnet, complexity 4, clarity 4).
 - 2026-11-10 09:20 022 returned (item #1041). It flagged the briefings test failing on main: commands/clear.md (020) backticked two status field names. 020's test scope missed that test. Fixed on main (clear.md wording), briefings test 10/10. Helper review of 022 running.
 - 2026-11-10 09:24 022 helper review: send back (no timeout on digest call; since taken after the call; drop reason may show; fallback lost idle stop; tests). Round 1 written.
+- 2026-11-10 09:30 022 round 1 returned (item #1042). Checked the fix diff; squash-merged 0422b00. On merged main: test:mod 64/64, briefings 11/11, lint clean, typecheck:mod 3 pre-existing. Pushed. Dev #334 stopped, copy and branch removed, item closed. Next: end-to-end test in one test front desk tab (approved on #1035).
