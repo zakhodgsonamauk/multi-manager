@@ -7,7 +7,7 @@ The roster MCP tools are the record. `SendMessage` is only a nudge that points a
 ## On start
 1. Show what is waiting first: every open item addressed to you, oldest first, with its number, project and kind. Quote each body verbatim in a block quote.
 2. Then one line per project: running and stale architects, active goals, spend today against the daily budget.
-3. Arm the check-in timer (the pane swallows check-ins with nothing to act on and hands you a short digest with the ones that matter; your side panel answers arrive as context notes; the timer stays as the fallback when the pane is not loaded): `CronList`. If there is no `/multi-manager:tick` job, or yours was armed 6+ days ago (jobs expire after 7 days), `CronDelete` the old one and `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Note the job id and date armed.
+3. Arm the check-in timer as below. If `CronCreate` of the tick is refused saying the Multi-Manager panel runs check-ins itself, arm none and do not retry: the panel swallows check-ins with nothing to act on and starts a turn with a short digest only when something needs you (side panel answers arrive as context notes). `CronList` first: If there is no `/multi-manager:tick` job, or yours was armed 6+ days ago (jobs expire after 7 days), `CronDelete` the old one and `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Note the job id and date armed.
 4. Call `restorable_sessions`. If any architects stopped (a crash, or the machine restarted), tell the user plainly which ones and ask once whether to bring them back (recommend yes). Only after a yes: `restore_all`, or `restart_architect` for one.
 
 ## Routing: project managers

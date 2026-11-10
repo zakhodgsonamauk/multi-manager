@@ -408,6 +408,25 @@ export function isScheduledTick(e: { text: string; origin: { kind: string }; com
   return e.command?.name === TICK_COMMAND || e.text.trim().split(/\s+/)[0] === `/${TICK_COMMAND}`
 }
 
+/** The check-in the panel itself starts (`$.command.run`, or the fallback prompt): origin is this plugin, not the timer. */
+export function isPanelTick(e: { text: string; origin: { kind: string; name?: string }; command?: { name: string } }): boolean {
+  if (e.origin.kind !== 'plugin' || e.origin.name !== 'multi-manager') return false
+  return e.command?.name === TICK_COMMAND || e.text.trim().split(/\s+/)[0] === `/${TICK_COMMAND}`
+}
+
+/** A `CronCreate` that arms the front desk's old timer: its prompt is the tick command. */
+export function isTickTimerPrompt(prompt: unknown): boolean {
+  return typeof prompt === 'string' && prompt.trim().split(/\s+/)[0] === `/${TICK_COMMAND}`
+}
+
+/** What the model reads when it tries to arm the tick timer while the panel runs check-ins. */
+export const TIMER_REFUSAL =
+  "No timer needed: the Multi-Manager panel runs the front desk's check-ins itself and starts a check-in turn when something needs you. Do not arm a timer and do not retry."
+
+/** Rides along with the first timer-fired check-in after the panel took over, so the model removes its own timer. */
+export const TIMER_NOTICE =
+  'The Multi-Manager panel now runs the front desk check-ins itself. Call CronList and CronDelete the job whose prompt is /multi-manager:tick; do not arm another. Then carry on with this check-in as usual.'
+
 /** What `front_desk_digest` answers (the parts the pane reads). */
 export type RosterDigest = { quiet: boolean; paused: boolean; fingerprint: string }
 

@@ -77,6 +77,8 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     healthOverride: undefined as unknown,
     /** What front_desk_digest answers; undefined: the tool does not exist (an older roster). */
     digest: undefined as unknown,
+    /** How many of the next ui.status calls throw. */
+    statusFailures: 0,
     /** Tools that never answer (a hung roster). */
     hang: new Set<string>(),
   }
@@ -193,6 +195,10 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
       return { value: undefined }
     })
     on('ui.status', (_, e) => {
+      if (roster.statusFailures > 0) {
+        roster.statusFailures -= 1
+        throw new Error('status boom')
+      }
       roster.status.push(e.text)
       return { value: undefined }
     })
@@ -844,6 +850,12 @@ test('Clear all carries on past a failed close, treats already-closed as cleared
 const TICK = { kind: 'scheduled-trigger' } as const
 const tick = ($: Engine, extra: Record<string, unknown> = {}) =>
   $.prompt.submit({ text: '/multi-manager:tick', wait: false, origin: TICK, command: { name: 'multi-manager:tick', args: '' }, ...extra } as never)
+/** The first scheduled tick after the panel took over is let through once with a note; prime it so later ticks are judged. */
+const primeTimerNotice = async ($: Engine, fake: ReturnType<typeof fakeRoster>) => {
+  await tick($)
+  fake.roster.prompts.length = 0
+  fake.roster.contexts.length = 0
+}
 const QUIET = { quiet: true, paused: false, act_on: [], idle_past_limit: [], new_items: [], fingerprint: 'q0' }
 const TROUBLE = { quiet: false, paused: false, act_on: [{ id: 2, name: 'mm-arch-shop', action: 'nudge' }], idle_past_limit: [], new_items: [], fingerprint: 'f1' }
 
@@ -854,6 +866,7 @@ test('a quiet scheduled check-in is dropped, nothing reaches the chat, and the b
   fake.install(on)
   fake.roster.digest = QUIET
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
 
   const result = await tick($)
   expect(result.drop).toBeDefined()
@@ -874,6 +887,7 @@ test('a check-in with news goes through with the digest; the same news again is 
   fake.install(on)
   fake.roster.digest = TROUBLE
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
 
   const first = await tick($)
   expect(first.drop).toBeUndefined()
@@ -902,6 +916,7 @@ test('trouble that clears and comes back is shown again', async ($, on) => {
   fake.install(on)
   fake.roster.digest = TROUBLE
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
   await tick($)
   fake.roster.digest = QUIET
   expect((await tick($)).drop).toBeDefined()
@@ -917,6 +932,7 @@ test('a paused roster drops the check-in', async ($, on) => {
   fake.install(on)
   fake.roster.digest = { ...TROUBLE, paused: true }
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
   expect((await tick($)).drop).toBeDefined()
   expect(fake.roster.status.at(-1)).toMatch(/Last check \d\d:\d\d — paused$/)
 })
@@ -927,6 +943,7 @@ test('the check-in goes through unchanged when the digest cannot be had or is od
   const fake = fakeRoster()
   fake.install(on)
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
 
   // Old roster: no digest tool.
   expect((await tick($)).drop).toBeUndefined()
@@ -947,6 +964,7 @@ test('a tick the user typed, and other scheduled prompts, are never swallowed', 
   fake.install(on)
   fake.roster.digest = QUIET
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
 
   const typed = { text: '/multi-manager:tick', wait: false, origin: { kind: 'composer' }, command: { name: 'multi-manager:tick', args: '' } }
   expect((await $.prompt.submit(typed as never)).drop).toBeUndefined()
@@ -963,6 +981,7 @@ test('a session that is not the front desk lets its scheduled tick through', asy
   fake.install(on)
   fake.roster.digest = QUIET
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
   env.MM_ROLE = 'architect'
   expect((await tick($)).drop).toBeUndefined()
   expect(fake.toolCalls('front_desk_digest')).toEqual([])
@@ -976,6 +995,7 @@ test('a digest that never answers lets the tick through within the limit', async
   fake.roster.digest = QUIET
   fake.roster.hang.add('front_desk_digest')
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
 
   let result: { drop?: string } | undefined
   const pending = tick($).then(r => (result = r))
@@ -995,6 +1015,7 @@ test('a check-in neither attaches nor empties the pane notes', async ($, on) => 
   fake.install(on)
   fake.roster.digest = TROUBLE
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.input({ key: 'answer-12', text: 'go' })
   await ui.unmount()
@@ -1013,6 +1034,7 @@ test('a check-in that the engine beneath drops is not remembered as let through'
   fake.install(on)
   fake.roster.digest = TROUBLE
   await startFrontDesk($, clock)
+  await primeTimerNotice($, fake)
   fake.roster.promptMode = 'drop'
   expect((await tick($)).drop).toBeDefined()
   fake.roster.promptMode = 'ok'
@@ -1020,4 +1042,264 @@ test('a check-in that the engine beneath drops is not remembered as let through'
   expect((await tick($)).drop).toBeUndefined()
   expect(fake.roster.prompts).toHaveLength(2)
   expect(fake.toolCalls('front_desk_digest').at(-1)?.args).toEqual({})
+})
+
+// ---- Task 024: the panel runs the front desk check-ins itself ----
+
+const CHECK_MS = 600_000
+const PLUGIN_ORIGIN = { kind: 'plugin', name: 'multi-manager' } as const
+
+/** Stands for the engine running /multi-manager:tick: records each run, then lets the tick prompt in (origin: this plugin). */
+function fakeTickCommand(on: On, mode: { value: 'ok' | 'hang' } = { value: 'ok' }) {
+  const runs: string[] = []
+  on('command.run', { command: 'multi-manager:tick' }, () => {
+    runs.push('run')
+    if (mode.value === 'hang') return new Promise<never>(() => undefined)
+    return { text: '' }
+  })
+  return { runs, mode }
+}
+
+/** The tick prompt the engine raises for the command the panel ran (the test kit cannot raise it from a hook). */
+const panelTick = ($: Engine) =>
+  $.prompt.submit({ text: '/multi-manager:tick', origin: PLUGIN_ORIGIN, command: { name: 'multi-manager:tick', args: '' } } as never)
+
+const due = async (clock: MockClock, ms = CHECK_MS) => {
+  await clock.advance(ms)
+  await clock.settle()
+}
+
+test('a due check-in with a quiet digest starts no turn and the band shows the last check', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.digest = QUIET
+  const tickCommand = fakeTickCommand(on)
+  await startFrontDesk($, clock)
+  await due(clock, CHECK_MS - 60_000)
+  expect(fake.toolCalls('front_desk_digest')).toHaveLength(0) // not due yet
+  await due(clock, 60_000)
+  expect(fake.toolCalls('front_desk_digest')).toHaveLength(1)
+  expect(tickCommand.runs).toEqual([])
+  expect(fake.roster.prompts).toEqual([])
+  expect(fake.roster.logs).toEqual([])
+  expect(fake.roster.status.at(-1)).toMatch(/Last check \d\d:\d\d — all quiet$/)
+})
+
+test('a due check-in with news runs the tick once, the digest rides along, and the same news is not repeated', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  const tickCommand = fakeTickCommand(on)
+  await startFrontDesk($, clock)
+  await due(clock)
+  expect(tickCommand.runs).toEqual(['run'])
+  expect(fake.roster.prompts).toEqual([])
+  await panelTick($)
+  expect(fake.roster.prompts).toEqual(['/multi-manager:tick'])
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain(JSON.stringify(TROUBLE))
+
+  // The digest rides along once: a second tick prompt carries none.
+  await panelTick($)
+  expect(fake.roster.contexts.at(-1)).toBeUndefined()
+
+  // Same fingerprint next time: nothing runs; `since` is the time the first one went in.
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(1)
+  expect(fake.toolCalls('front_desk_digest').at(-1)?.args).toEqual({ since: '2026-10-21T10:15:00.000Z' })
+  expect(fake.roster.status.at(-1)).toMatch(/Last check \d\d:\d\d — nothing new$/)
+
+  // New fingerprint: runs again.
+  fake.roster.digest = { ...TROUBLE, fingerprint: 'f2' }
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(2)
+})
+
+test('a paused roster starts no check-in turn', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = { ...TROUBLE, paused: true }
+  const tickCommand = fakeTickCommand(on)
+  await startFrontDesk($, clock)
+  await due(clock)
+  expect(tickCommand.runs).toEqual([])
+  expect(fake.roster.status.at(-1)).toMatch(/Last check \d\d:\d\d — paused$/)
+})
+
+test('any doubt about the digest still runs the check-in, without a digest', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  const tickCommand = fakeTickCommand(on)
+  await startFrontDesk($, clock)
+  await due(clock) // old roster: no digest tool
+  await panelTick($)
+  fake.roster.digest = { hello: 'there' }
+  await due(clock) // odd answer
+  await panelTick($)
+  fake.roster.digest = TROUBLE
+  fake.roster.refuse.front_desk_digest = 'Only the front desk can call front_desk_digest'
+  await due(clock) // roster refuses
+  await panelTick($)
+  delete fake.roster.refuse.front_desk_digest
+  fake.roster.hang.add('front_desk_digest')
+  await due(clock) // never answers: the 4 s limit lets it go
+  await due(clock, 5000)
+  await panelTick($)
+  expect(tickCommand.runs).toHaveLength(4)
+  expect(fake.roster.contexts).toHaveLength(4)
+  expect(fake.roster.contexts.every(c => c === undefined)).toBe(true)
+})
+
+test('no second check-in while one is pending; a lost one stops blocking after the limit', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  const tickCommand = fakeTickCommand(on, { value: 'hang' })
+  await startFrontDesk($, clock)
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(1)
+  await due(clock) // 10 min after: still pending
+  await due(clock) // 20 min after
+  expect(tickCommand.runs).toHaveLength(1)
+  await due(clock, 15 * 60_000) // past the 30 minute limit
+  expect(tickCommand.runs).toHaveLength(2)
+})
+
+test('one failure inside a check-in does not stop the later ones', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = QUIET
+  const tickCommand = fakeTickCommand(on)
+  await startFrontDesk($, clock)
+  fake.roster.statusFailures = 1000 // every band update throws, the quiet check-in's among them
+  await due(clock)
+  expect(fake.toolCalls('front_desk_digest')).toHaveLength(1)
+  expect(fake.roster.statusFailures).toBeLessThan(1000) // the throws really happened
+  fake.roster.statusFailures = 0
+  fake.roster.digest = TROUBLE
+  await due(clock)
+  expect(fake.toolCalls('front_desk_digest')).toHaveLength(2)
+  expect(tickCommand.runs).toHaveLength(1)
+})
+
+test('the model cannot arm the tick timer in the front desk; other timers and other roles pass', async ($, on) => {
+  const clock = mock.clock(on)
+  const env: Record<string, string> = {}
+  on('env.get', (_, e) => ({ value: env[e.name] }))
+  const fake = fakeRoster()
+  fake.install(on)
+  await startFrontDesk($, clock)
+  const cron = (prompt: string) => $.tool.call({ tool: 'CronCreate', cron: '*/10 * * * *', prompt } as never)
+  const refused = await cron('/multi-manager:tick')
+  expect(refused.deny).toMatch(/panel runs the front desk.s check-ins itself/)
+  expect(refused.deny).toMatch(/do not retry/i)
+  expect((await cron('/loop 5m water the plants')).deny).toBeUndefined()
+  env.MM_ROLE = 'architect'
+  expect((await cron('/multi-manager:tick')).deny).toBeUndefined()
+})
+
+test('before the session is the front desk, the tick timer is not refused and no check-in runs', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  const tickCommand = fakeTickCommand(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await clock.settle()
+  const result = await $.tool.call({ tool: 'CronCreate', cron: '*/10 * * * *', prompt: '/multi-manager:tick' } as never)
+  expect(result.deny).toBeUndefined()
+  await due(clock, 2 * CHECK_MS)
+  expect(tickCommand.runs).toEqual([])
+  expect(fake.toolCalls('front_desk_digest')).toEqual([])
+})
+
+test('the first scheduled tick after the panel took over carries the delete-your-timer note; later ones are dropped', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = QUIET
+  await startFrontDesk($, clock)
+  const first = await tick($)
+  expect(first.drop).toBeUndefined()
+  expect(fake.roster.contexts.at(-1)?.[0]).toMatch(/CronList and CronDelete/)
+  expect((await tick($)).drop).toBeDefined()
+})
+
+test('the fingerprint is kept even if the tick prompt never reaches the pane hook', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  const tickCommand = fakeTickCommand(on)
+  await startFrontDesk($, clock)
+  await due(clock) // the command runs; no panelTick follows
+  expect(tickCommand.runs).toHaveLength(1)
+  await due(clock) // same news ten minutes on: no second check-in
+  expect(tickCommand.runs).toHaveLength(1)
+  expect(fake.toolCalls('front_desk_digest').at(-1)?.args).toEqual({ since: '2026-10-21T10:15:00.000Z' })
+  expect(fake.roster.status.at(-1)).toMatch(/Last check \d\d:\d\d — nothing new$/)
+  // A tick that does arrive later still gets the digest, and does not record a second time.
+  fake.roster.digest = { ...TROUBLE, fingerprint: 'f2' }
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(2)
+  await panelTick($)
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain('"fingerprint":"f2"')
+  expect(fake.toolCalls('front_desk_digest').length).toBe(3)
+})
+
+test('when running the command is refused, a plain prompt with the digest goes in, and is remembered', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  await startFrontDesk($, clock) // no command.run hook anywhere: the call rejects
+  await due(clock)
+  expect(fake.roster.prompts).toHaveLength(1)
+  expect(fake.roster.prompts[0]).not.toMatch(/^\//) // the host refuses a prompt that begins with a slash
+  expect(fake.roster.prompts[0]).toContain('multi-manager:tick')
+  expect(fake.roster.prompts[0]).toContain(JSON.stringify(TROUBLE))
+  await due(clock)
+  expect(fake.roster.prompts).toHaveLength(1) // same news: not repeated
+})
+
+test('when the loop has stopped, the tick timer is not refused, and a scheduled tick restarts the loop', async ($, on) => {
+  const clock = mock.clock(on)
+  const env: Record<string, string> = {}
+  on('env.get', (_, e) => ({ value: env[e.name] }))
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = QUIET
+  await startFrontDesk($, clock)
+  const cron = (prompt: string) => $.tool.call({ tool: 'CronCreate', cron: '*/10 * * * *', prompt } as never)
+  expect((await cron('/multi-manager:tick')).deny).toMatch(/panel runs the front desk/) // loop alive
+
+  // The loop stops beating (here: the role changed under it) and a minute passes.
+  env.MM_ROLE = 'architect'
+  await due(clock, 60_000)
+  delete env.MM_ROLE
+  expect((await cron('/multi-manager:tick')).deny).toBeUndefined() // stale: the model's timer is the one that works
+
+  // A scheduled tick arrives: no delete-your-timer note, judged as before (quiet: dropped), the loop restarts.
+  const result = await tick($)
+  expect(result.drop).toBeDefined()
+  expect(fake.roster.contexts.every(c => c === undefined)).toBe(true)
+  expect((await cron('/multi-manager:tick')).deny).toMatch(/panel runs the front desk/)
+  const polls = fake.toolCalls('status').length
+  await due(clock, 20_000)
+  expect(fake.toolCalls('status').length).toBeGreaterThan(polls)
 })

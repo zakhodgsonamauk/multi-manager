@@ -21,7 +21,9 @@ import {
   decideTick,
   digestContext,
   dueToasts,
+  isPanelTick,
   isScheduledTick,
+  isTickTimerPrompt,
   infoLine,
   kindWord,
   money,
@@ -32,6 +34,9 @@ import {
   readDigest,
   recentLine,
   rosterJson,
+  TICK_COMMAND,
+  TIMER_NOTICE,
+  TIMER_REFUSAL,
   type LastCheck,
   type RosterAnswerReply,
   type RosterNudge,
@@ -47,6 +52,10 @@ const POLL_MS = 15_000
 const RESOURCES_MS = 60_000
 /** How long a check-in waits for the roster's digest before it goes through unchanged. */
 const DIGEST_WAIT_MS = 4000
+/** The panel starts a check-in this long after the last one it ran (the first: after it took over). */
+const CHECK_IN_MS = 600_000
+/** A check-in the panel started that has not reported back stops blocking the next one after this long. */
+const CHECK_IN_PENDING_MAX_MS = 1_800_000
 
 const isFrontDesk = atom({ plugin: 'multi-manager', key: 'isFrontDesk' } as const, false)
 const viewAtom = atom({ plugin: 'multi-manager', key: 'view' } as const, null)
@@ -72,6 +81,16 @@ let isPolling = false
 let isPollWanted = false
 let resources: { at: number; value: RosterResources } | undefined
 let isPaneAutoOpened = false
+/** When the panel's next check-in is due; set once it is the front desk. */
+let nextCheckIn: number | undefined
+/** When the check-in the panel started began, while it has not finished. */
+let checkInStartedAt: number | undefined
+/** The digest that rides along with the check-in the panel just started, and what to record once it went in. */
+let pendingDigest: { digest: unknown; fingerprint: string; at: number; isRecorded: boolean; isDigestSent?: boolean } | undefined
+/** When the 15-second loop last ran: the proof it is alive (a reload or a stopped interval leaves it stale). */
+let lastLoopAt: number | undefined
+/** The old timer's check-in has been told once to delete its timer. */
+let isTimerNoticed = false
 const drafts = new Map<number, string>()
 
 /** Architects and developers run the plugin too: they never draw or poll. */
@@ -147,12 +166,30 @@ const poll = async ($: Engine, options: { fresh?: boolean } = {}): Promise<void>
 }
 
 const startTimer = ($: Engine): void => {
-  timer ??= $.clock.every(POLL_MS, () => void poll($))
+  timer ??= $.clock.every(POLL_MS, () => void loopTick($))
 }
+
+/** One turn of the 15-second loop: note that it is alive, refresh the pane, start a check-in if one is due. */
+const loopTick = async ($: Engine): Promise<void> => {
+  try {
+    if (await isOtherRole($)) return // an architect or developer session neither polls nor runs check-ins
+    lastLoopAt = await $.clock.now()
+    void poll($)
+    void maybeCheckIn($)
+  } catch {
+    // The next turn tries again.
+  }
+}
+
+/** The loop that runs check-ins has ticked recently: only then may the model's own timer be refused or retired. */
+const isLoopAlive = async ($: Engine): Promise<boolean> => lastLoopAt !== undefined && (await $.clock.now()) - lastLoopAt <= 2 * POLL_MS
 
 const activate = async ($: Engine): Promise<void> => {
   if (!(await read($, isFrontDesk))) await update($, isFrontDesk, () => true)
+  const now = await $.clock.now()
+  nextCheckIn ??= now + CHECK_IN_MS
   startTimer($)
+  lastLoopAt ??= now
   await poll($, { fresh: true })
 }
 
@@ -311,16 +348,12 @@ const hideProject = ($: Engine, project: string) =>
 const openPane = ($: Engine) => $.ui.open({ id: PANE, title: TITLE })
 
 /**
- * The front desk's 10-minute check-in (a scheduled /multi-manager:tick): when the roster's digest says nothing needs
- * doing, the prompt is dropped, so it leaves nothing in the chat and starts no turn; the pane shows "Last check". Any
- * doubt (roster away, digest tool missing, odd answer, a throw) lets the tick through unchanged.
+ * Asks the roster for the check-in digest, with a time limit. Undefined on any doubt (roster away, digest tool missing,
+ * timeout, a throw): the check-in then goes ahead without a digest. `asked` is read BEFORE asking: an item raised
+ * during the call is then still newer than the stored time.
  */
-const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmitInput) => Promise<PromptSubmitResult>): Promise<PromptSubmitResult> => {
-  const previous = await read($, lastTick)
-  // Read the clock BEFORE asking: an item raised during the call is then still newer than the stored time.
+const fetchDigest = async ($: Engine, previous: { at: number } | null): Promise<{ digest: unknown; asked: number } | undefined> => {
   const asked = await $.clock.now()
-  let digest: unknown
-  // A roster that hangs must not hold the tick: past the limit the tick goes through unchanged.
   const stop = new AbortController()
   const timedOut = Symbol('timed out')
   try {
@@ -329,30 +362,135 @@ const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmi
     const winner = await Promise.race([answer, $.clock.sleep(DIGEST_WAIT_MS, { signal: stop.signal }).then(() => timedOut)])
     if (winner === timedOut) {
       server = undefined
-      return next(e)
+      return undefined
     }
-    digest = winner
+    return { digest: winner, asked }
   } catch {
     server = undefined // reconnect next time, in case the roster server restarted
-    return next(e)
+    return undefined
   } finally {
     stop.abort()
   }
-  const decision = decideTick(readDigest(digest), previous?.fingerprint ?? null)
-  const now = asked
+}
+
+/** A quiet check-in: the band says when it ran, nothing reaches the chat. */
+const noteQuietCheck = async ($: Engine, decision: { word: LastCheck['word']; forgetFingerprint: boolean }, at: number, previous: { at: number } | null): Promise<void> => {
+  await update($, lastCheck, (): LastCheck => ({ at, word: decision.word }))
+  // Forget the fingerprint but keep the time: `since` still holds back items the user has already been shown.
+  if (decision.forgetFingerprint && previous !== null) await update($, lastTick, () => ({ fingerprint: '', at: previous.at }))
+  $.ui.status(bandLine(await read($, viewAtom), await read($, lastCheck)))
+}
+
+/**
+ * One check-in, run by the panel. A quiet one stops here (band only, no turn, nothing in the chat). One with news (or any
+ * doubt) starts the check-in turn with /multi-manager:tick; the digest rides along in the prompt.submit hook.
+ */
+const runCheckIn = async ($: Engine): Promise<void> => {
+  const previous = await read($, lastTick)
+  const got = await fetchDigest($, previous)
+  pendingDigest = undefined
+  if (got !== undefined) {
+    const decision = decideTick(readDigest(got.digest), previous?.fingerprint ?? null)
+    if (decision.action === 'drop') {
+      await noteQuietCheck($, decision, got.asked, previous)
+      return
+    }
+    if (decision.action === 'pass-with-digest') pendingDigest = { digest: got.digest, fingerprint: decision.fingerprint, at: got.asked, isRecorded: false }
+  }
+  try {
+    // Resolves when the command has run; the caller's guard holds until then.
+    await $.command.run({ command: TICK_COMMAND })
+  } catch {
+    // Stop, a host limit or an unknown name: ask for the same thing as a plain prompt. The host refuses a prompt that
+    // begins with "/" (it would run a command as the user), so the words come first and the digest goes in the text.
+    try {
+      const digestText = pendingDigest === undefined ? '' : ` ${digestContext(pendingDigest.digest)}`
+      await $.prompt.submit({
+        text: `The Multi-Manager check-in is due. Run the ${TICK_COMMAND} command now (the Skill tool, skill "${TICK_COMMAND}").${digestText}`,
+      })
+      if (pendingDigest !== undefined) pendingDigest.isDigestSent = true
+    } catch {
+      pendingDigest = undefined
+    }
+  }
+  // The tick prompt may never reach our own prompt.submit hook: once the command has run, record what was shown
+  // (written once; the stash stays so the hook can still attach the digest if it runs later).
+  const stash = pendingDigest
+  if (stash !== undefined && !stash.isRecorded) {
+    stash.isRecorded = true
+    await update($, lastTick, () => ({ fingerprint: stash.fingerprint, at: stash.at }))
+    await update($, lastCheck, () => null)
+  }
+  // The fallback prompt carried the digest in its own text: nothing is left for the hook to attach.
+  if (stash?.isDigestSent === true) pendingDigest = undefined
+}
+
+/** Called every 15 s from the poll loop. Starts the front desk's check-in when it is due; never throws, never stacks. */
+const maybeCheckIn = async ($: Engine): Promise<void> => {
+  try {
+    if (!(await read($, isFrontDesk))) return
+    const now = await $.clock.now()
+    nextCheckIn ??= now + CHECK_IN_MS
+    if (now < nextCheckIn) return
+    // One the panel started has not finished: wait, unless it has been silent past the limit.
+    if (checkInStartedAt !== undefined && now - checkInStartedAt < CHECK_IN_PENDING_MAX_MS) return
+    nextCheckIn = now + CHECK_IN_MS
+    checkInStartedAt = now
+    try {
+      await runCheckIn($)
+    } finally {
+      if (checkInStartedAt === now) checkInStartedAt = undefined
+    }
+  } catch {
+    // A failure here must not stop later check-ins.
+  }
+}
+
+/** The check-in turn the panel started: the stashed digest rides along; once it went in, fingerprint and time are kept. */
+const handlePanelTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmitInput) => Promise<PromptSubmitResult>): Promise<PromptSubmitResult> => {
+  const pending = pendingDigest
+  pendingDigest = undefined
+  if (pending === undefined) return next(e)
+  const result = await next({ ...e, context: [...(e.context ?? []), digestContext(pending.digest)] })
+  if (result.drop === undefined && !pending.isRecorded) {
+    pending.isRecorded = true
+    await update($, lastTick, () => ({ fingerprint: pending.fingerprint, at: pending.at }))
+    await update($, lastCheck, () => null)
+  }
+  return result
+}
+
+/**
+ * A check-in fired by the model's own timer (armed before the panel took over). The first is let through once with a
+ * note telling the model to delete its timer. Later ones are judged by the digest as before: when nothing needs doing
+ * the prompt is dropped. The engine shows a drop's reason as one line, with no silent form.
+ */
+const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmitInput) => Promise<PromptSubmitResult>): Promise<PromptSubmitResult> => {
+  if (await isLoopAlive($)) {
+    if (!isTimerNoticed) {
+      isTimerNoticed = true
+      return next({ ...e, context: [...(e.context ?? []), TIMER_NOTICE] })
+    }
+  } else {
+    // The panel's loop is not running (a reload, a stopped interval): start it again, and judge this tick as before
+    // without telling the model to delete its timer, which is then the only one left.
+    timer?.cancel()
+    timer = undefined
+    startTimer($)
+    lastLoopAt = await $.clock.now()
+  }
+  const previous = await read($, lastTick)
+  const got = await fetchDigest($, previous)
+  if (got === undefined) return next(e)
+  const decision = decideTick(readDigest(got.digest), previous?.fingerprint ?? null)
   if (decision.action === 'drop') {
-    await update($, lastCheck, (): LastCheck => ({ at: now, word: decision.word }))
-    // Forget the fingerprint but keep the time: `since` still holds back items the user has already been shown.
-    if (decision.forgetFingerprint && previous !== null) await update($, lastTick, () => ({ fingerprint: '', at: previous.at }))
-    $.ui.status(bandLine(await read($, viewAtom), await read($, lastCheck)))
-    // The engine shows a drop's reason as one line ("Prompt dropped by a hook: <reason>"), with no silent form, so
-    // the reason says plainly what happened rather than looking like an error.
+    await noteQuietCheck($, decision, got.asked, previous)
     return { drop: `Multi-Manager check-in, ${decision.word}` }
   }
   if (decision.action === 'pass') return next(e)
-  const result = await next({ ...e, context: [...(e.context ?? []), digestContext(digest)] })
+  const result = await next({ ...e, context: [...(e.context ?? []), digestContext(got.digest)] })
   if (result.drop === undefined) {
-    await update($, lastTick, () => ({ fingerprint: decision.fingerprint, at: now }))
+    await update($, lastTick, () => ({ fingerprint: decision.fingerprint, at: got.asked }))
     await update($, lastCheck, () => null)
   }
   return result
@@ -375,6 +513,15 @@ export const register: Register = on => {
     return ran
   }).catch(($, e, next) => next(e))
 
+  // The panel runs the front desk's check-ins: the model's own timer for them is refused (any other timer passes).
+  on('tool.call', { tool: 'CronCreate' }, async ($, e, next) => {
+    if (!isTickTimerPrompt((e as { prompt?: unknown }).prompt)) return next(e)
+    if (!(await read($, isFrontDesk)) || (await isOtherRole($))) return next(e)
+    // Only while the loop that runs check-ins is alive: else the model's timer is the one that works.
+    if (!(await isLoopAlive($))) return next(e)
+    return { deny: TIMER_REFUSAL }
+  }).catch(($, e, next) => next(e))
+
   // /multi-manager:pane is commands/pane.md; here the mod answers it itself, so no model turn runs.
   on('command.run', { command: 'multi-manager:pane' }, async $ => {
     if (await isOtherRole($)) return { text: 'The Multi-Manager pane belongs to the front desk session, not to an architect or developer.' }
@@ -394,6 +541,8 @@ export const register: Register = on => {
   // notes ride along as one context entry and the queue empties. Kept apart from any other prompt.submit handling.
   on('prompt.submit', async ($, e, next) => {
     if (!(await read($, isFrontDesk)) || (await isOtherRole($))) return next(e)
+    // The check-in the panel started itself carries the digest it stashed.
+    if (isPanelTick(e)) return handlePanelTick($, e, next)
     // The timer's own check-in is judged by the digest first; a tick the user typed (composer origin) is not.
     if (isScheduledTick(e)) return handleTick($, e, next)
     // A prompt the person did not type (isMeta) takes no rewrite when it starts a turn, and a slash command's text is
