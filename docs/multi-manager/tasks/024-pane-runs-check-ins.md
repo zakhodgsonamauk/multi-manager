@@ -83,3 +83,15 @@ Claim `briefings/front-desk.md` before editing; release on return.
 `npm run typecheck:mod` (3 errors are pre-existing on main: BAND tests), `npm run test:mod`, `npm run lint`, and,
 because `briefings/` changes: `node --test test/briefings.test.ts test/plugin-manifest.test.ts test/hooks-config.test.ts`.
 Never the full suite. Commit as you go on your branch.
+
+## Send-back round 1 (2026-11-10)
+Outside review: changes are small and clean, no out-of-scope edits, but two paths work against the goal and one test proves nothing.
+
+1. **Fingerprint saved only if the panel's tick reaches our own `prompt.submit` hook** (`hooks/register.tsx:426-433`, `handlePanelTick`). The types say `$.command.run` runs "through every hook but the calling one"; that hand-off is unproven and the tests submit the tick by hand. If the hook is skipped, `lastTick` never advances and every 10 minutes the same act_on / idle news starts another check-in turn in the chat. Fix: in `runCheckIn` (`register.tsx:384-394`), once `command.run` (or the fallback prompt) resolves, save `lastTick` (fingerprint and the asked time) from the stash if the hook has not already done so. Keep the stash so the hook can still attach the digest if it runs later; make sure fingerprint/time are written once, not twice with different times. Test: no `panelTick` follows the command; the same fingerprint at the next due time starts no second command.
+2. **Timer refused / told to delete itself without checking the panel loop is alive** (`register.tsx:476-480` CronCreate refusal, `register.tsx:437-440` TIMER_NOTICE). Both check only `isFrontDesk`, which survives a reload; `timer ??=` (`register.tsx:166`) never restarts an interval that ended. Then the model's timer is gone and no check-ins run, silently. Fix: record a heartbeat in the `clock.every` callback (`lastLoopAt`). Refuse CronCreate and send the delete-your-timer note only when the heartbeat is recent (under about 2 × `POLL_MS`). If a scheduled tick arrives while the loop is stale, clear `timer` and call `startTimer($)`, and let that tick be judged as today (022) without the delete note. Tests: stale loop → CronCreate passes and no delete note; stale loop + scheduled tick → loop restarted.
+3. **Test "one failure in a check-in does not stop the later ones" proves nothing** (`mod-test/front-desk-pane.test.tsx` ~1171-1184): `promptMode = 'throw'` only affects `prompt.submit`, which the panel path never calls. Make something inside `maybeCheckIn` really throw once (e.g. the `command.run` hook, or the digest call throwing synchronously), then check the next due time still runs a check-in.
+4. **Briefing wording** (`briefings/front-desk.md:10`): the model cannot tell whether the pane is loaded. Reword to: try to arm the timer as before; if `CronCreate` is refused saying the panel runs check-ins, arm none and do not retry.
+
+Also try: a `command.run` rejection test by running with no `command.run` hook registered (in case the kit rejects an unknown name). If the kit still cannot reject, leave it as a stated gap.
+
+Update the return report (round 2 section), commit on your branch, raise done again.

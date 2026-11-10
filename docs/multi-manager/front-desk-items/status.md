@@ -2,7 +2,7 @@
 
 ## In flight
 - Goal #129 (signed off #1055 "yes go"):
-  - 024 panel runs check-ins itself: dev #337 (sonnet), tab mm-multi-manager-front-desk-items-dev-024-pane-check-ins, branch worktree-mm-multi-manager-front-desk-items-dev-024-pane-check-ins.
+  - 024 panel runs check-ins itself (send-back round 1): dev #337 (sonnet), tab mm-multi-manager-front-desk-items-dev-024-pane-check-ins, branch worktree-mm-multi-manager-front-desk-items-dev-024-pane-check-ins.
 - Goal #127 done; 023 waits for a roster reconnect in the front desk (user's go, item #1051).
 
 ## Queued (in order)
