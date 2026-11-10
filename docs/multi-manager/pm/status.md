@@ -1,19 +1,22 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-10 08:27
+Updated: 2026-11-10 08:31
 
 Project manager: roster session #327, goal #81, workstream `pm`.
 
 ## Architects
-- (none running)
+- #328 pm-handover, goal #123: fix failing crash-restore test (test/pm-role.test.ts, restore_all with replaced project manager).
+- #329 front-desk-items, goal #124 (front desk pointer #122): front-desk items UI, categories, auto-clearing, pane replies reaching the front desk, quieter ticks. Plan sign-off expected.
 
 ## Goals
-- #99 / #100 code-review-graph investigation: done. Report docs/multi-manager/graph-watcher/report.md, summary item #935. Recommends option C (on-demand); B/C/D need the user's go.
-- #101 / #102 B + C, follow-ups, and per-project code-review-graph switch under the project manager: done. Merged 2731543, 6ec7aa1, 02412ec, e114138; full tests 366/366. Item #961.
+- #99 / #100 code-review-graph investigation: done.
+- #101 / #102 code-review-graph B + C and per-project switch: done.
+- #123 test fix: in progress.
+- #122 / #124 front-desk items: in progress.
 
 ## Overlaps
-- (none)
+- #328 and #329 may both touch the roster server tool code. Order: #328 is small, likely merges first; #329 pulls in latest main before each merge.
+- #329 changes front desk and tick skills, live on merge. Any roster server / plugin / tab restart needs the user's go.
 
 ## Next
-- Test failure on main (restore_all, project manager replaced): reported item #1028, waiting for the user on whether to fix.
-- Parked for the user's go: switch financial-portal's code-review-graph on (needs a front desk or project manager tab started after the merge).
+- Parked for the user's go: switch financial-portal's code-review-graph on.

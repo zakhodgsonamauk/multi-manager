@@ -14,3 +14,7 @@ Append-only, dated.
 - 2026-11-03 13:56 User answered sign-off #947 "go" (13:49). #310 building part 2 (tasks 016-019), one developer running.
 - 2026-11-03 14:10 #310 done (item #960): tasks 016-019 merged and pushed. Checked: all four on origin/main, full npm test 366/366 pass, e2e output 20/20. Stopped #310, goal #101 done, reported #961. Spend reported $4 (my estimate). Parked: financial-portal switch-on, user's go.
 - 2026-11-10 08:27 Started as session #327 on goal #81 (replaces #307). No architects running, no open items. Tick timer armed: job c28de53b, cron "3-59/10 * * * *", armed 2026-11-10. Full npm test: 365/366, one steady failure in test/pm-role.test.ts ("restore_all: when the project manager is replaced, its architects go under the running one"), fails 3/3 runs; passed 366/366 on 2026-11-03 with no code change since. Reported to front desk as item #1028, offered an architect. Waiting for user input.
+- 2026-11-10 08:31 User answered #1028: "yes, start an architect to fix it" plus front-desk notes request (front desk goal #122). Two pieces:
+  - Test fix: workstream pm-handover, goal #123, architect #328.
+  - Front-desk items (categories, auto-clear, pane replies reaching front desk, quieter ticks): new workstream front-desk-items, goal #124, architect #329. Goal #122 in progress as the front desk's pointer.
+  Overlap: both may touch roster server tool code; each told to pull latest main before merging. #124 changes front desk/tick skills live on merge. Closed #1028, reported #1029.
