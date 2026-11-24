@@ -1,8 +1,8 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-10 12:45
+Updated: 2026-11-24 18:05
 
-Project manager: roster session #327, goal #81, workstream `pm`.
+Project manager: roster session #2, no goal yet, workstream `pm`.
 
 ## Architects
 - (none running)
