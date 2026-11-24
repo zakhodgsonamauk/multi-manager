@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `usage-efficiency`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-24 19:17
+Updated: 2026-11-24 19:27
 
 ## Current goal
 Roster goal #2: make Multi-Manager use less Claude usage. State: in-progress.
@@ -9,15 +9,14 @@ Plan and testing approach signed off 2026-11-24 in item #2. The user's answer, v
 Findings: `findings.md` in this folder.
 
 ## In flight
-- 027 Fresh start for big, idle managers: dev session #4 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-027-fresh-context`, branch `worktree-mm-multi-manager-usage-efficiency-dev-027-fresh-context`, round 2 (sent back 19:16: duplicate-copy risk, idle misread, stop/restore loop, stale marks).
 - 029 Skills through a middle-man: dev session #7 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-029-skill-broker`, branch `worktree-mm-multi-manager-usage-efficiency-dev-029-skill-broker`, round 2 (sent back 19:24: voice plugin kept on, argument substitution, bad plugins file).
 
 ## Merged
+- 027 Fresh start for big, idle managers: `02cce66` (2026-11-24, 2 rounds). Two minor review points are carried into 026: the clean-up after a failed kill during idle stop, and the request expiry re-asking. Not yet run in a real tab.
 - 028 Cheaper helper agents, Fable and nudges: `6d13b5a` (2026-11-24). It includes the front desk's refresh_due line in commands/tick.md.
 - 030 Use only the C:\dev copy: `ff8a5c4` (2026-11-24). Two desktop shortcuts now point at C:\dev; a one-line warning appears when anything runs from another copy. Running sessions keep their copy until next start. A throwaway test cluster roster sits in the Dropbox copy's scratch-ignored folder (not moved).
 
 ## Queued (in order)
-- 026 Check-ins that cost nothing when nothing happened: waits for 027 to merge.
 - 031 Tool connections through a middle-man: runs after 029, and only if 029's numbers show it is worth it.
 
 ## Paused / parked

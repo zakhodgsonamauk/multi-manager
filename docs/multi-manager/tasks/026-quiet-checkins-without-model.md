@@ -14,7 +14,12 @@ Design is the developer's call within these limits:
 - The briefings and commands that tell architects and project managers to `CronCreate` a `/multi-manager:tick` job (and to re-arm it, and to delete it on pause) are changed to say the check-in is automatic. The pause/resume flow must still stop work starting during a pause.
 - Fix the idle measure while here: `readActivity` (`src/monitor/activity.ts:90`) counts the transcript's modified time as activity, so a session's own check-in turns keep it "active" forever. Once quiet check-ins no longer create turns this mostly fixes itself; make sure a check-in turn the system started does not count as the session's own activity for stuck or idle detection.
 
-UPDATE 2026-11-24: task 027 runs first. It takes over the idle-measure fix in `readActivity`, so build on whatever 027 merged. Skip that bullet if it is already done.
+UPDATE 2026-11-24: task 027 is merged (`02cce66`) and already includes the idle-measure fix. Build on its code: `src/monitor/lifecycle.ts`, `src/monitor/transcript.ts`, and `refresh_due` in `front_desk_digest` (`src/roster/tools-health.ts`). Task 028 is merged too: the front desk acts on `refresh_due` through `commands/tick.md`.
+
+Extra items folded in from the 027 review:
+1. Hand the "write your note" request to the manager directly. When an architect or project manager has its own quiet check-in (this task), its digest should carry its own `refresh_due` entry. The manager can then act on it with no help from the front desk. Keep the front-desk route as the fallback for sessions where the mod is not loaded.
+2. Fix a failed kill during idle stop (`src/monitor/lifecycle.ts:232-236`). When ownership is proven but the kill fails, `stopSession` has already removed the session's settings and tool-connection files and released its claims, and the row is then marked running again without them. Fix: kill first and check the exit code, as `replaceWithFresh` does. Only after a successful kill, call `stopSession` for the clean-up. Add a test.
+3. The 30-minute request expiry re-asks in the same pass (`lifecycle.ts:249-252`), so the digest never goes quiet for a manager that ignores the request. After an expiry, do not ask again for a cool-down period (your choice, for example 2 hours), so the digest goes quiet. Add a test.
 
 ## Tests first
 - A digest for an architect's scope: quiet when its developers are all `none` and it has no unseen items; not quiet when a developer needs `nudge`/`restart`/`report` or an item addressed to it is unseen. Same for a project manager over its architects and watched items.
@@ -25,7 +30,7 @@ UPDATE 2026-11-24: task 027 runs first. It takes over the idle-measure fix in `r
 ## Files expected to change
 `hooks/register.tsx`, `src/roster/tools-health.ts` (or a new digest tool beside it), `src/monitor/activity.ts`, `src/monitor/health.ts` if needed, `commands/tick.md`, `briefings/architect.md`, `briefings/project-manager.md`, any command that arms or deletes the timer (grep for `CronCreate` and `CronDelete` in `briefings/` and `commands/`), matching tests in `test/`.
 
-NOTE: `briefings/architect.md` currently has uncommitted edits in the project folder that belong to someone else (the "never find /" plugin-folder note). Start from the workstream branch only after those edits are committed or settled; do not overwrite them.
+Those unsaved edits were committed as `528e3d7`.
 
 ## Out of scope
 Context size and restarting sessions (task 027). Start-up context and plugins loaded (task 029). The front desk's own pane behaviour, beyond reusing its code. Developer sessions (they have no timer).
