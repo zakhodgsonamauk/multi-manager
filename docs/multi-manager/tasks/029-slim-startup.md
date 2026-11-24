@@ -54,7 +54,7 @@ Every other plugin is off in the tab and reachable through `find_skill` / `load_
 - the briefings (one line each)
 - tests
 
-NOTE: `src/launch/launcher.ts`, `test/launcher.test.ts`, `briefings/architect.md` and `briefings/developer.md` have someone else's unsaved edits in the project folder. Dispatch only after roster item #4 settles them. Do not overwrite those edits.
+The unsaved edits that used to be in these files were committed as `528e3d7`. Task 027 (in flight) also edits `src/launch/command.ts`: it adds an environment variable for managers. Keep your change in `command.ts` to the arguments and settings, and expect the architect to settle any small conflict at merge.
 
 ## Out of scope
 - The user's global settings.
