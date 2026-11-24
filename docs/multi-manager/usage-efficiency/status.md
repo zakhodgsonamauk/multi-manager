@@ -9,6 +9,7 @@ Plan and testing approach signed off 2026-11-24 in item #2. The user's answer, v
 Findings: `findings.md` in this folder.
 
 ## In flight
+- 026 Check-ins that cost nothing when nothing happened: dev session #9 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-026-quiet-checkins`, branch `worktree-mm-multi-manager-usage-efficiency-dev-026-quiet-checkins`, round 1.
 - 029 Skills through a middle-man: dev session #7 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-029-skill-broker`, branch `worktree-mm-multi-manager-usage-efficiency-dev-029-skill-broker`, round 2 (sent back 19:24: voice plugin kept on, argument substitution, bad plugins file).
 
 ## Merged

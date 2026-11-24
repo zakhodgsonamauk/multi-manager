@@ -1,6 +1,6 @@
 # 026 — Check-ins that cost nothing when nothing happened
 
-Goal #2. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/026-quiet-checkins-without-model.return.md` on that branch.
+Goal #2. Branch: `worktree-mm-multi-manager-usage-efficiency-dev-026-quiet-checkins`. Return report: `docs/multi-manager/tasks/026-quiet-checkins-without-model.return.md` on that branch.
 
 ## Goal
 Architects and project managers each set a 10-minute timer that runs `/multi-manager:tick` as a full model turn. Measured over the last 14 days: 5,831 ticks, about 17% of all estimated usage; 89% of them only checked status and found nothing to do. Every tick re-reads the whole conversation (typically 400k-700k tokens on Opus), so an idle architect costs about $3.70 an hour just ticking (estimate at list prices).
