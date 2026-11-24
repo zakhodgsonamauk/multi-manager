@@ -5,7 +5,7 @@ argument-hint: <goal id>
 Plan a goal. Arguments: $ARGUMENTS
 
 1. `get_goal`, then `update_goal` to `planning`. Read the project's rules (CLAUDE.md, README, how its tests run) and the approval rules (`list_projects`).
-2. State files. If the project already keeps status, numbered tasks and decisions (for example `docs/status.md`, `docs/tasks/`), use those. Otherwise create `docs/multi-manager/` with `status.md`, `decisions.md`, `progress.md` and `tasks/`, copied from `templates/architect/` in the plugin root (`get_briefing` returns the root). Note the folder in `progress.md`.
+2. State files. If the project already keeps status, numbered tasks and decisions (for example `docs/status.md`, `docs/tasks/`), use those. Otherwise create `docs/multi-manager/` with `status.md`, `decisions.md`, `progress.md` and `tasks/`, copied from `templates/architect/` in the plugin folder named in your start prompt (never search a drive for it). Note the folder in `progress.md`.
 3. Numbers: first time in this project, find the highest task number already used and call `allocate_number` kind `task` with `at_least` one above it. From then on every task number comes from `allocate_number` kind `task`. Never pick one by hand.
 4. Farm out big or unfamiliar research and planning to helper agents, in parallel. Each reads, edits nothing, and returns a short summary. Merge what they find.
 5. Split the goal into tasks, one developer each, small enough to finish in one sitting. Two tasks that edit the same function run one after the other, never together. For each: `allocate_number` kind `task`, then write `tasks/NNN-slug.md` from `templates/architect/task.md` (goal, tests first, files, out of scope, test scope, evidence).

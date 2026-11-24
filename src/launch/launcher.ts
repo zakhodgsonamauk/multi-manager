@@ -94,6 +94,16 @@ export interface RestartResult extends LaunchResult {
 /** Claude Code conversation ids are UUIDs; anything else is not passed to --resume. */
 const CONVERSATION_ID = /^[A-Za-z0-9_-]+$/;
 
+/**
+ * Told to every launched session: where the plugin's templates are. Without it, sessions hunted for
+ * templates/architect/return.md with `find /`, which in Git Bash walks Windows' device list and blue-screened the
+ * user's PC through an old driver (2026-11-10, 11-15, 11-22). No semicolons: prompts must not contain them.
+ */
+export function pluginFolderNote(pluginRoot: string): string {
+  const templates = join(pluginRoot, 'templates');
+  return `The Multi-Manager plugin folder is ${pluginRoot} and its templates are in ${templates} (for example ${join(templates, 'architect', 'return.md')}). Read them from there. Never search a whole drive or the root folder for them (no find / in any form).`;
+}
+
 export function wtPath(env: Env): string {
   return env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe') : 'wt.exe';
 }
@@ -166,7 +176,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     pluginDir: ctx.pluginRoot,
     settingsPath: files.settings,
     ...(withGraph ? { mcpConfigPath: files.mcp, mcpConfigContent: devMcpConfig(tab.project.folder) } : {}),
-    prompt: tab.prompt(session.id),
+    prompt: `${tab.prompt(session.id)} ${pluginFolderNote(ctx.pluginRoot)}`,
     sessionId: session.id,
     parentId: tab.parentId,
     rosterDb,

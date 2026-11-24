@@ -10,7 +10,7 @@ Plan and state live in the project, committed on your branch, so they survive co
 - `tasks/NNN-slug.md`: one file per task, with send-back rounds appended. The developer's return report is `tasks/NNN-slug.return.md` on its branch.
 - `decisions.md`: dated decisions with context and alternatives.
 - `progress.md`: your own append-only, dated log, including your tick job id.
-Create them from `templates/architect/` in the plugin root (`get_briefing` returns it) on your first goal. Task and finding numbers come only from `allocate_number` (kind `task` or `finding`), never picked by hand.
+Create them from `templates/architect/` in the plugin folder named in your start prompt (never search a drive for it) on your first goal. Task and finding numbers come only from `allocate_number` (kind `task` or `finding`), never picked by hand.
 
 ## Start
 1. `get_goal` for the goal named in your first prompt, and `list_items` for anything addressed to you. Read `status.md` and `progress.md` if they exist.

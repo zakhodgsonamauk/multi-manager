@@ -221,6 +221,8 @@ test('architects launch developer tabs in their own worktree; stopping the archi
   assert.ok(decodeCommand(tab.args.at(-1) ?? '').includes(`Set-Location -LiteralPath '${copyFolder}'`));
   assert.equal(dev.session.folder, 'C:\\work\\alpha', 'the recorded folder stays the project folder');
   assert.equal(devArgs[devArgs.indexOf('--append-system-prompt-file') + 1], join('I:\\mm', 'briefings', 'developer.md'));
+  assert.ok(devArgs.at(-1)?.includes(join('I:\\mm', 'templates', 'architect', 'return.md')), 'the developer is told where the templates are');
+  assert.ok(devArgs.at(-1)?.includes('Never search a whole drive'), 'and never to search a whole drive for them');
   await stopArchitect(ctx, { project: 'alpha' });
   assert.deepEqual(calls.run.slice(2).map((c) => c.args[1]), ['6161', '7272']);
 });
