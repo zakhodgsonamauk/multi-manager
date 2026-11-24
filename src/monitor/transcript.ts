@@ -19,6 +19,25 @@ function num(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
+/** Fallback only: the OPENING words of a check-in turn the panel starts (the tick command, or the plain prompt it falls back to). */
+const CHECK_IN_OPENING = /^\s*(<command-(message|name)>\/?multi-manager:tick|The Multi-Manager check-in is due\.)/;
+
+/**
+ * The first line of a turn the Multi-Manager panel (or the timer) started to run a check-in. Matched on the line's
+ * origin (the panel's tick is tagged origin {kind: 'plugin', name: 'multi-manager'}); failing that, on the opening words
+ * of a plain user line. Compaction summaries, meta lines, task notifications and messages from people or other sessions
+ * are never check-in starts, however they quote the tick.
+ */
+function isCheckInStart(o: Record<string, unknown>): boolean {
+  const from = o.origin as { kind?: unknown; name?: unknown } | undefined;
+  if (from?.kind === 'plugin' && from.name === 'multi-manager') return true;
+  if (o.isMeta === true || o.isCompactSummary === true || o.turnOrigin === 'human' || o.turnOrigin === 'peer' || o.turnOrigin === 'task_notification') return false;
+  if (typeof o.turnOrigin === 'string' && o.turnOrigin !== 'system') return false;
+  const content = (o.message as { content?: unknown } | undefined)?.content;
+  const text = typeof content === 'string' ? content : Array.isArray(content) && (content[0] as { type?: unknown } | undefined)?.type === 'text' ? String((content[0] as { text?: unknown }).text) : '';
+  return CHECK_IN_OPENING.test(text);
+}
+
 function isToolResult(o: Record<string, unknown>): boolean {
   const content = (o.message as { content?: unknown } | undefined)?.content;
   return o.toolUseResult !== undefined || (Array.isArray(content) && content.length > 0 && content.every((c) => (c as { type?: string } | null)?.type === 'tool_result'));
@@ -41,7 +60,9 @@ export function parseTranscript(text: string): TranscriptInfo {
     if (o.type !== 'user' && o.type !== 'assistant') continue;
     if (o.isSidechain === true) continue;
     if (o.type === 'user') {
-      if (typeof o.turnOrigin === 'string') origin = o.turnOrigin;
+      // A check-in turn the system started (the timer, or the panel's quiet check that found news) is not the session's own.
+      if (isCheckInStart(o)) origin = 'scheduled';
+      else if (typeof o.turnOrigin === 'string') origin = o.turnOrigin;
       // A real user line with no origin (a message from another session often has none) starts the session's own turn.
       else if (o.isMeta !== true && !isToolResult(o)) origin = 'own';
     }

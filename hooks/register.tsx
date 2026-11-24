@@ -35,8 +35,8 @@ import {
   recentLine,
   rosterJson,
   TICK_COMMAND,
-  TIMER_NOTICE,
-  TIMER_REFUSAL,
+  timerNotice,
+  timerRefusal,
   type LastCheck,
   type RosterAnswerReply,
   type RosterNudge,
@@ -85,6 +85,10 @@ let isPaneAutoOpened = false
 let nextCheckIn: number | undefined
 /** When the check-in the panel started began, while it has not finished. */
 let checkInStartedAt: number | undefined
+/** When the check-in's `command.run` was asked for and has not resolved yet (it waits behind a busy turn): no other is started meanwhile. */
+let commandAskedAt: number | undefined
+/** A command that has not resolved after this long is taken as lost (cancelled), so check-ins carry on. Far longer than any busy turn. */
+const COMMAND_LOST_MS = 2 * 60 * 60_000
 /** The digest that rides along with the check-in the panel just started, and what to record once it went in. */
 let pendingDigest: { digest: unknown; fingerprint: string; at: number; isRecorded: boolean; isDigestSent?: boolean } | undefined
 /** When the 15-second loop last ran: the proof it is alive (a reload or a stopped interval leaves it stale). */
@@ -97,6 +101,19 @@ const drafts = new Map<number, string>()
 const isOtherRole = async ($: Engine): Promise<boolean> => {
   const role = await $.env.get('MM_ROLE')
   return role !== undefined && role !== '' && role !== 'front-desk'
+}
+
+/** An architect or project manager: the panel runs its check-ins too (quietly, no pane), with its own digest. */
+const isManagerRole = async ($: Engine): Promise<boolean> => {
+  const role = await $.env.get('MM_ROLE')
+  return role === 'architect' || role === 'project-manager'
+}
+
+/** Which roster digest this session's check-in asks for; undefined: this session runs no check-ins (a developer, or not yet the front desk). */
+const digestTool = async ($: Engine): Promise<'front_desk_digest' | 'manager_digest' | undefined> => {
+  if (await isManagerRole($)) return 'manager_digest'
+  if ((await read($, isFrontDesk)) && !(await isOtherRole($))) return 'front_desk_digest'
+  return undefined
 }
 
 const roster = async ($: Engine, tool: string, args: Record<string, unknown> = {}): Promise<unknown> => {
@@ -172,9 +189,11 @@ const startTimer = ($: Engine): void => {
 /** One turn of the 15-second loop: note that it is alive, refresh the pane, start a check-in if one is due. */
 const loopTick = async ($: Engine): Promise<void> => {
   try {
-    if (await isOtherRole($)) return // an architect or developer session neither polls nor runs check-ins
+    const isManager = await isManagerRole($)
+    if (!isManager && (await isOtherRole($))) return // a developer session neither polls nor runs check-ins
     lastLoopAt = await $.clock.now()
-    void poll($)
+    // An architect or project manager has no pane to refresh: only its quiet check-in runs.
+    if (!isManager) void poll($)
     void maybeCheckIn($)
   } catch {
     // The next turn tries again.
@@ -352,12 +371,12 @@ const openPane = ($: Engine) => $.ui.open({ id: PANE, title: TITLE })
  * timeout, a throw): the check-in then goes ahead without a digest. `asked` is read BEFORE asking: an item raised
  * during the call is then still newer than the stored time.
  */
-const fetchDigest = async ($: Engine, previous: { at: number } | null): Promise<{ digest: unknown; asked: number } | undefined> => {
+const fetchDigest = async ($: Engine, tool: string, previous: { at: number } | null): Promise<{ digest: unknown; asked: number } | undefined> => {
   const asked = await $.clock.now()
   const stop = new AbortController()
   const timedOut = Symbol('timed out')
   try {
-    const answer = roster($, 'front_desk_digest', previous === null ? {} : { since: new Date(previous.at).toISOString() })
+    const answer = roster($, tool, previous === null ? {} : { since: new Date(previous.at).toISOString() })
     answer.catch(() => undefined) // a late failure after the wait won is not an unhandled rejection
     const winner = await Promise.race([answer, $.clock.sleep(DIGEST_WAIT_MS, { signal: stop.signal }).then(() => timedOut)])
     if (winner === timedOut) {
@@ -385,9 +404,10 @@ const noteQuietCheck = async ($: Engine, decision: { word: LastCheck['word']; fo
  * One check-in, run by the panel. A quiet one stops here (band only, no turn, nothing in the chat). One with news (or any
  * doubt) starts the check-in turn with /multi-manager:tick; the digest rides along in the prompt.submit hook.
  */
-const runCheckIn = async ($: Engine): Promise<void> => {
+const runCheckIn = async ($: Engine, tool: string): Promise<void> => {
+  const asked = await $.clock.now()
   const previous = await read($, lastTick)
-  const got = await fetchDigest($, previous)
+  const got = await fetchDigest($, tool, previous)
   pendingDigest = undefined
   if (got !== undefined) {
     const decision = decideTick(readDigest(got.digest), previous?.fingerprint ?? null)
@@ -399,6 +419,7 @@ const runCheckIn = async ($: Engine): Promise<void> => {
   }
   try {
     // Resolves when the command has run; the caller's guard holds until then.
+    commandAskedAt = asked
     await $.command.run({ command: TICK_COMMAND })
   } catch {
     // Stop, a host limit or an unknown name: ask for the same thing as a plain prompt. The host refuses a prompt that
@@ -412,6 +433,9 @@ const runCheckIn = async ($: Engine): Promise<void> => {
     } catch {
       pendingDigest = undefined
     }
+  } finally {
+    // Only this command's own mark: a lost earlier one that resolves late must not clear a newer one's.
+    if (commandAskedAt === asked) commandAskedAt = undefined
   }
   // The tick prompt may never reach our own prompt.submit hook: once the command has run, record what was shown
   // (written once; the stash stays so the hook can still attach the digest if it runs later).
@@ -428,16 +452,19 @@ const runCheckIn = async ($: Engine): Promise<void> => {
 /** Called every 15 s from the poll loop. Starts the front desk's check-in when it is due; never throws, never stacks. */
 const maybeCheckIn = async ($: Engine): Promise<void> => {
   try {
-    if (!(await read($, isFrontDesk))) return
+    const tool = await digestTool($)
+    if (tool === undefined) return
     const now = await $.clock.now()
     nextCheckIn ??= now + CHECK_IN_MS
     if (now < nextCheckIn) return
+    // One whose command has not run yet (queued behind a long busy turn) is not doubled, until it is taken as lost.
+    if (commandAskedAt !== undefined && now - commandAskedAt < COMMAND_LOST_MS) return
     // One the panel started has not finished: wait, unless it has been silent past the limit.
     if (checkInStartedAt !== undefined && now - checkInStartedAt < CHECK_IN_PENDING_MAX_MS) return
     nextCheckIn = now + CHECK_IN_MS
     checkInStartedAt = now
     try {
-      await runCheckIn($)
+      await runCheckIn($, tool)
     } finally {
       if (checkInStartedAt === now) checkInStartedAt = undefined
     }
@@ -469,7 +496,7 @@ const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmi
   if (await isLoopAlive($)) {
     if (!isTimerNoticed) {
       isTimerNoticed = true
-      return next({ ...e, context: [...(e.context ?? []), TIMER_NOTICE] })
+      return next({ ...e, context: [...(e.context ?? []), timerNotice(await isManagerRole($))] })
     }
   } else {
     // The panel's loop is not running (a reload, a stopped interval): start it again, and judge this tick as before
@@ -480,7 +507,7 @@ const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmi
     lastLoopAt = await $.clock.now()
   }
   const previous = await read($, lastTick)
-  const got = await fetchDigest($, previous)
+  const got = await fetchDigest($, (await digestTool($)) ?? 'front_desk_digest', previous)
   if (got === undefined) return next(e)
   const decision = decideTick(readDigest(got.digest), previous?.fingerprint ?? null)
   if (decision.action === 'drop') {
@@ -499,10 +526,11 @@ const handleTick = async ($: Engine, e: PromptSubmitInput, next: (e: PromptSubmi
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    if (await isOtherRole($)) return started
+    // A developer runs nothing here. An architect or project manager runs only its quiet check-ins.
+    if ((await isOtherRole($)) && !(await isManagerRole($))) return started
     // The timer is cheap until this session is the front desk: each tick reads one flag and stops.
     startTimer($)
-    if ((await read($, isFrontDesk)) || (await $.env.get('MM_ROLE')) === 'front-desk') void activate($)
+    if (!(await isManagerRole($)) && ((await read($, isFrontDesk)) || (await $.env.get('MM_ROLE')) === 'front-desk')) void activate($)
     return started
   })
 
@@ -516,10 +544,10 @@ export const register: Register = on => {
   // The panel runs the front desk's check-ins: the model's own timer for them is refused (any other timer passes).
   on('tool.call', { tool: 'CronCreate' }, async ($, e, next) => {
     if (!isTickTimerPrompt((e as { prompt?: unknown }).prompt)) return next(e)
-    if (!(await read($, isFrontDesk)) || (await isOtherRole($))) return next(e)
+    if ((await digestTool($)) === undefined) return next(e)
     // Only while the loop that runs check-ins is alive: else the model's timer is the one that works.
     if (!(await isLoopAlive($))) return next(e)
-    return { deny: TIMER_REFUSAL }
+    return { deny: timerRefusal(await isManagerRole($)) }
   }).catch(($, e, next) => next(e))
 
   // /multi-manager:pane is commands/pane.md; here the mod answers it itself, so no model turn runs.
@@ -540,11 +568,14 @@ export const register: Register = on => {
   // The front desk model hears what the user did from the panel: on its next turn, whatever started it, the queued
   // notes ride along as one context entry and the queue empties. Kept apart from any other prompt.submit handling.
   on('prompt.submit', async ($, e, next) => {
-    if (!(await read($, isFrontDesk)) || (await isOtherRole($))) return next(e)
+    const tool = await digestTool($)
+    if (tool === undefined) return next(e)
     // The check-in the panel started itself carries the digest it stashed.
     if (isPanelTick(e)) return handlePanelTick($, e, next)
     // The timer's own check-in is judged by the digest first; a tick the user typed (composer origin) is not.
     if (isScheduledTick(e)) return handleTick($, e, next)
+    // Pane notes belong to the front desk alone.
+    if (tool !== 'front_desk_digest') return next(e)
     // A prompt the person did not type (isMeta) takes no rewrite when it starts a turn, and a slash command's text is
     // pinned: both pass untouched and the notes wait for the next real turn.
     if (e.isMeta === true || e.command !== undefined) return next(e)

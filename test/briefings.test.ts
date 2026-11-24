@@ -88,15 +88,11 @@ const required: Record<string, RegExp[]> = {
     /screenshots/,
     /record-only/i,
     /relayed decision/i,
-    /CronList/,
-    /CronCreate/,
-    /3-59\/10 \* \* \* \*/,
     /\/multi-manager:tick/,
-    /6\+ days/,
-    /CronDelete/,
-    /PAUSE item: `CronDelete` your tick job first/,
-    /re-arm/i,
-    /Developers get no timer/,
+    /Check-ins/,
+    /Arm no timer/,
+    /no check-in starts while paused/,
+    /Developers get no tick/,
   ],
   developer: [
     /^# Multi-Manager: Developer/m, /only on your task/i, /worktree/i, /never merge/i, /push/i, /raise_item/,
@@ -108,7 +104,7 @@ const required: Record<string, RegExp[]> = {
   'project-manager': [
     /^# Multi-Manager: Project manager/m, /one per project/i, /launched by the front desk/i, /launch_architect/, /never build/i,
     /set_project_rules/, /stop_architect/, /never approve a sign-off/i, /watcher_nudge/, /\/multi-manager:pm-intake/, /overlap/i,
-    /CronCreate/, /3-59\/10 \* \* \* \*/, /PAUSE item/, /report_paused/, /verbatim/, /never restart an architect/i,
+    /Arm no timer/, /PAUSE item/, /report_paused/, /verbatim/, /never restart an architect/i,
     /set_code_graph/, /It is off unless the project's teams will search a large codebase\./, /You decide and log the decision in `decisions\.md`\./,
   ],
 };
@@ -144,10 +140,26 @@ test('the architect briefing points at the workflow commands instead of repeatin
   assert.doesNotMatch(text, /conductor\//);
 });
 
-test('the architect deletes its tick job before report_paused', () => {
-  const text = read('architect');
-  const pause = text.slice(text.indexOf('On a PAUSE item'));
-  assert.ok(pause.indexOf('CronDelete') < pause.indexOf('report_paused'));
+test('architect and project manager briefings say check-ins are automatic and arm no timer', () => {
+  for (const role of ['architect', 'project-manager']) {
+    const text = read(role);
+    assert.doesNotMatch(text, /CronCreate/, `${role}.md still tells the model to CronCreate`);
+    assert.doesNotMatch(text, /3-59\/10/, `${role}.md still has the timer schedule`);
+    assert.doesNotMatch(text, /re-arm/i, `${role}.md still tells the model to re-arm a timer`);
+    assert.match(text, /Arm no timer/);
+  }
+});
+
+test('a pause stops work without a timer to delete: the architect is told no check-in starts while paused', () => {
+  const pause = read('architect');
+  assert.match(pause.slice(pause.indexOf('On a PAUSE item')), /no check-in starts while paused/);
+});
+
+test('tick.md sends architects and project managers to manager_digest, and no command arms a timer', () => {
+  const tick = readFileSync(join(import.meta.dirname, '..', 'commands', 'tick.md'), 'utf8');
+  assert.match(tick, /manager_digest/);
+  assert.match(tick, /resume_note_written/);
+  assert.doesNotMatch(tick, /self-armed/);
 });
 
 test('the project manager briefing is no longer than the architect briefing', () => {
@@ -180,8 +192,8 @@ test('the front desk section of tick.md acts from the digest and names front_des
   // Items the user has been shown are marked seen, so the next digest leaves them out.
   assert.match(desk, /new_items[^\n]*mark_seen/);
   assert.match(desk, /item_ids/);
-  // The architect and project-manager sections stay as they were.
-  assert.match(text, /## Architect\n- `check_in`\./);
+  // The architect and project-manager sections act from their own digest (manager_digest).
+  assert.match(text, /## Architect\n[^\n]*\n- A digest[^\n]*manager_digest/);
   assert.match(text, /Never restart an architect yourself/);
 });
 

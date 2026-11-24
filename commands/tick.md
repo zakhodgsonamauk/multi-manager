@@ -1,26 +1,33 @@
 ---
-description: Check-in tick for the self-armed timer: check team health and act on it
-argument-hint: "(none; the timer runs it)"
+description: Check-in tick, started by the Multi-Manager panel when something needs you: act on the digest
+argument-hint: "(none; the panel runs it)"
 ---
 Multi-Manager check-in tick. $ARGUMENTS
 
 Your role is `MM_ROLE` from the environment (your briefing says it too). No `MM_ROLE` means you are the front desk. Developers have no tick: if you are a developer, say "no tick for developers" and stop.
 
-1. FIRST call `team_health` (the front desk: see its section below, which replaces steps 1 to 3). If `paused` is true, say "paused — tick skipped" and stop. Do nothing else.
+1. Architects and project managers: see the sections below, which replace steps 1 to 3. Otherwise FIRST call `team_health`. If `paused` is true, say "paused — tick skipped" and stop. Do nothing else.
 2. Act on each session's `recommended_action`, as below for your role. `none` means leave it alone.
 3. Keep the output short. If nothing changed and nothing needed action, say one line: "all quiet". Never a wall of text.
 
 ## Architect
+The panel checks your developers and items in code and starts this turn only when something needs you, so a tick that reaches you has news (or the panel is not loaded).
+- A digest (JSON with `quiet`, `paused`, act_on, refresh_due, new_items, `fingerprint`) is in your context: act from it. No digest in your context: call `manager_digest` first. If `paused` is true, say "paused — tick skipped" and stop. If `quiet` is true, say "all quiet" and stop. Only if that tool is missing (an older roster server), fall back to `team_health` (stop if `paused`) and `list_items`.
 - `check_in`.
-- `list_items`: handle anything addressed to you that you have not seen yet, as your briefing says.
-- For each developer in `team_health`:
+- refresh_due (it names you): write your resume note to `progress.md` (where you stopped, what is in flight, next step), update `status.md`, call `resume_note_written`, then stop.
+- new_items: handle each as your briefing says.
+- For each developer in act_on, by its `action`:
   - `nudge`: `SendMessage` the developer "Are you stuck? Report via the roster, or carry on." Then `record_nudge` with its `session_id`.
   - `restart`: `restart_developer` with its `session_id`. Log it in `progress.md`.
   - `report`: `raise_item` kind `blocked` to the front desk with the session name, state and `reason` verbatim. Then `SendMessage` the front desk "check roster item #N".
 
 ## Project manager
-- `check_in`. `list_items` (watched items too, flagged `watching: true`; they do not show in the Stop hook list).
-- For each architect in `team_health`:
+The panel checks your architects and watched items in code and starts this turn only when something needs you, so a tick that reaches you has news (or the panel is not loaded).
+- A digest (JSON with `quiet`, `paused`, act_on, refresh_due, new_items, `fingerprint`) is in your context: act from it. No digest in your context: call `manager_digest` first. If `paused` is true, say "paused — tick skipped" and stop. If `quiet` is true, say "all quiet" and stop. Only if that tool is missing, fall back to `team_health` (stop if `paused`) and `list_items`.
+- `check_in`.
+- refresh_due (it names you): write your resume note to `progress.md`, update `status.md`, call `resume_note_written`, then stop.
+- new_items (watched items too): handle each as your briefing says.
+- For each architect in act_on, by its `action`:
   - `nudge`: `SendMessage` the architect "Are you stuck? Report via the roster, or carry on." Then `record_nudge` with its `session_id`.
   - `report`: after two nudges, `raise_item` kind `blocked` to the front desk with the architect, state and `reason` verbatim. Then `SendMessage` the returned nudge. Never restart an architect yourself.
 - Stop (`stop_architect`) architects whose goals are done and which have nothing assigned. Report in one line to the front desk.

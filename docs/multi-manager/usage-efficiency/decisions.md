@@ -59,3 +59,13 @@ One dated entry per decision, newest last. Never rewrite an old entry. Add a new
 - Decision: The keep-list is Multi-Manager, claude-in-chrome, second-opinion, code-review-graph, session-voice, cc-sounds and claudish-to-english. The last three are hook plugins the user relies on, and they add little start-up text.
 - Alternatives: Keep only Multi-Manager's own plugins. Rejected because it silently breaks voice, sounds and the plain-English rewrite in tabs.
 - Who: the architect.
+
+## 2026-11-24 — Quiet check-ins for architects and project managers (task 026)
+
+- Context: Every architect and project manager ran a 10-minute model turn just to find nothing to do.
+- Decision: The mod (`hooks/register.tsx`) runs the check-in in code for architect and project-manager sessions too, asking a new roster tool `manager_digest` (own scope: developers or architects, plus unseen items, plus its own resume-note request). A model turn starts only when that digest is not quiet and its fingerprint is new, reusing the front desk's `decideTick`. The briefings no longer arm a timer; a `CronCreate` of the tick is refused while the panel loop is alive. The first check is one loop turn after the 10 minutes (a manager has no start-up step that sets the schedule).
+- Decision: Items addressed to the manager count while unseen (the Stop hook marks them seen). Items it only watches cannot be marked seen by the watcher, so they are listed once by time (`since`, the time of the last turn started).
+- Decision: A check-in turn the system started is recognised in the transcript by its tick-command text (any turn origin except `human`), not only by turn origin `scheduled`, because the origin the host gives a plugin-started turn is not known.
+- Decision: Idle stop kills first and checks the exit code; only after a good kill does `stopSession` clean up. A resume-note request that expired is remembered (`refresh_expired_at`) and not re-asked for 2 hours.
+- Alternatives: The roster monitor nudging a manager only when its scope has news. Rejected: the mod route needs no new message path and reuses the front desk's tested decision code.
+- Who: developer, task 026.

@@ -9,7 +9,7 @@ Plan and state live in the project, committed on your branch, so they survive co
 - `status.md`: in flight, merged, queued, paused, findings, next.
 - `tasks/NNN-slug.md`: one file per task, with send-back rounds appended. The developer's return report is `tasks/NNN-slug.return.md` on its branch.
 - `decisions.md`: dated decisions with context and alternatives.
-- `progress.md`: your own append-only, dated log, including your tick job id.
+- `progress.md`: your own append-only, dated log.
 Create them from `templates/architect/` in the plugin folder named in your start prompt (never search a drive for it) on your first goal. Task and finding numbers come only from `allocate_number` (kind `task` or `finding`), never picked by hand.
 
 - Other plugins' skills are switched off in this tab to save context. `find_skill` searches them and `load_skill` returns one's instructions to follow.
@@ -21,9 +21,9 @@ Create them from `templates/architect/` in the plugin folder named in your start
 ## Who gets what
 `signoff` and `question` items always go to the front desk, even under a project manager, which only watches. `done`, `blocked` and `info` go to your project manager when you have one, otherwise the front desk. The project's standing user rules are shown at start-up: follow them.
 
-## Check-in timer
-- On start: `CronList`. If there is no `/multi-manager:tick` job, or yours was armed 6+ days ago (jobs expire after 7 days), `CronDelete` the old one and `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Log the job id and date armed in `progress.md`.
-- The tick checks your developers every 10 minutes while you are idle. Developers get no timer.
+## Check-ins
+- Automatic: the Multi-Manager panel checks your developers and items in code every 10 minutes and starts a `/multi-manager:tick` turn only when something needs you. Arm no timer. An old `/multi-manager:tick` timer you find with `CronList`: `CronDelete` it.
+- Developers get no tick.
 
 ## Each goal
 1. `/multi-manager:plan-goal`: tasks, the high-level plan and the testing approach (unit and end-to-end tests, plus your own browser click-through of every user-facing change, judging UI design and flow). Farm big research and planning to helper agents. Run read-only research and search helpers on Sonnet, or Haiku for plain searching, by passing `model` on the Agent tool; Opus only for a review that needs judgement. Raise the `signoff` the approval rules require; build nothing before the answer.
@@ -64,8 +64,8 @@ If the user talks to you directly in this tab, act on it. Then record the outcom
 - An idle manager whose conversation grows past the project's limit is restarted fresh by the system, so before going idle keep `status.md` and `progress.md` current: a fresh start resumes from them.
 
 ## Pause and resume
-- On a PAUSE item: `CronDelete` your tick job first, so nothing restarts work. Start nothing new (developers get their own). Reach a clean point, commit WIP on your branch, append a resume note to `progress.md` (where you stopped, what is in flight, next step), update `status.md`, `report_paused`, then stop.
-- After a resume: re-arm the timer as on start, read your resume note, summarise status to the front desk (`raise_item` kind `info`), then WAIT for the user's go before starting work or relaunching developers.
+- On a PAUSE item: start nothing new (developers get their own; no check-in starts while paused). Reach a clean point, commit WIP on your branch, append a resume note to `progress.md` (where you stopped, what is in flight, next step), update `status.md`, `report_paused`, then stop.
+- After a resume: read your resume note, summarise status to the front desk (`raise_item` kind `info`), then WAIT for the user's go before starting work or relaunching developers.
 
 ## How the user works
 - Plain words, impact first, short updates.

@@ -77,6 +77,8 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
     healthOverride: undefined as unknown,
     /** What front_desk_digest answers; undefined: the tool does not exist (an older roster). */
     digest: undefined as unknown,
+    /** What manager_digest answers (an architect's or project manager's own check-in); undefined: no such tool. */
+    managerDigest: undefined as unknown,
     /** How many of the next ui.status calls throw. */
     statusFailures: 0,
     /** Tools that never answer (a hung roster). */
@@ -142,6 +144,9 @@ function fakeRoster(options: { items?: Item[]; busy?: boolean; projects?: boolea
       case 'front_desk_digest':
         if (roster.digest === undefined) throw new Error('Unknown tool: front_desk_digest')
         return roster.digest
+      case 'manager_digest':
+        if (roster.managerDigest === undefined) throw new Error('Unknown tool: manager_digest')
+        return roster.managerDigest
       case 'resources':
         return roster.projects
           ? [{ session_id: 2, name: 'mm-arch-shop', role: 'architect', process_count: 12, max_processes: 40, over_max: false, binaries: [] }]
@@ -1157,7 +1162,7 @@ test('any doubt about the digest still runs the check-in, without a digest', asy
   expect(fake.roster.contexts.every(c => c === undefined)).toBe(true)
 })
 
-test('no second check-in while one is pending; a lost one stops blocking after the limit', async ($, on) => {
+test('no second check-in while the first one is still waiting to run, however long that takes', async ($, on) => {
   const clock = mock.clock(on)
   mock.env(on, {})
   const fake = fakeRoster()
@@ -1170,8 +1175,9 @@ test('no second check-in while one is pending; a lost one stops blocking after t
   await due(clock) // 10 min after: still pending
   await due(clock) // 20 min after
   expect(tickCommand.runs).toHaveLength(1)
-  await due(clock, 15 * 60_000) // past the 30 minute limit
-  expect(tickCommand.runs).toHaveLength(2)
+  // Past the 30 minute limit the command has still not run (it waits behind a long busy turn): never a second one.
+  await due(clock, 60 * 60_000)
+  expect(tickCommand.runs).toHaveLength(1)
 })
 
 test('one failure inside a check-in does not stop the later ones', async ($, on) => {
@@ -1205,7 +1211,7 @@ test('the model cannot arm the tick timer in the front desk; other timers and ot
   expect(refused.deny).toMatch(/panel runs the front desk.s check-ins itself/)
   expect(refused.deny).toMatch(/do not retry/i)
   expect((await cron('/loop 5m water the plants')).deny).toBeUndefined()
-  env.MM_ROLE = 'architect'
+  env.MM_ROLE = 'developer'
   expect((await cron('/multi-manager:tick')).deny).toBeUndefined()
 })
 
@@ -1288,8 +1294,8 @@ test('when the loop has stopped, the tick timer is not refused, and a scheduled 
   const cron = (prompt: string) => $.tool.call({ tool: 'CronCreate', cron: '*/10 * * * *', prompt } as never)
   expect((await cron('/multi-manager:tick')).deny).toMatch(/panel runs the front desk/) // loop alive
 
-  // The loop stops beating (here: the role changed under it) and a minute passes.
-  env.MM_ROLE = 'architect'
+  // The loop stops beating (here: the role changed under it, to a developer, which runs none) and a minute passes.
+  env.MM_ROLE = 'developer'
   await due(clock, 60_000)
   delete env.MM_ROLE
   expect((await cron('/multi-manager:tick')).deny).toBeUndefined() // stale: the model's timer is the one that works
@@ -1302,4 +1308,203 @@ test('when the loop has stopped, the tick timer is not refused, and a scheduled 
   const polls = fake.toolCalls('status').length
   await due(clock, 20_000)
   expect(fake.toolCalls('status').length).toBeGreaterThan(polls)
+})
+
+// ---- Task 026: architects and project managers get the same quiet check-in, with their own digest ----
+
+const MANAGER_QUIET = { quiet: true, paused: false, act_on: [], new_items: [], fingerprint: 'm0' }
+const MANAGER_NEWS = { quiet: false, paused: false, act_on: [{ id: 5, name: 'mm-dev', action: 'nudge' }], new_items: [], fingerprint: 'm1' }
+
+/** A session that is an architect or project manager from the start (MM_ROLE), never the front desk. */
+async function startManager($: Engine, role: string) {
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  expect(role).toBeDefined()
+}
+
+for (const role of ['architect', 'project-manager']) {
+  test(`${role}: a due check-in with a quiet digest starts no turn and asks only for its own digest`, async ($, on) => {
+    const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+    mock.env(on, { MM_ROLE: role })
+    const fake = fakeRoster({ items: [] })
+    fake.install(on)
+    fake.roster.managerDigest = MANAGER_QUIET
+    const tickCommand = fakeTickCommand(on)
+    await startManager($, role)
+    await due(clock, CHECK_MS - 60_000)
+    expect(fake.toolCalls('manager_digest')).toHaveLength(0) // not due yet
+    await due(clock, 60_000 + POLL_MS) // a manager's first loop turn sets the schedule, so the first check is one turn later
+    expect(fake.toolCalls('manager_digest')).toHaveLength(1)
+    expect(tickCommand.runs).toEqual([])
+    expect(fake.roster.prompts).toEqual([])
+    // No pane: none of the front desk's polling, and not the front desk's digest.
+    expect(fake.toolCalls('status')).toEqual([])
+    expect(fake.toolCalls('team_health')).toEqual([])
+    expect(fake.toolCalls('front_desk_digest')).toEqual([])
+    // Hours of quiet: still zero turns.
+    await due(clock, 6 * CHECK_MS)
+    expect(tickCommand.runs).toEqual([])
+    expect(fake.roster.prompts).toEqual([])
+    expect(fake.toolCalls('manager_digest').length).toBeGreaterThanOrEqual(7)
+  })
+
+  test(`${role}: news starts exactly one turn with the digest; the same news starts no second; new news starts one`, async ($, on) => {
+    const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+    mock.env(on, { MM_ROLE: role })
+    const fake = fakeRoster({ items: [] })
+    fake.install(on)
+    fake.roster.managerDigest = MANAGER_NEWS
+    const tickCommand = fakeTickCommand(on)
+    await startManager($, role)
+    await due(clock, CHECK_MS + POLL_MS)
+    expect(tickCommand.runs).toEqual(['run'])
+    await panelTick($)
+    expect(fake.roster.contexts.at(-1)?.[0]).toContain(JSON.stringify(MANAGER_NEWS))
+    // Same fingerprint ten minutes on: no second turn; `since` is when the first went in.
+    await due(clock)
+    expect(tickCommand.runs).toHaveLength(1)
+    expect(fake.toolCalls('manager_digest').at(-1)?.args).toEqual({ since: '2026-10-21T10:15:15.000Z' })
+    // The news clears and comes back, or changes: a turn again.
+    fake.roster.managerDigest = { ...MANAGER_NEWS, fingerprint: 'm2' }
+    await due(clock)
+    expect(tickCommand.runs).toHaveLength(2)
+  })
+}
+
+test('a manager whose roster is paused starts no check-in turn', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, { MM_ROLE: 'architect' })
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.managerDigest = { ...MANAGER_NEWS, paused: true }
+  const tickCommand = fakeTickCommand(on)
+  await startManager($, 'architect')
+  await due(clock, CHECK_MS + POLL_MS)
+  expect(fake.toolCalls('manager_digest')).toHaveLength(1)
+  expect(tickCommand.runs).toEqual([])
+})
+
+test('a developer session runs no check-in at all', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, { MM_ROLE: 'developer' })
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.managerDigest = MANAGER_NEWS
+  const tickCommand = fakeTickCommand(on)
+  await startManager($, 'developer')
+  await due(clock, 3 * CHECK_MS)
+  expect(fake.roster.calls).toEqual([])
+  expect(tickCommand.runs).toEqual([])
+})
+
+test('a manager cannot arm the tick timer while the panel runs its check-ins; other timers pass', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, { MM_ROLE: 'architect' })
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  await startManager($, 'architect')
+  await due(clock, POLL_MS) // the first loop turn: the loop that runs check-ins is alive
+  const cron = (prompt: string) => $.tool.call({ tool: 'CronCreate', cron: '*/10 * * * *', prompt } as never)
+  expect((await cron('/multi-manager:tick')).deny).toMatch(/do not retry/i)
+  expect((await cron('/loop 5m water the plants')).deny).toBeUndefined()
+})
+
+test('an architect that sat quiet for hours gets exactly one turn when an item is addressed to it', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, { MM_ROLE: 'architect' })
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.managerDigest = MANAGER_QUIET
+  const tickCommand = fakeTickCommand(on)
+  await startManager($, 'architect')
+  await due(clock, 6 * CHECK_MS) // an hour of quiet check-ins
+  expect(tickCommand.runs).toEqual([])
+  expect(fake.roster.prompts).toEqual([])
+  const item = { id: 40, kind: 'done', category: 'action', raised_by: 'mm-dev', body: 'finished' }
+  fake.roster.managerDigest = { ...MANAGER_QUIET, quiet: false, new_items: [item], fingerprint: 'n40' }
+  await due(clock)
+  expect(tickCommand.runs).toEqual(['run'])
+  await panelTick($)
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain('"id":40')
+  // The item stays unseen for another ten minutes (the model has not read it yet): no second turn.
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(1)
+})
+
+test('a manager turn that stays busy for over 30 minutes ends with one tick, not two', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, { MM_ROLE: 'architect' })
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.managerDigest = MANAGER_NEWS
+  // The command waits behind a busy turn: resolved by hand after 45 minutes.
+  const runs: string[] = []
+  let release: () => void = () => undefined
+  on('command.run', { command: 'multi-manager:tick' }, () => {
+    runs.push('run')
+    return new Promise<{ text: string }>(resolve => {
+      release = () => resolve({ text: '' })
+    })
+  })
+  await startManager($, 'architect')
+  await due(clock, CHECK_MS + POLL_MS)
+  expect(runs).toHaveLength(1)
+  fake.roster.managerDigest = { ...MANAGER_NEWS, fingerprint: 'm9' } // news changed meanwhile
+  await due(clock, 45 * 60_000)
+  expect(runs).toHaveLength(1)
+  release()
+  await clock.settle()
+  await panelTick($)
+  expect(fake.roster.contexts.at(-1)?.[0]).toContain(JSON.stringify(MANAGER_NEWS)) // the digest the first check asked for
+  expect(runs).toHaveLength(1)
+})
+
+test('after a pause ends, a problem shown before the pause gets a turn again', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-21T10:05:00.000Z') })
+  mock.env(on, { MM_ROLE: 'architect' })
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.managerDigest = MANAGER_NEWS
+  const tickCommand = fakeTickCommand(on)
+  await startManager($, 'architect')
+  await due(clock, CHECK_MS + POLL_MS)
+  expect(tickCommand.runs).toHaveLength(1)
+  await panelTick($)
+  await due(clock) // same news: nothing
+  expect(tickCommand.runs).toHaveLength(1)
+  fake.roster.managerDigest = { ...MANAGER_NEWS, paused: true }
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(1)
+  fake.roster.managerDigest = MANAGER_NEWS // resumed, the same problem is still there
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(2)
+})
+
+test('the timer refusal speaks to a manager as "your", not the front desk', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, { MM_ROLE: 'project-manager' })
+  const fake = fakeRoster({ items: [] })
+  fake.install(on)
+  fake.roster.managerDigest = MANAGER_QUIET
+  await startManager($, 'project-manager')
+  await due(clock, POLL_MS)
+  const refused = await $.tool.call({ tool: 'CronCreate', cron: '*/10 * * * *', prompt: '/multi-manager:tick' } as never)
+  expect(refused.deny).toMatch(/runs your check-ins itself/)
+  expect(refused.deny).not.toMatch(/front desk/)
+})
+
+test('a check-in command that never resolves is taken as lost after 2 hours; a slow one is never doubled before', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  const fake = fakeRoster()
+  fake.install(on)
+  fake.roster.digest = TROUBLE
+  const tickCommand = fakeTickCommand(on, { value: 'hang' })
+  await startFrontDesk($, clock)
+  await due(clock)
+  expect(tickCommand.runs).toHaveLength(1)
+  await due(clock, 100 * 60_000) // 1 h 40 min on: slow, not lost
+  expect(tickCommand.runs).toHaveLength(1)
+  fake.roster.digest = { ...TROUBLE, fingerprint: 'f9' }
+  await due(clock, 30 * 60_000) // past 2 hours
+  expect(tickCommand.runs).toHaveLength(2)
 })

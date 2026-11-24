@@ -420,12 +420,12 @@ export function isTickTimerPrompt(prompt: unknown): boolean {
 }
 
 /** What the model reads when it tries to arm the tick timer while the panel runs check-ins. */
-export const TIMER_REFUSAL =
-  "No timer needed: the Multi-Manager panel runs the front desk's check-ins itself and starts a check-in turn when something needs you. Do not arm a timer and do not retry."
+export const timerRefusal = (isManager: boolean): string =>
+  `No timer needed: the Multi-Manager panel runs ${isManager ? 'your' : "the front desk's"} check-ins itself and starts a check-in turn when something needs you. Do not arm a timer and do not retry.`
 
 /** Rides along with the first timer-fired check-in after the panel took over, so the model removes its own timer. */
-export const TIMER_NOTICE =
-  'The Multi-Manager panel now runs the front desk check-ins itself. Call CronList and CronDelete the job whose prompt is /multi-manager:tick; do not arm another. Then carry on with this check-in as usual.'
+export const timerNotice = (isManager: boolean): string =>
+  `The Multi-Manager panel now runs ${isManager ? 'your' : 'the front desk'} check-ins itself. Call CronList and CronDelete the job whose prompt is /multi-manager:tick; do not arm another. Then carry on with this check-in as usual.`
 
 /** What `front_desk_digest` answers (the parts the pane reads). */
 export type RosterDigest = { quiet: boolean; paused: boolean; fingerprint: string }
@@ -453,8 +453,9 @@ export type TickDecision =
 
 export function decideTick(digest: RosterDigest | undefined, lastFingerprint: string | null): TickDecision {
   if (digest === undefined) return { action: 'pass' }
-  // Paused: the tick would only say "paused — tick skipped", and the pane shows paused already. The fingerprint is kept.
-  if (digest.paused) return { action: 'drop', word: 'paused', forgetFingerprint: false }
+  // Paused: the tick would only say "paused — tick skipped", and the pane shows paused already. The fingerprint is
+  // forgotten, so a problem shown before the pause gets a turn again after the resume.
+  if (digest.paused) return { action: 'drop', word: 'paused', forgetFingerprint: true }
   // Quiet: forget the fingerprint, so trouble that goes and comes back is shown again.
   if (digest.quiet) return { action: 'drop', word: 'all quiet', forgetFingerprint: true }
   if (digest.fingerprint === lastFingerprint) return { action: 'drop', word: 'nothing new', forgetFingerprint: false }

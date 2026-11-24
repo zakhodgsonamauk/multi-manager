@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { FRESH_AFTER_IDLE_STOP, FRESH_AFTER_REFRESH, type Command } from '../src/launch/command.ts';
 import { launchArchitect, launchDeveloper, launchProjectManager, restartArchitect, stopSession, type LaunchContext } from '../src/launch/launcher.ts';
@@ -10,11 +11,14 @@ import {
   decideIdleStop,
   decideRefresh,
   lifecycleRow,
+  isProcessGone,
   refreshRequestLive,
+  REFRESH_COOLDOWN_MS,
   runLifecycle,
   type IdleStopInput,
   type RefreshInput,
 } from '../src/monitor/lifecycle.ts';
+import { claim, listClaims } from '../src/roster/claims.ts';
 import { answerItem, raiseItem } from '../src/roster/items.ts';
 import { endPause, startPause } from '../src/roster/pause.ts';
 import { addProject, requireProject } from '../src/roster/projects.ts';
@@ -75,14 +79,15 @@ test('idle stop: idle past the limit with nothing under it and nothing waiting s
 function fakeDeps() {
   const runs: Command[] = [];
   const alive = new Set<number>();
-  const control = { killCode: 0, launchCode: 0, notOurs: new Set<number>() };
+  const control = { killCode: 0, killStderr: '', launchCode: 0, notOurs: new Set<number>() };
+  const removed: string[] = [];
   let nextPid = 4000;
   const deps: LaunchDeps = {
     run: async (command) => {
       runs.push(command);
       if (command.file === 'taskkill') {
         if (control.killCode === 0) alive.delete(Number(command.args[1]));
-        return { code: control.killCode, stdout: '', stderr: '' };
+        return { code: control.killCode, stdout: '', stderr: control.killCode === 0 ? '' : control.killStderr };
       }
       return { code: control.launchCode, stdout: '', stderr: '' };
     },
@@ -96,12 +101,14 @@ function fakeDeps() {
     waitForWrapperPid: async () => (nextPid += 1),
     readWrapperPid: () => null,
     ownsWrapper: async () => false,
-    removeFiles: () => {},
+    removeFiles: (paths) => {
+      removed.push(...paths);
+    },
     ensureTerminalProfile: () => {},
     readClaudeSessionId: (pid) => `conv-${pid}`,
     conversationExists: () => true,
   };
-  return { deps, runs, alive, control };
+  return { deps, runs, alive, control, removed };
 }
 
 /** The claude arguments of the last tab opened. */
@@ -325,10 +332,15 @@ test('idle stop: unproven process is not stopped, a failed kill leaves it runnin
   assert.match(report.errors.join(' '), /could not prove/);
   fake.control.notOurs.clear();
   fake.control.killCode = 1;
+  claim(db, arch.project_id as number, 'src/x.ts', arch.id, now);
+  fake.removed.length = 0; // launching also removes stale files: count only what the failed idle stop does
   report = await runLifecycle(launch, readers, now);
   assert.equal(report.idle_stopped.length, 0);
   assert.match(report.errors.join(' '), /failed to kill/);
   assert.equal(requireSession(db, arch.id).state, 'running');
+  // the failed kill must leave its settings files and claims alone (nothing was cleaned up)
+  assert.deepEqual(fake.removed, []);
+  assert.equal(listClaims(db, arch.project_id as number).length, 1);
   assert.equal(lifecycleRow(db, arch.id)?.idle_stopped_at ?? null, null);
   // and a later item must not "restore" a session that was never stopped
   raiseItem(db, { kind: 'question', body: 'x', raisedBy: desk.id, addressedTo: arch.id });
@@ -405,4 +417,48 @@ test('a resume-note request nobody answers expires, and is dropped once the conv
   await runLifecycle(launch, readers, now);
   assert.equal(lifecycleRow(db, arch.id), undefined);
   assert.equal((await digest()).refresh_due, undefined);
+});
+
+test('after a request expires nobody asks again until the cool-down has passed, so the digest stays quiet', async (t) => {
+  const { desk, launch, now, readers, set, digest } = setup(t, { contextLimitTokens: 100_000, idleStopMinutes: 100_000 });
+  const arch = (await launchArchitect(launch, { project: 'alpha', parentId: desk.id })).session;
+  set(arch.pid, { contextTokens: 150_000, ownQuietMinutes: 10 });
+  await runLifecycle(launch, readers, now);
+  assert.ok((await digest()).refresh_due);
+  const later = (minutes: number) => new Date(now.getTime() + minutes * 60_000);
+  // 31 minutes on: the request expired. It is dropped and not re-asked in the same pass.
+  const expiredPass = await runLifecycle(launch, readers, later(31));
+  assert.equal(expiredPass.note_requested.length, 0);
+  // still inside the cool-down (the session stays big and idle)
+  assert.equal((await runLifecycle(launch, readers, later(31 + 60))).note_requested.length, 0);
+  // after the cool-down it may ask once more
+  assert.equal((await runLifecycle(launch, readers, later(31 + REFRESH_COOLDOWN_MS / 60_000 + 1))).note_requested.length, 1);
+});
+
+test('idle stop: a process that already exited by itself counts as stopped, not as a failed kill', async (t) => {
+  const { db, desk, launch, now, readers, set, fake } = setup(t, { idleStopMinutes: 60 });
+  const arch = (await launchArchitect(launch, { project: 'alpha', parentId: desk.id })).session;
+  set(arch.pid, { ownQuietMinutes: 300 });
+  fake.control.killCode = 128;
+  fake.control.killStderr = 'ERROR: The process "4001" not found.';
+  const report = await runLifecycle(launch, readers, now);
+  assert.deepEqual(report.errors, []);
+  assert.equal(report.idle_stopped.length, 1);
+  assert.equal(requireSession(db, arch.id).state, 'stopped');
+  // a real failure (no such words) is still a failed kill
+  assert.equal(isProcessGone({ stderr: 'ERROR: Access is denied.', stdout: '' }), false);
+});
+
+test('the cool-down column is added to an old table once, and a second connection that finds it there carries on', (t) => {
+  const db = tempRoster(t);
+  db.exec('DROP TABLE IF EXISTS manager_lifecycle');
+  db.exec('CREATE TABLE manager_lifecycle (session_id INTEGER PRIMARY KEY, refresh_requested_at INTEGER, note_ready_at INTEGER, idle_stopped_at INTEGER, idle_stopped_pid INTEGER)');
+  assert.equal(lifecycleRow(db, 1), undefined); // runs the migration
+  const columns = () => (db.prepare('PRAGMA table_info(manager_lifecycle)').all() as { name: string }[]).filter((c) => c.name === 'refresh_expired_at').length;
+  assert.equal(columns(), 1);
+  // the same database again (another manager's server, or a restart): the column is there, nothing is added or thrown
+  const again = new DatabaseSync(process.env.MM_ROSTER_DB as string);
+  assert.equal(lifecycleRow(again, 1), undefined);
+  assert.equal(columns(), 1);
+  again.close(); // before the temporary folder goes
 });

@@ -118,7 +118,7 @@ test('a check-in with a new fingerprint goes through with the digest', () => {
 })
 
 test('a paused roster drops the check-in, even with trouble', () => {
-  expect(decideTick(digest({ paused: true }), null)).toEqual({ action: 'drop', word: 'paused', forgetFingerprint: false })
+  expect(decideTick(digest({ paused: true }), null)).toEqual({ action: 'drop', word: 'paused', forgetFingerprint: true })
 })
 
 test('no digest (roster away, tool missing, odd answer) lets the check-in through unchanged', () => {

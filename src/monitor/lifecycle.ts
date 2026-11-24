@@ -6,7 +6,7 @@ import { many, one, resolveDbPath } from '../roster/db.ts';
 import { raiseItem } from '../roster/items.ts';
 import { assertNotPaused, isPaused } from '../roster/pause.ts';
 import { requireProjectById } from '../roster/projects.ts';
-import { frontDesk, requireSession, runningChildren, setClaudeSessionId, setSessionState, type Session } from '../roster/sessions.ts';
+import { frontDesk, requireSession, runningChildren, setClaudeSessionId, type Session } from '../roster/sessions.ts';
 import { readActivity, type ActivityReaders, type ClaudeStatus } from './activity.ts';
 
 /**
@@ -27,6 +27,8 @@ export const RESTART_QUIET_MS = 60_000;
 export const REFRESH_REQUEST_TTL_MS = 30 * 60_000;
 /** A note older than this, with the session active since, is stale: ask again. */
 export const NOTE_STALE_MS = 3 * 60_000;
+/** After a request expired unanswered, nobody asks again for this long (the digest stays quiet meanwhile). */
+export const REFRESH_COOLDOWN_MS = 2 * 60 * 60_000;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS manager_lifecycle (
@@ -34,12 +36,23 @@ CREATE TABLE IF NOT EXISTS manager_lifecycle (
   refresh_requested_at INTEGER,
   note_ready_at INTEGER,
   idle_stopped_at INTEGER,
-  idle_stopped_pid INTEGER
+  idle_stopped_pid INTEGER,
+  refresh_expired_at INTEGER
 );`;
 const ready = new WeakSet<DatabaseSync>();
 function ensure(db: DatabaseSync): void {
   if (ready.has(db)) return;
   db.exec(SCHEMA);
+  // A roster made before the cool-down existed lacks the column.
+  const columns = many<{ name: string }>(db.prepare('PRAGMA table_info(manager_lifecycle)').all());
+  if (!columns.some((c) => c.name === 'refresh_expired_at')) {
+    try {
+      db.exec('ALTER TABLE manager_lifecycle ADD COLUMN refresh_expired_at INTEGER');
+    } catch (error) {
+      // Each manager has its own roster server: another one may have added the column a moment ago.
+      if (!/duplicate column/i.test(message(error))) throw error;
+    }
+  }
   ready.add(db);
 }
 
@@ -50,6 +63,8 @@ export interface LifecycleRow {
   idle_stopped_at: number | null;
   /** The claude pid it had when the idle stop killed it: a relaunch (any other restart) has a different one. */
   idle_stopped_pid: number | null;
+  /** When a resume-note request expired unanswered: no new request until the cool-down has passed. */
+  refresh_expired_at: number | null;
 }
 
 export function lifecycleRow(db: DatabaseSync, sessionId: number): LifecycleRow | undefined {
@@ -155,7 +170,7 @@ async function replaceWithFresh(ctx: LaunchContext, session: Session, reason: st
     const target = await ownedProcess(ctx, session);
     if (target === null) throw new Error(`${label}: could not prove the running process is its own, so it was left alone`);
     const result = await ctx.deps.run(buildStopCommand(target));
-    if (result.code !== 0) throw new Error(`${label}: killing process ${target} failed (taskkill exit ${result.code}), so no second copy was opened`);
+    if (result.code !== 0 && !isProcessGone(result)) throw new Error(`${label}: killing process ${target} failed (taskkill exit ${result.code}), so no second copy was opened`);
   }
   assertNotPaused(ctx.db, session.project_id);
   const saved = requireSession(ctx.db, session.id).claude_session_id;
@@ -179,6 +194,11 @@ export interface LifecycleReport {
 function rosterMs(s: Session): number {
   const at = Date.parse(s.last_checkin_at ?? s.created_at);
   return Number.isFinite(at) ? at : 0;
+}
+
+/** taskkill says the process is not there (it exited by itself since we proved it ours): that is stopped, not a failed kill. */
+export function isProcessGone(result: { stderr: string; stdout: string }): boolean {
+  return /not found|no running instance/i.test(`${result.stderr} ${result.stdout}`);
 }
 
 const label = (s: Session): string => s.name ?? `session #${s.id}`;
@@ -223,18 +243,20 @@ export async function runLifecycle(ctx: LaunchContext, readers: ActivityReaders,
           paused,
         })
       ) {
-        // Only a process that is provably its own is killed, and the stop only counts if the kill worked;
-        // otherwise the manager is left running and the problem is reported.
-        if ((await ownedProcess(ctx, session)) === null) {
+        // Only a process that is provably its own is killed, and the kill comes first: a failed kill leaves the manager
+        // exactly as it was (settings files, tool connection and claims intact). Only after a good kill does
+        // stopSession clean up.
+        const target = await ownedProcess(ctx, session);
+        if (target === null) {
           report.errors.push(`${label(session)}: idle, but could not prove the running process is its own, so it was not stopped`);
           continue;
         }
-        const stopped = await stopSession(ctx, session.id);
-        if (!stopped.killed) {
-          setSessionState(db, session.id, 'running');
-          report.errors.push(`${label(session)}: idle stop failed to kill the process (${stopped.warnings.join(' ') || 'no detail'}); left running`);
+        const kill = await ctx.deps.run(buildStopCommand(target));
+        if (kill.code !== 0 && !isProcessGone(kill)) {
+          report.errors.push(`${label(session)}: idle stop failed to kill the process (taskkill exit ${kill.code}: ${kill.stderr || kill.stdout || 'no detail'}); left running`);
           continue;
         }
+        await stopSession(ctx, session.id);
         clearLifecycle(db, session.id);
         setColumns(db, session.id, { idle_stopped_at: t, idle_stopped_pid: session.pid });
         stoppedNow.add(session.id);
@@ -247,9 +269,13 @@ export async function runLifecycle(ctx: LaunchContext, readers: ActivityReaders,
       const staleNote = row?.note_ready_at != null && own > row.note_ready_at + NOTE_STALE_MS;
       const expired = row?.refresh_requested_at != null && row.note_ready_at == null && !refreshRequestLive(row, t);
       const small = row?.refresh_requested_at != null && activity.context_tokens !== null && activity.context_tokens <= project.context_limit_tokens;
-      if (staleNote || expired || small) {
+      if (staleNote || small) {
         clearLifecycle(db, session.id);
         row = undefined;
+      } else if (expired) {
+        // Dropped, but remembered: no new request until the cool-down has passed.
+        setColumns(db, session.id, { refresh_requested_at: null, note_ready_at: null, refresh_expired_at: t });
+        row = lifecycleRow(db, session.id);
       }
       const decision = decideRefresh({
         contextTokens: activity.context_tokens,
@@ -261,8 +287,10 @@ export async function runLifecycle(ctx: LaunchContext, readers: ActivityReaders,
         noteReady: row?.note_ready_at != null,
         paused,
       });
+      const coolingDown = row?.refresh_expired_at != null && t - row.refresh_expired_at < REFRESH_COOLDOWN_MS;
+      if (decision === 'request-note' && coolingDown) continue;
       if (decision === 'request-note') {
-        setColumns(db, session.id, { refresh_requested_at: t });
+        setColumns(db, session.id, { refresh_requested_at: t, refresh_expired_at: null });
         report.note_requested.push({ session_id: session.id, name: label(session), context_tokens: activity.context_tokens as number });
       } else if (decision === 'restart') {
         await replaceWithFresh(ctx, session, FRESH_AFTER_REFRESH);

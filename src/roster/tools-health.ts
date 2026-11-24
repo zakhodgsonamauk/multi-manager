@@ -28,7 +28,10 @@ function me(ctx: ToolContext): Session {
   return requireSession(ctx.db, id);
 }
 
-type HealthRow = Pick<SessionHealth, 'session_id' | 'name' | 'role' | 'state' | 'status' | 'minutes_quiet' | 'nudges' | 'recommended_action' | 'reason'>;
+const REFRESH_MESSAGE =
+  'Your conversation is big, so you will be restarted fresh. Write your resume note to progress.md (where you stopped, what is in flight, next step), update status.md, then call resume_note_written and stop.';
+
+type HealthRow =Pick<SessionHealth, 'session_id' | 'name' | 'role' | 'state' | 'status' | 'minutes_quiet' | 'nudges' | 'recommended_action' | 'reason'>;
 
 function row(h: SessionHealth): HealthRow {
   const { session_id, name, role, state, status, minutes_quiet, nudges, recommended_action, reason } = h;
@@ -127,7 +130,7 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
         const top = scope((s) => s.role === 'architect' || s.role === 'project-manager').map((s) => ({ session: s, health: sessionHealth(db, s, readers, t) }));
         const act_on = top
           .filter(({ health }) => health.recommended_action !== 'none')
-          .map(({ health: h }) => ({ id: h.session_id, name: h.name, role: h.role, state: h.state, action: h.recommended_action, reason: h.reason }));
+          .map(({ health: h }) => ({ id: h.session_id, name: h.name, role: h.role, state: h.state, action: h.recommended_action, nudges: h.nudges, reason: h.reason }));
         const idle_past_limit = top
           .filter(({ session, health }) => {
             if (session.role !== 'architect' || session.state !== 'running' || health.status !== 'idle') return false;
@@ -150,7 +153,7 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
           .map(({ health: h }) => ({
             id: h.session_id,
             name: h.name,
-            message: 'Your conversation is big, so you will be restarted fresh. Write your resume note to progress.md (where you stopped, what is in flight, next step), update status.md, then call resume_note_written and stop.',
+            message: REFRESH_MESSAGE,
           }));
         const rows = many<{ id: number; kind: ItemKind; body: string; project: string | null; raised_by: string | null }>(
           db
@@ -175,12 +178,68 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
           body: r.body.length > 200 ? `${r.body.slice(0, 199)}…` : r.body,
         }));
         const fingerprint = createHash('sha1')
-          .update([...act_on.map((a) => `a${a.id}:${a.action}`), ...idle_past_limit.map((i) => `i${i.id}`), ...refresh_due.map((r) => `r${r.id}`), ...new_items.map((i) => `n${i.id}`)].join('|'))
+          .update([...act_on.map((a) => `a${a.id}:${a.action}:${a.nudges}`), ...idle_past_limit.map((i) => `i${i.id}`), ...refresh_due.map((r) => `r${r.id}`), ...new_items.map((i) => `n${i.id}`)].join('|'))
           .digest('hex')
           .slice(0, 8);
         const quiet = act_on.length === 0 && idle_past_limit.length === 0 && refresh_due.length === 0 && new_items.length === 0;
         // Compact on purpose: a quiet answer is about 120 characters.
         return JSON.stringify({ quiet, paused: isPaused(db), act_on, idle_past_limit, ...(refresh_due.length > 0 ? { refresh_due } : {}), new_items, fingerprint });
+      }),
+  );
+
+  server.registerTool(
+    'manager_digest',
+    {
+      description:
+        'Architect or project manager only: does anything need you right now? Same compact JSON as front_desk_digest, for your own scope: act_on (architect: your developers; project manager: your architects, as team_health recommends), refresh_due (yourself, when your conversation is big: write your resume note, then call resume_note_written), new_items (live items addressed to you and not marked seen, plus items you only watch raised since the optional ISO time `since`), quiet, paused and a fingerprint that stays the same while nothing changes. The Multi-Manager panel calls this for you and starts a check-in turn only when quiet is false.',
+      inputSchema: { since: z.string().optional().describe('ISO time; items you only watch are listed only if raised after it') },
+    },
+    ({ since }) =>
+      guard(() => {
+        const caller = me(ctx);
+        if (caller.role !== 'architect' && caller.role !== 'project-manager') throw new Error('Only architects and project managers can call manager_digest');
+        const t = now();
+        let sinceIso: string | null = null;
+        if (since !== undefined) {
+          const parsed = Date.parse(since);
+          if (!Number.isFinite(parsed)) throw new Error(`since must be an ISO time, got "${since}"`);
+          sinceIso = new Date(parsed).toISOString();
+        }
+        const childRole = caller.role === 'architect' ? 'developer' : 'architect';
+        const act_on = scope((s) => s.role === childRole && s.parent_id === caller.id)
+          .map((s) => sessionHealth(db, s, readers, t))
+          .filter((h) => h.recommended_action !== 'none')
+          .map((h) => ({ id: h.session_id, name: h.name, role: h.role, state: h.state, action: h.recommended_action, nudges: h.nudges, reason: h.reason }));
+        const refresh_due =
+          caller.state === 'running' && refreshRequestLive(lifecycleRow(db, caller.id), t)
+            ? [{ id: caller.id, name: caller.name, message: REFRESH_MESSAGE }]
+            : [];
+        // Addressed to me: unread until the Stop hook shows it (or mark_seen). Only watched: the seen flag is not mine to set,
+        // so those are listed once, by time.
+        const rows = many<{ id: number; kind: ItemKind; body: string; raised_by: string | null }>(
+          db
+            .prepare(
+              `SELECT i.id, i.kind, i.body, r.name AS raised_by
+               FROM items i LEFT JOIN sessions r ON r.id = i.raised_by
+               WHERE (i.addressed_to = ? AND i.seen = 0 AND i.state IN ('open', 'answered'))
+                  OR (i.watched_by = ? AND i.addressed_to <> ? AND i.state = 'open' AND (? IS NULL OR i.created_at > ?))
+               ORDER BY i.id`,
+            )
+            .all(caller.id, caller.id, caller.id, sinceIso, sinceIso),
+        );
+        const new_items = rows.map((r) => ({
+          id: r.id,
+          kind: r.kind,
+          category: itemCategory(r.kind),
+          raised_by: r.raised_by,
+          body: r.body.length > 200 ? `${r.body.slice(0, 199)}…` : r.body,
+        }));
+        const fingerprint = createHash('sha1')
+          .update([...act_on.map((a) => `a${a.id}:${a.action}:${a.nudges}`), ...refresh_due.map((r) => `r${r.id}`), ...new_items.map((i) => `n${i.id}`)].join('|'))
+          .digest('hex')
+          .slice(0, 8);
+        const quiet = act_on.length === 0 && refresh_due.length === 0 && new_items.length === 0;
+        return JSON.stringify({ quiet, paused: isPaused(db, caller.project_id), act_on, ...(refresh_due.length > 0 ? { refresh_due } : {}), new_items, fingerprint });
       }),
   );
 

@@ -125,3 +125,16 @@ test('an open item that becomes unseen again shows in new_items', async (t) => {
   assert.deepEqual((await call()).digest.new_items.map((i) => i.id), [item.id]);
   assert.equal((await call()).digest.quiet, false);
 });
+
+test('the front desk fingerprint changes after a nudge, so a stuck architect is not stalled at the first one', async (t) => {
+  const { db, main, arch, desk, ctx, call, setStatus } = setup(t);
+  createGoal(db, { workstreamId: main.id, text: 'in flight' });
+  setStatus('busy', 90);
+  const first = (await call()).digest;
+  assert.equal(first.act_on[0].action, 'nudge');
+  const tools = new Map<string, Handler>();
+  registerHealthTools({ registerTool: (name: string, _c: unknown, h: Handler) => tools.set(name, h) } as unknown as McpServer, ctx, { readers: { readSessionFile: () => ({ sessionId: 's100', status: 'busy', statusUpdatedAt: NOW - 90 * MIN }), findTranscript: () => null, mtimeMs: () => null }, now: () => NOW });
+  ctx.identity = { sessionId: desk.id, role: 'front-desk' };
+  await tools.get('record_nudge')!({ session_id: arch.id });
+  assert.notEqual((await call()).digest.fingerprint, first.fingerprint);
+});
