@@ -103,3 +103,19 @@ the cluster folder's `.multi-manager\roster.db` for a cluster front desk, otherw
 `~/.claude/multi-manager/roster.db` (override with `MM_ROSTER_DB`; the pop-up's main team always uses this default). Nothing personal is stored in this repo.
 `node scripts/dump-roster.ts` prints it.
 
+
+## Backup backends
+
+When Claude usage runs out, a session can fall back on another model. `src/backends/` defines each one as plain
+data plus a readiness check (`checkBackend`, which never throws and answers `{ ready, model, contextTokens, note }`).
+Nothing launches on them yet. Order of preference: `glm`, then `box`, then `strata`. Keys are named by environment
+variable only; no key value is stored anywhere.
+
+- `claude`: the normal subscription. Nothing to set up.
+- `glm`: Ollama on this PC (`localhost:11434`) must be running and list `glm-5.3:cloud`.
+- `box`: the LeaderGPU box. The private network must be connected, the box LLM running, and the user environment
+  variable `LEADERGPU_LLM_KEY` set (falls back to the same name under `HKCU\Environment`). The model and its
+  conversation length are read from the box; a "slowed" box is reported.
+- `strata`: Strata must be open with a model loaded (`127.0.0.1:47831`), and litellm installed once with
+  `python -m pip install "litellm[proxy]"`. One shared litellm is started for the first session that needs it and
+  stopped when the last one ends.
