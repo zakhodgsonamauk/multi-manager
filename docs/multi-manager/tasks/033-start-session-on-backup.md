@@ -1,7 +1,7 @@
 # 033 — Start a session on a backup backend
 
 Goal #4. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/033-start-session-on-backup.return.md` on that branch.
-Waits for: task 032 merged, and goal #2's tasks 026, 027, 029 and 031 merged (they change the same launcher files).
+Waits for: task 032 merged, and goal #2's task 026 merged (027 and 029 already merged; 031 is not waited on, agreed with architect #3).
 
 ## Goal
 Any Multi-Manager session (developer, architect, project manager) can be started on a backup backend from task 032 instead of the normal Claude subscription, and the roster remembers which.
