@@ -7,3 +7,7 @@ node_modules/
 
 # Local build notes: design docs, research, plans. Kept on this PC only.
 conductor/
+
+# User's own backup Claude launchers (copies of the Dropbox originals). Kept here, never committed: may read keys.
+/claude-on-box.bat
+/claude-on-box-tools.ps1
