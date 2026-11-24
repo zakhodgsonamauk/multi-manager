@@ -36,3 +36,7 @@ Building anything, 032 included, waits for the user's answer on sign-off #13.
 
 ## 2026-11-24 Sign-off #13 answers applied
 Only three backups: `glm`, then `box`, then `strata`, in that order ("glm, then box, then strata ONLY"). GPT and MiniMax are not built. Every role may go on a backup ("Q3 - all"), so the batch switch includes the front desk and project managers; the front desk is switched last because its window hosts the side pane. Q1 (ask or auto) not answered: the default `ask` stands, with `auto` still available as a project setting. Launcher copies stay in the project folder, ignored by git ("hold them for now but gitignore them").
+
+## 2026-11-24 Model comparison result: thinking must be off for glm and box
+Context: item #17 comparison (comparison/README.md). With thinking on, glm and box spent the whole answer budget thinking and produced no code; with it off, glm 16/16 in 1.4 s, box 14/16 in 2.6 s, Strata 16/16 in 4.1 s.
+Decision: offered the user a glm thinking-off option and a box server setting (item #22). Not built until the user answers; the box server is outside this repo.

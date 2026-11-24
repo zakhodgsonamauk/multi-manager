@@ -23,3 +23,4 @@ Folder: `docs/multi-manager/backup-models/` (status, decisions, progress); task 
 - 2026-11-24 19:42 Architect #3: 026 merged (add9843), all of goal #2's code in, 031 undecided and not waited on. 033 unblocked; task file updated with 032's functions.
 - 2026-11-24 19:43 Dispatched 033 to dev session #11 (sonnet, complexity 4 / clarity 4), branch worktree-mm-multi-manager-backup-models-dev-033-start-on-backup.
 - 2026-11-24 19:43 Dispatched 033 to dev session #11 (sonnet, complexity 4 / clarity 4), branch worktree-mm-multi-manager-backup-models-dev-033-start-on-backup.
+- 2026-11-24 19:47 Comparison finished (Ollama started for the glm run and stopped after). Reported as item #22. Evidence in docs/multi-manager/backup-models/comparison/.

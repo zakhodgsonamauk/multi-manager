@@ -9,7 +9,7 @@ Plan and testing approach signed off: 2026-11-24, item #13 (backups: glm, box, s
 
 ## In flight
 - 033 Start a session on a backup: dev session #11, tab `mm-multi-manager-backup-models-dev-033-start-on-backup`, branch `worktree-mm-multi-manager-backup-models-dev-033-start-on-backup`, round 1 (sonnet; complexity 4, clarity 4).
-- Model comparison (item #17, user: "compare them, with a very small coding task. speed and quality both to be judged"): helper agent rerunning GLM (Ollama started and stopped for the run) and the box with thinking off. First run: Strata 16/16 tests in 4.1 s; box wrote no code (all 2000 tokens spent thinking); GLM not reachable.
+- Model comparison (item #17): done, reported as item #22; evidence in `comparison/`. Waiting on the user about thinking-off for glm and the box.
 
 ## Merged
 - 032 Backup backends: definitions and health checks: `c5908cf` (2026-11-24), after one send-back round.
