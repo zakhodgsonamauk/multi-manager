@@ -40,3 +40,30 @@ Context size and restarting sessions (task 027). Start-up context and plugins lo
 
 ## Evidence required
 Test summary lines. A short end-to-end run in a throwaway project: an architect with one idle developer sits 30+ minutes with zero model turns from check-ins (show the transcript turn count before and after), then a roster item addressed to it starts exactly one turn that handles it.
+
+## Send-back round 1 (2026-11-24)
+From the outside review of 9c40235. The role detection, the missing-tool fallback, the `CronCreate` block and the pause handling all passed. Fix these:
+
+1. **A stuck developer gets one nudge, then nothing.**
+   - The fingerprint (`src/roster/tools-health.ts:237-238`) is `a${id}:${action}` only. After the first nudge the action stays `nudge`, so `decideTick` (`hooks/roster-view.ts:461`) drops every later check as "nothing new", and the developer never reaches `restart`. The old tick nudged, nudged again, then restarted.
+   - Fix: put the nudge count in the fingerprint (`a${id}:${action}:${nudges}`), or treat a `nudge` row as new again once its last nudge is at least 10 minutes old.
+   - Also clear the stored fingerprint when a check is dropped because of a pause, so a problem shown before the pause gets a turn again after resume.
+2. **The check-in text match catches real work** (`src/monitor/transcript.ts:23,53`).
+   - The regex runs on any non-`human` user line before the origin is read. It matches compaction summaries (`isCompactSummary`), `task_notification` lines, meta lines, and messages from other sessions that quote the tick. After a mid-turn automatic summary, the rest of that turn stops counting as the session's own work, which feeds idle stop. It also breaks 027's rule for untagged peer messages.
+   - Panel ticks are tagged: `"origin":{"kind":"plugin","name":"multi-manager"}` and `turnOrigin:"system"`.
+   - Fix: match on that origin. Keep a text fallback only if it is anchored to the start of the line (`<command-message>multi-manager:tick` or the fallback prompt's opening words). Never treat compaction summaries, task notifications or other meta lines as check-in starts.
+3. **A long busy turn can queue two tick turns** (`hooks/register.tsx:452-453`).
+   - `$.command.run` waits behind the current turn. After `CHECK_IN_PENDING_MAX_MS` (30 min) a second check runs and passes, because `lastTick` is unchanged. It also overwrites `pendingDigest`, so the queued ticks carry the wrong digests. Architects are often busy for more than 30 minutes.
+   - Fix: never start a second check while the first `command.run` has not resolved, or compare against the fingerprint already stashed.
+4. **The column migration can race** (`src/monitor/lifecycle.ts:277-278`). Each manager has its own roster server, so two can run `ALTER TABLE` at once. Catch the "duplicate column" error and carry on.
+5. **A process that exited by itself stays marked running** (`lifecycle.ts:310-315`). If the process is already gone when the kill runs ("no running instance"), treat that as stopped, not as a failed kill.
+6. **Wording.** `TIMER_REFUSAL` and `TIMER_NOTICE` say "front desk" when shown to managers. Make the wording fit each role.
+
+Missing tests, one each:
+- A stuck developer gets a second check-in turn after the first nudge, and later escalates to `restart`.
+- After a resume, a problem shown before the pause gets a turn again.
+- Real transcript line shapes: a compaction summary, a task notification and a peer message that mention the tick all count as the session's own work, and a line with `origin.kind:"plugin"` does not.
+- A turn busy for more than 30 minutes ends with one tick, not two.
+- The migration runs safely on a database that already has the column.
+
+The live 30-minute run is no longer yours to do. The architect does it at wrap-up. Never run headless `claude -p`. Update the return report, then raise `done` again.
