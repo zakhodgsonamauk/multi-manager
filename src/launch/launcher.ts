@@ -40,6 +40,7 @@ import {
   buildStopCommand,
   developerPrompt,
   modelChangePrompt,
+  pluginsToDisable,
   projectManagerPrompt,
   restartPrompt,
   sessionName,
@@ -182,6 +183,7 @@ async function launchTab(ctx: LaunchContext, tab: TabSpec): Promise<LaunchResult
     rosterDb,
     resumeId: tab.resumeId,
     model: tab.model,
+    disabledPlugins: pluginsToDisable(ctx.deps.installedPluginKeys?.() ?? []),
   });
   ctx.deps.writeSettings(command.settings);
   if (command.mcpConfig !== undefined) ctx.deps.writeSettings(command.mcpConfig);

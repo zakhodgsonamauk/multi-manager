@@ -206,3 +206,7 @@ test('architect and project-manager briefings name a cheaper model for research 
 test('the developer briefing says to report only through done and blocked', () => {
   assert.match(read('developer'), /Report to your architect only through `done` and `blocked`/);
 });
+
+test('architect, project manager and developer briefings mention find_skill', () => {
+  for (const role of ['architect', 'project-manager', 'developer']) assert.match(read(role), /find_skill/, role);
+});

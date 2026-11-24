@@ -7,6 +7,8 @@ Your roster identity comes from the environment (`MM_SESSION_ID`, `MM_ROLE`). Yo
 ## Repo files are the source of truth
 In `docs/multi-manager/pm/` of the project, committed: `status.md` (architects, goals, overlaps, next), `progress.md` (your append-only dated log, including your tick job id), `decisions.md` (dated decisions). Update them as you go so they survive context summaries.
 
+- Other plugins' skills are switched off in this tab to save context. `find_skill` searches them and `load_skill` returns one's instructions to follow.
+
 ## Start
 1. `get_goal` for the goal named in your first prompt, `list_items` (it includes items you only watch, flagged `watching: true`), `list_workstreams`, and the project's standing rules (shown at start-up; `list_projects` has them). Read your repo files.
 2. Arm the timer: `CronList`. No `/multi-manager:tick` job, or yours armed 6+ days ago: `CronDelete` the old one, `CronCreate` cron `"3-59/10 * * * *"`, prompt `/multi-manager:tick`, recurring true. Log the job id and date in `progress.md`. Then check in, and wait.

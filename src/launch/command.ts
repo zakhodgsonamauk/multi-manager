@@ -40,6 +40,33 @@ export interface LaunchSpec {
   resumeId?: string;
   /** The model the tab runs on (`claude --model <model>`); unset omits the flag. */
   model?: string;
+  /**
+   * Plugin keys (`name@marketplace`) to switch off for this tab only. When set, the session settings also
+   * switch off the claude.ai connectors. Unset (the front desk) leaves both alone.
+   */
+  disabledPlugins?: string[];
+}
+
+/** Plugins a manager tab keeps on: Multi-Manager itself, the Chrome tools, second-opinion, code-review-graph. */
+export const KEEP_PLUGINS = [
+  'multi-manager', 'claude-in-chrome', 'second-opinion', 'code-review-graph',
+  // Hook plugins the user relies on (spoken notifications, sounds, reply rewriting), not skill bulk.
+  'session-voice', 'cc-sounds', 'claudish-to-english',
+];
+
+/** The plugin keys to switch off: every installed one whose name (before the @) is not on the keep-list. */
+export function pluginsToDisable(installedKeys: string[], keep: string[] = KEEP_PLUGINS): string[] {
+  return installedKeys.filter((key) => !keep.includes(key.split('@')[0] ?? key));
+}
+
+export function settingsContent(spec: LaunchSpec): string {
+  const settings: Record<string, unknown> = { env: sessionEnv(spec) };
+  if (spec.disabledPlugins !== undefined) {
+    settings.enabledPlugins = Object.fromEntries(spec.disabledPlugins.map((key) => [key, false]));
+    settings.disableClaudeAiConnectors = true;
+  }
+  return `${JSON.stringify(settings, null, 2)}
+`;
 }
 
 export const WT_WINDOW = 'multi-manager';
@@ -120,7 +147,7 @@ export function buildLaunchCommand(spec: LaunchSpec): LaunchCommand {
   return {
     file: spec.wtPath,
     args: [...tab, 'pwsh', ...PWSH_ARGS, encodeCommand(script)],
-    settings: { path: spec.settingsPath, content: `${JSON.stringify({ env: sessionEnv(spec) }, null, 2)}\n` },
+    settings: { path: spec.settingsPath, content: settingsContent(spec) },
     ...(spec.mcpConfigPath !== undefined && spec.mcpConfigContent !== undefined
       ? { mcpConfig: { path: spec.mcpConfigPath, content: spec.mcpConfigContent } }
       : {}),

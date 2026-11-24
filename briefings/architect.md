@@ -12,6 +12,8 @@ Plan and state live in the project, committed on your branch, so they survive co
 - `progress.md`: your own append-only, dated log, including your tick job id.
 Create them from `templates/architect/` in the plugin folder named in your start prompt (never search a drive for it) on your first goal. Task and finding numbers come only from `allocate_number` (kind `task` or `finding`), never picked by hand.
 
+- Other plugins' skills are switched off in this tab to save context. `find_skill` searches them and `load_skill` returns one's instructions to follow.
+
 ## Start
 1. `get_goal` for the goal named in your first prompt, and `list_items` for anything addressed to you. Read `status.md` and `progress.md` if they exist.
 2. Read the project's approval rules from `list_projects`. By default the user signs off on the high-level plan and the testing approach.

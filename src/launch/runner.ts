@@ -16,6 +16,7 @@ import {
 import { findTranscriptIn } from '../monitor/activity.ts';
 import { ensureDevCopy, type DevCopyInput } from './dev-copy.ts';
 import { ensureWatcher, pruneStaleGraphData, releaseWatcher, type CodeGraphProject, type CodeGraphResult } from '../codegraph/codegraph.ts';
+import { installedPluginFolders } from '../roster/skill-broker.ts';
 import { ensureTerminalProfile } from './terminal-profile.ts';
 import { isWrapperProcess } from './wrapper.ts';
 
@@ -52,6 +53,8 @@ export interface LaunchDeps {
   conversationExists?: (claudeSessionId: string) => boolean;
   /** The code-review-graph folder watcher and stale-data clean-up. Optional so launcher tests stay pure: without it nothing runs. */
   codeGraph?: CodeGraphLifecycle;
+  /** `name@marketplace` of every installed plugin, so a manager tab can switch the others off. Optional: without it nothing is switched off. */
+  installedPluginKeys?: () => string[];
 }
 
 export interface CodeGraphLifecycle {
@@ -166,6 +169,7 @@ export function realDeps(): LaunchDeps {
   return {
     run: runCommand,
     writeSettings: writeSettingsFile,
+    installedPluginKeys: () => installedPluginFolders().map((f) => f.key),
     waitForPid: (name, since) => waitForPid(name, since),
     findPid: (name, within) => findLivePid(name, { within }),
     ownsProcess: (pid, name) => ownsProcess(pid, name),

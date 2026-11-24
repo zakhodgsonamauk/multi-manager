@@ -57,6 +57,7 @@ import { registerHealthTools } from './tools-health.ts';
 import { registerVoiceTools } from './tools-voice.ts';
 import { registerRecoveryTools } from './tools-recovery.ts';
 import { registerTidyTools } from './tools-tidy.ts';
+import { registerSkillTools } from './skill-broker.ts';
 
 export interface Identity {
   sessionId: number | null;
@@ -660,4 +661,5 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
   registerVoiceTools(server, ctx);
   registerRecoveryTools(server, ctx);
   registerTidyTools(server, ctx);
+  registerSkillTools(server, ctx);
 }

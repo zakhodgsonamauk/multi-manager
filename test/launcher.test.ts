@@ -365,3 +365,19 @@ test('a failing watcher step never blocks a launch or a stop', async (t) => {
   const stopped = await stopArchitect(ctx, { project: 'alpha' });
   assert.equal(stopped.session.state, 'stopped');
 });
+
+test('architect, project manager and developer tabs switch off the other plugins; the front desk has no settings of its own', async (t) => {
+  const { deps, calls } = fakeDeps({ installedPluginKeys: () => ['render@x', 'multi-manager@inline', 'session-voice@v'] });
+  const { desk, ctx, db, main } = setup(t, deps);
+  const goal = createGoal(db, { workstreamId: main.id, text: 'g' });
+  const architect = (await launchArchitect(ctx, { project: 'alpha', goalId: goal.id, parentId: desk.id })).session;
+  await launchProjectManager(ctx, { project: 'alpha', parentId: desk.id });
+  await launchDeveloper(ctx, { architectId: architect.id, task: 'x', label: 'login' });
+  const withEnv = calls.settings.filter((s) => s.path.endsWith('.settings.json'));
+  assert.equal(withEnv.length, 3);
+  for (const s of withEnv) {
+    const parsed = JSON.parse(s.content);
+    assert.deepEqual(parsed.enabledPlugins, { 'render@x': false });
+    assert.equal(parsed.disableClaudeAiConnectors, true);
+  }
+});
