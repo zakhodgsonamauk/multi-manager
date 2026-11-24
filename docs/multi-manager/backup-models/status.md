@@ -27,4 +27,4 @@ Plan and testing approach signed off: 2026-11-24, item #13 (backups: glm, box, s
 - none
 
 ## Next
-Review 033 when it returns. Report the model comparison to the user as an info item when the rerun finishes. If the box only works with thinking off, add that to the box definition in a follow-up.
+Review 033 when it returns. PAUSE RULE (user, item #23): ask the user before any real model test or tab on a backup; Strata is unloaded. Report the model comparison to the user as an info item when the rerun finishes. If the box only works with thinking off, add that to the box definition in a follow-up.

@@ -24,3 +24,4 @@ Folder: `docs/multi-manager/backup-models/` (status, decisions, progress); task 
 - 2026-11-24 19:43 Dispatched 033 to dev session #11 (sonnet, complexity 4 / clarity 4), branch worktree-mm-multi-manager-backup-models-dev-033-start-on-backup.
 - 2026-11-24 19:43 Dispatched 033 to dev session #11 (sonnet, complexity 4 / clarity 4), branch worktree-mm-multi-manager-backup-models-dev-033-start-on-backup.
 - 2026-11-24 19:47 Comparison finished (Ollama started for the glm run and stopped after). Reported as item #22. Evidence in docs/multi-manager/backup-models/comparison/.
+- 2026-11-24 19:48 Item #23, user (verbatim, via front desk): "fyi i've unloaded strata, so pause before model tests". The comparison had already finished before this arrived. Told the 033 developer: no real-backup tests until a go; ask the user (raise an item) before any model test.
