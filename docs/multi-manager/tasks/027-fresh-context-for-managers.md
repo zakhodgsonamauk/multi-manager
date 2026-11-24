@@ -46,3 +46,35 @@ Test summary lines. An end-to-end run in a throwaway project with a low limit (e
 - An idle architect over the limit writes its note and restarts with a small context. Show the context size before and after.
 - It carries on correctly when an item arrives.
 - An idle architect past a short `idle_stop_minutes` is stopped, then comes back when an item is raised to it.
+
+## Send-back round 1 (2026-11-24)
+From the outside review of e54ce0f. The focused tests pass, but these defects can lose work or run two copies of a manager.
+
+1. **Restart can open a second copy of a live manager.**
+   - Where: `src/monitor/lifecycle.ts:145-147` calls `restartArchitect`. In `src/launch/launcher.ts:438-442` that function opens a new tab even when it could not prove the old process was the session's, or when the kill failed. `changeSessionModel` refuses in exactly that case.
+   - Fix: before acting, check in `lifecycle.ts` that the process belongs to the session. If it does not, or the kill fails, skip and report. Do not edit `launcher.ts` unless you must, and say so if you do.
+   - Idle stop has the same gap: `lifecycle.ts:177` records `idle_stopped_at` even when `killed` is false. Record it only when `killed` is true.
+   - Fix the test fakes too: today they return `ownsProcess: false` and still count that as success.
+2. **Real work can be counted as timer activity.**
+   - Where: `src/monitor/transcript.ts:38` carries the turn origin forward until a line with `turnOrigin` arrives. In real transcripts, a message from another session (for example a developer's "Task 281 is done") often starts a new turn that has no `turnOrigin`. The manager's whole review then counts as timer activity, so a busy manager can be stopped or asked for its notes.
+   - Fix: a user line that is not a tool result, not `isMeta`, and has no `turnOrigin` starts the session's own turn.
+   - Add a test built from that real line pattern: a timer turn, then an untagged peer message, then tool calls.
+3. **Stop-then-restore loop.**
+   - Where: idle stop ignores `info` items, but bring-back counts them (`lifecycle.ts:229`), and both run in the same pass. A manager with an open info item is stopped and relaunched in every pass.
+   - Fix: use one definition of "something waiting" for both. Never restore a session in the same pass that stopped it.
+4. **Old marks are never cleared.**
+   - `idle_stopped_at` survives a manual `restart_architect`, a `stop_architect`, and a pause and resume. So a manager the user stopped on purpose comes back by itself, and a pause-resume relaunch can race it into a duplicate.
+   - Fix: only a manager stopped by the idle stop may be brought back. Clear `idle_stopped_at` whenever the session is running or was stopped any other way. Never restore while paused.
+   - Also, `refresh_requested_at` never expires (`src/roster/tools-health.ts:148`), so the digest never goes quiet if the note never comes. Expire the request after a set time (your choice, e.g. 30 minutes), or when the context drops below the limit, or when the session restarts.
+5. **Saved conversation id cleared too early.** `lifecycle.ts:146` clears it before `restartArchitect`, which can still throw. Clear it only after every guard has passed.
+6. **The automatic-summary setting must not go above the model's own limit.** For a manager on a model with a smaller context, `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` must never raise the summary point above that model's limit. Check what the setting does when the model's window is smaller, and cap it if needed. Note the finding in the report.
+
+Missing tests to add, one each:
+- an untagged peer message after a timer turn;
+- a failed or unowned kill, for both restart and idle stop;
+- no stop-then-restore loop on an `info` item;
+- a manager the user stopped stays stopped when an item arrives;
+- no restore while paused;
+- reading the tail of a transcript larger than 6 MB.
+
+Main moved on: tasks 030 and 028 are merged, and `src/roster/tools.ts` and `src/roster/items.ts` changed. Do not pull them in yourself; I will handle conflicts at merge. Update the return report, then raise `done` again.
