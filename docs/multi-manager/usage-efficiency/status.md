@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `usage-efficiency`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-24 19:42
+Updated: 2026-11-24 19:52
 
 ## Current goal
 Roster goal #2: make Multi-Manager use less Claude usage. State: in-progress.
@@ -28,4 +28,4 @@ Findings: `findings.md` in this folder.
 - Q3: the "Other active sessions" line stays as it is. The user's agreed default was to turn it off only if it could be switched off per tab, and claude-context-sync has no per-tab switch.
 
 ## Next
-Wrap-up: live test in a throwaway project of 026 (quiet idle), 027 (fresh restart and idle stop/bring-back) and 029 (slim start, skill middle-man). Tell the PM before the go-live reload. Re-measure after a day of use; decide 031.
+All five tasks are merged. Still to do: the live test in a throwaway project (C:\dev\mm-e2e-usage) of 026, 027 and 029. It was paused at 19:52 because the user was in a full-screen game; it waits for the user's answer to item #25. Then: tell the PM before the go-live reload, re-measure after a day of use, and decide 031.
