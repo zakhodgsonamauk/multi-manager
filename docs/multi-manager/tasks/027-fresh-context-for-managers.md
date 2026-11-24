@@ -25,9 +25,15 @@ Within these limits, the design is the developer's call:
 - An item raised to a stopped manager triggers its restore.
 
 ## Files expected to change
-`src/monitor/` (activity or a new context-size reader, enforce/monitor), `src/roster/tools-health.ts`, `src/roster/tools-recovery.ts`, `src/roster/projects.ts` plus a schema change for the new project setting, `src/launch/command.ts` (only if the environment variable is supported), `briefings/architect.md` and `briefings/project-manager.md` (a short line on fresh starts), with matching tests.
+`src/monitor/` (activity or a new context-size reader, enforce/monitor), `src/roster/tools-health.ts`, `src/roster/tools-recovery.ts`, `src/roster/projects.ts` plus a schema change for the new project setting, `src/launch/command.ts` (only if the environment variable is supported), with matching tests.
 
-Shares `hooks/register.tsx` and the health code with task 026, so it runs after 026 is merged, never alongside it.
+Do NOT edit any of these files: `briefings/architect.md`, `briefings/developer.md`, `commands/plan-goal.md`, `src/launch/launcher.ts`, `test/launcher.test.ts`. They have someone else's unsaved edits in the project folder. The restart prompt itself must tell the fresh session what it needs: resume from `status.md` and `progress.md`. Any briefing line about fresh starts is added later by task 028.
+
+The user signed off a 200k-token default for the limit (roster item #2).
+
+The fix to idle measurement is now part of this task. `readActivity` (`src/monitor/activity.ts:90`) counts the transcript's modified time as activity, so a session's own timer check-ins keep it looking busy forever. A check-in turn that the system starts must not count as the session's own activity for idle detection. Pick the cleanest signal you can observe, and test it.
+
+This task runs before 026, the code-side check-ins. They share the health code, so 026 starts only after this one is merged.
 
 ## Out of scope
 Changing how architects write their notes (they already keep them). Developer sessions. The front desk's own context.

@@ -14,6 +14,8 @@ Design is the developer's call within these limits:
 - The briefings and commands that tell architects and project managers to `CronCreate` a `/multi-manager:tick` job (and to re-arm it, and to delete it on pause) are changed to say the check-in is automatic. The pause/resume flow must still stop work starting during a pause.
 - Fix the idle measure while here: `readActivity` (`src/monitor/activity.ts:90`) counts the transcript's modified time as activity, so a session's own check-in turns keep it "active" forever. Once quiet check-ins no longer create turns this mostly fixes itself; make sure a check-in turn the system started does not count as the session's own activity for stuck or idle detection.
 
+UPDATE 2026-11-24: task 027 runs first. It takes over the idle-measure fix in `readActivity`, so build on whatever 027 merged. Skip that bullet if it is already done.
+
 ## Tests first
 - A digest for an architect's scope: quiet when its developers are all `none` and it has no unseen items; not quiet when a developer needs `nudge`/`restart`/`report` or an item addressed to it is unseen. Same for a project manager over its architects and watched items.
 - The quiet-check decision for an architect session: quiet digest gives "no turn"; non-quiet gives a turn carrying the digest; a repeat of the same digest fingerprint does not start a second turn.
