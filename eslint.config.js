@@ -7,7 +7,8 @@ export default defineConfig(
   // .claude-plugin/types/ is the plugin API declaration Claude Code writes beside the plugin when it loads it
   // (generated, not ours to lint). The mod's own files (hooks/*.tsx, mod-test/) are linted here like the rest;
   // they are type-checked by `npm run check:mod`, since they compile against that API and not against Node.
-  { ignores: ['node_modules/**', 'conductor/**', '.claude/**', '.claude-plugin/types/**'] },
+  // docs/**/measure/ holds one-off CommonJS measuring scripts, run by hand with node, not part of the plugin.
+  { ignores: ['node_modules/**', 'conductor/**', '.claude/**', '.claude-plugin/types/**', 'docs/**/measure/**'] },
   js.configs.recommended,
   tseslint.configs.recommended,
 );
