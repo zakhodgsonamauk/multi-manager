@@ -67,3 +67,16 @@ Missing tests, one each:
 - The migration runs safely on a database that already has the column.
 
 The live 30-minute run is no longer yours to do. The architect does it at wrap-up. Never run headless `claude -p`. Update the return report, then raise `done` again.
+
+## Send-back round 2 (2026-11-24)
+The re-review confirmed all six round-1 points as fixed. One new defect, plus two small fixes:
+
+1. **Check-ins can stop for good** (`hooks/register.tsx:456`).
+   - `if (isCommandInFlight) return` now has no time limit. If `$.command.run` never resolves (the command is lost or cancelled), check-ins stop forever in that session. The front desk shares this code, so it is affected too.
+   - Fix: give the in-flight wait its own longer limit (2 hours), or clear the flag when the tick reaches `prompt.submit` or the session goes idle.
+   - Test 1: a lost command stops blocking after the limit.
+   - Test 2: a slow one is still never doubled.
+2. **Escalation test is too loose.** It checks `!== 'nudge'`. Make it check for `'restart'` exactly.
+3. **Front-desk fingerprint.** Add the nudge count to `front_desk_digest`'s fingerprint too, as in `manager_digest`, so the front desk can't hit the same stall.
+
+Update the return report, then raise `done` again.
