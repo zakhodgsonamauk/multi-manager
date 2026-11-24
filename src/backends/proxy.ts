@@ -214,7 +214,11 @@ export function acquireProxy(
     let pid: number | undefined;
     try {
       const child = spawn(o.program.command, o.program.args(port), {
-        detached: true,
+        // Windows: NOT detached. `detached` is DETACHED_PROCESS there, which leaves the proxy with no console, so any
+        // console program it starts without its own windowsHide gets a brand-new visible console (a Windows Terminal
+        // window). With windowsHide alone the proxy gets a hidden console (CREATE_NO_WINDOW) that its children share.
+        // Elsewhere the proxy leads its own process group so killTree can signal the whole group.
+        detached: process.platform !== 'win32',
         stdio: ['ignore', log, log],
         windowsHide: true,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8', ...o.program.env },

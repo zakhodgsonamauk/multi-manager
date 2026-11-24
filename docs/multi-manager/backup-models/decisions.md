@@ -47,3 +47,6 @@ Decision: every test start of a program is hidden and cleaned up (task 037). 033
 
 ## 2026-11-24 Thinking stays on (item #24)
 The user said "i don't know about thinking off, i want good answer quality". Backends keep thinking on. Claude Code's 32000-token answer cap has to leave room for thinking plus the answer. A headless comparison on a harder task (thinking on vs off, quality first) will produce a recommendation. Nothing switches thinking off without the user's yes.
+## 2026-11-24 Task 037: proxy tests hidden, tracked and leak-guarded
+Context: item #29, test windows opened while the user was gaming.
+Decision: on Windows the proxy is started with `windowsHide: true` and not `detached` (hidden console shared by its children); elsewhere unchanged. `acquireProxy` already took `firstPort`/`lastPort`, so no API change; the tests use a random 10-port range between 20000 and 40000. Each test's folder lives inside one per-run folder (`mm-test-run-*`) whose path is the marker in every test process command line. Leak checks: one per proxy test (names the test) and a final `after()` for the whole run; both kill what they find. Window test asserts the fake proxy's spawn text has `windowsHide: true` and, on Windows, that the proxy and its child own no window (MainWindowHandle 0); a visible console cannot be asserted from outside the process.

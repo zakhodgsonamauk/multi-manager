@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { checkBackend } from '../src/backends/checks.ts';
 import { BACKENDS, DEFAULT_PREFERENCE, backendEnv, computeLimits } from '../src/backends/definitions.ts';
 import type { BackendName } from '../src/backends/definitions.ts';
 import { acquireProxy, proxyStatus, reconcileProxy, releaseProxy } from '../src/backends/proxy.ts';
-import { tempDir } from './helpers.ts';
 
 const FAKE_KEY = 'fake-box-key-0123456789abcdef0123456789abcdef';
 
@@ -39,7 +39,6 @@ const boxServer = (t: TestContext, state: string, ctx = 262144) =>
     return { status: 404, body: {} };
   });
 
-const SKIP_SPAWNING = 'opens visible windows and leaves processes behind on Windows (roster item #29); fixed in task 037';
 test('no backend env holds a secret; box names LEADERGPU_LLM_KEY as its key source', () => {
   const info = { model: 'some-model', contextTokens: 262144, baseUrl: 'http://127.0.0.1:47832' };
   const names: BackendName[] = ['claude', 'box', 'strata', 'glm'];
@@ -162,6 +161,93 @@ test('strata check: litellm imports but the litellm program file is missing', as
   assert.match(r.note, /^litellm\.exe not found/);
 });
 
+// ---- Process hygiene (task 037) --------------------------------------------------------------------------------
+// Every program this file starts carries RUN_DIR in its command line (as its script path or as an extra argument),
+// is started with windowsHide, and is killed (whole tree) when its test ends. The last hook fails the run if any
+// process with RUN_DIR in its command line is still alive.
+const RUN_DIR = mkdtempSync(join(tmpdir(), 'mm-test-run-'));
+after(() => rmSync(RUN_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+// A random port range well away from the real one (47832-47841), so parallel runs cannot meet each other's proxies.
+const FIRST_PORT = 20000 + Math.floor(Math.random() * 20000);
+const PORTS = { firstPort: FIRST_PORT, lastPort: FIRST_PORT + 9 };
+
+/** A fresh folder inside this run's folder, removed when the test ends. */
+function tempDir(t: TestContext): string {
+  const dir = mkdtempSync(join(RUN_DIR, 'p-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  return dir;
+}
+
+/** Start a node program that just waits. It is hidden, carries the run marker, and is killed when the test ends. */
+function startIdleNode(t: TestContext, ms = 120000): number {
+  const c = spawn(process.execPath, ['-e', `setTimeout(() => {}, ${ms})`, RUN_DIR], { stdio: 'ignore', windowsHide: true });
+  const pid = c.pid as number;
+  t.after(() => killTree(pid));
+  return pid;
+}
+
+/** Kill a process and its children, hidden. */
+function killTree(pid: number): void {
+  if (process.platform === 'win32') {
+    spawnSync(`${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\taskkill.exe`, ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+    return;
+  }
+  for (const target of [-pid, pid]) {
+    try {
+      process.kill(target, 'SIGKILL');
+    } catch {
+      // already gone
+    }
+  }
+}
+
+/** Processes (other than this one) whose command line contains the run marker. */
+function markedProcesses(marker = RUN_DIR): { pid: number; commandLine: string }[] {
+  let rows: { pid: number; commandLine: string }[];
+  if (process.platform === 'win32') {
+    const r = spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress'],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    const parsed = JSON.parse(String(r.stdout).trim() || '[]') as { ProcessId: number; CommandLine: string | null }[];
+    rows = (Array.isArray(parsed) ? parsed : [parsed]).map((p) => ({ pid: p.ProcessId, commandLine: p.CommandLine ?? '' }));
+  } else {
+    const r = spawnSync('ps', ['-eo', 'pid=,args='], { encoding: 'utf8' });
+    rows = String(r.stdout)
+      .split('\n')
+      .map((l) => l.trim().match(/^(\d+)\s+(.*)$/))
+      .filter((m): m is RegExpMatchArray => m !== null)
+      .map((m) => ({ pid: Number(m[1]), commandLine: m[2] as string }));
+  }
+  return rows.filter((p) => p.pid !== process.pid && p.commandLine.includes(marker));
+}
+
+/** Wait briefly for marked processes to go, then kill and return what was left. */
+async function leftovers(marker = RUN_DIR): Promise<{ pid: number; commandLine: string }[]> {
+  let left = markedProcesses(marker);
+  for (let i = 0; i < 20 && left.length > 0; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    left = markedProcesses(marker);
+  }
+  for (const p of left) killTree(p.pid);
+  return left;
+}
+
+test('leak guard: a marked process is found, and gone after it is killed', async (t) => {
+  const pid = startIdleNode(t, 60000);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(markedProcesses().some((p) => p.pid === pid), 'the guard cannot see a marked process');
+  killTree(pid);
+  assert.ok(await waitDead(pid));
+  assert.equal((await leftovers()).length, 0);
+});
+
+after(async () => {
+  const left = await leftovers();
+  assert.equal(left.length, 0, `test processes were left running (now killed): ${left.map((p) => `${p.pid} ${p.commandLine}`).join(' | ')}`);
+});
+
 function pidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -186,7 +272,7 @@ function fakeProxy(dir: string) {
     script,
     [
       "const { spawn } = require('node:child_process');",
-      "const c = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore' });",
+      "const c = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)', __dirname], { stdio: 'ignore', windowsHide: true });",
       "require('node:fs').writeFileSync(require('node:path').join(__dirname, 'child.pid'), String(c.pid));",
       "require('node:http').createServer((q, s) => s.end('ok')).listen(Number(process.argv[2]), '127.0.0.1');",
     ].join('\n'),
@@ -196,10 +282,18 @@ function fakeProxy(dir: string) {
 
 function startProxyOptions(t: TestContext) {
   const dir = tempDir(t);
-  const o = { dir, program: fakeProxy(dir), waitMs: 15000 };
+  const o = { dir, program: fakeProxy(dir), waitMs: 15000, ...PORTS };
+  // One hook (hooks run last-registered first): stop the proxy, kill what is left, then check nothing is left.
   t.after(async () => {
-    const s = await reconcileProxy([], dir);
-    assert.equal(s.running, false);
+    try {
+      const s = await reconcileProxy([], dir);
+      assert.equal(s.running, false);
+    } finally {
+      // Even when the test failed: the proxy's child is not always reached by the proxy's own kill.
+      if (existsSync(join(dir, 'child.pid'))) killTree(readChildPid(dir));
+    }
+    const left = await leftovers(dir);
+    assert.equal(left.length, 0, `${t.name} left processes running (now killed): ${left.map((p) => `${p.pid} ${p.commandLine}`).join(' | ')}`);
   });
   return o;
 }
@@ -208,7 +302,27 @@ function readChildPid(dir: string): number {
   return Number(readFileSync(join(dir, 'child.pid'), 'utf8'));
 }
 
-test('proxy lifecycle: first user starts, second reuses, last release stops (whole tree, config removed)', { skip: SKIP_SPAWNING }, async (t) => {
+test('the fake proxy and its child run with no visible window', async (t) => {
+  const o = startProxyOptions(t);
+  // Every spawn in the fake proxy's own text is hidden (starting a child from a program with no console is what opened windows).
+  const text = readFileSync(o.program.args(0)[0] as string, 'utf8');
+  assert.match(text, /windowsHide: true/);
+  const p = await acquireProxy('s1', o);
+  await new Promise((r) => setTimeout(r, 300));
+  const childPid = readChildPid(o.dir);
+  if (process.platform === 'win32') {
+    const r = spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${p.pid},${childPid}).MainWindowHandle -join ','`],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    assert.equal(String(r.stdout).trim(), '0,0', 'the proxy or its child owns a window');
+  }
+  assert.ok(pidAlive(p.pid) && pidAlive(childPid));
+  await releaseProxy('s1', o.dir);
+});
+
+test('proxy lifecycle: first user starts, second reuses, last release stops (whole tree, config removed)', async (t) => {
   const o = startProxyOptions(t);
   const dir = o.dir;
   writeFileSync(join(dir, 'strata-litellm.yaml'), 'x');
@@ -242,10 +356,10 @@ test('proxy lifecycle: first user starts, second reuses, last release stops (who
   assert.ok(!existsSync(join(dir, 'strata-litellm.yaml')));
 });
 
-test('a stale proxy file from a dead process is cleaned up and a new proxy starts', { skip: SKIP_SPAWNING }, async (t) => {
+test('a stale proxy file from a dead process is cleaned up and a new proxy starts', async (t) => {
   const o = startProxyOptions(t);
   const dir = o.dir;
-  const dead = spawn(process.execPath, ['-e', '0']);
+  const dead = spawn(process.execPath, ['-e', '0', RUN_DIR], { windowsHide: true });
   const deadPid = dead.pid as number;
   await new Promise((r) => dead.once('exit', r));
   const stale = JSON.stringify({ pid: deadPid, port: 47835, image: 'node', users: ['x', 'y'] });
@@ -262,25 +376,17 @@ test('a stale proxy file from a dead process is cleaned up and a new proxy start
   assert.ok(await waitDead(fresh.pid));
 });
 
-test('a proxy that never starts is not left running and counts no user', { skip: SKIP_SPAWNING }, async (t) => {
+test('a proxy that never starts is not left running and counts no user', async (t) => {
   const dir = tempDir(t);
-  const bad = { command: process.execPath, args: () => ['-e', 'setTimeout(()=>{}, 60000)'] };
-  await assert.rejects(acquireProxy('s1', { dir, program: bad, waitMs: 600 }), /did not start/);
+  const bad = { command: process.execPath, args: () => ['-e', 'setTimeout(()=>{}, 60000)', RUN_DIR] };
+  await assert.rejects(acquireProxy('s1', { dir, program: bad, waitMs: 600, ...PORTS }), /did not start/);
   assert.ok(!existsSync(join(dir, 'strata-proxy.json')));
 });
 
-test('a live pid with a silent port is killed and replaced', { skip: SKIP_SPAWNING }, async (t) => {
+test('a live pid with a silent port is killed and replaced', async (t) => {
   const o = startProxyOptions(t);
-  const hung = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore' });
-  const hungPid = hung.pid as number;
-  t.after(() => {
-    try {
-      process.kill(hungPid);
-    } catch {
-      // already gone
-    }
-  });
-  writeFileSync(join(o.dir, 'strata-proxy.json'), JSON.stringify({ pid: hungPid, port: 47839, image: 'node', users: ['old'] }));
+  const hungPid = startIdleNode(t);
+  writeFileSync(join(o.dir, 'strata-proxy.json'), JSON.stringify({ pid: hungPid, port: PORTS.lastPort, image: 'node', users: ['old'] }));
 
   const fresh = await acquireProxy('s1', o);
   assert.equal(fresh.started, true);
@@ -289,27 +395,22 @@ test('a live pid with a silent port is killed and replaced', { skip: SKIP_SPAWNI
   assert.deepEqual((await proxyStatus(o.dir)).users, ['s1']);
 });
 
-test('a reused pid that belongs to another program is not killed', { skip: SKIP_SPAWNING }, async (t) => {
+test('a reused pid that belongs to another program is not killed', async (t) => {
   const o = startProxyOptions(t);
-  const other = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore' });
-  const otherPid = other.pid as number;
-  t.after(() => {
-    try {
-      process.kill(otherPid);
-    } catch {
-      // already gone
-    }
-  });
+  const otherPid = startIdleNode(t);
   // The roster recorded litellm at this pid, but it is now a node program.
-  writeFileSync(join(o.dir, 'strata-proxy.json'), JSON.stringify({ pid: otherPid, port: 47839, image: 'litellm', users: ['old'] }));
+  writeFileSync(join(o.dir, 'strata-proxy.json'), JSON.stringify({ pid: otherPid, port: PORTS.lastPort, image: 'litellm', users: ['old'] }));
   assert.deepEqual(await proxyStatus(o.dir), { running: false, pid: null, port: null, users: [] });
   assert.ok(pidAlive(otherPid), 'killed a program that was not ours');
 });
 
-test('proxy dies mid-use: old and new sessions release in any order and it ends stopped', { skip: SKIP_SPAWNING }, async (t) => {
+test('proxy dies mid-use: old and new sessions release in any order and it ends stopped', async (t) => {
   const o = startProxyOptions(t);
   const first = await acquireProxy('old', o);
+  await new Promise((r) => setTimeout(r, 300));
+  const firstChild = readChildPid(o.dir); // the next proxy overwrites child.pid, so keep this one
   process.kill(first.pid);
+  killTree(firstChild);
   assert.ok(await waitDead(first.pid));
 
   const second = await acquireProxy('new', o);
@@ -323,7 +424,7 @@ test('proxy dies mid-use: old and new sessions release in any order and it ends 
   assert.ok(await waitDead(second.pid));
 });
 
-test('reconcileProxy drops a crashed session and stops the proxy when none are left', { skip: SKIP_SPAWNING }, async (t) => {
+test('reconcileProxy drops a crashed session and stops the proxy when none are left', async (t) => {
   const o = startProxyOptions(t);
   const p = await acquireProxy('alive', o);
   await acquireProxy('crashed', o);
@@ -335,7 +436,7 @@ test('reconcileProxy drops a crashed session and stops the proxy when none are l
   assert.ok(!existsSync(join(o.dir, 'strata-proxy.json')));
 });
 
-test('overlapping acquires start exactly one proxy', { skip: SKIP_SPAWNING }, async (t) => {
+test('overlapping acquires start exactly one proxy', async (t) => {
   const o = startProxyOptions(t);
   const results = await Promise.all(['a', 'b', 'c'].map((id) => acquireProxy(id, o)));
   assert.equal(results.filter((r) => r.started).length, 1);
