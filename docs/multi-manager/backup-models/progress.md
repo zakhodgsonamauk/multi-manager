@@ -37,3 +37,4 @@ Where I stopped:
 - Comparison round 2 (harder task, thinking on vs off): stopped by the pause; partial results, if any, are in the scratchpad compare folder. Next: rerun it headless and bring a recommendation (quality first).
 - Then 034, 036, 035 as queued.
 After resume: re-arm the tick, send the front desk an info item summarising this, and WAIT for the user's go before restarting anything.
+- 2026-11-24 19:58 Comparison helper stopped: only GLM thinking-ON run 1 finished (21/21 tests, 90.5 s; code at scratchpad compare/glm_on.js). Its benchmark and the Ollama it started (pid 69320 + child) were killed; no ollama running; visible windows 19 after. Rest of round 2 to rerun after resume.
