@@ -5,6 +5,8 @@ export const DEFAULT_PERMISSION_MODE = 'dangerously-skip-permissions';
 export const DEFAULT_APPROVAL_RULES =
   "User signs off on the high-level plan and the high-level testing approach: unit tests, end-to-end tests, and the architect's own browser click-through of every user-facing change to judge UI design and flow";
 export const DEFAULT_IDLE_STOP_MINUTES = 120;
+/** An idle architect or project manager whose conversation is bigger than this is restarted fresh from its notes. */
+export const DEFAULT_CONTEXT_LIMIT_TOKENS = 200_000;
 export const MAIN_WORKSTREAM = 'main';
 
 export interface Project {
@@ -24,6 +26,8 @@ export interface Project {
   standing_rules: string | null;
   /** 1 when this project uses code-review-graph (a local code-search tool); 0 when not (the default). */
   code_graph: number;
+  /** Conversation size (tokens) above which an idle architect or project manager is restarted fresh. */
+  context_limit_tokens: number;
 }
 
 export interface Workstream {
@@ -46,6 +50,7 @@ export interface ProjectInput {
   permissionMode?: string;
   approvalRules?: string;
   idleStopMinutes?: number;
+  contextLimitTokens?: number;
   dailyBudgetUsd?: number | null;
   standingRules?: string;
   workstreams?: WorkstreamInput[];
@@ -80,8 +85,8 @@ export function addProject(db: DatabaseSync, input: ProjectInput, now: Date = ne
   return tx(db, () => {
     const result = db
       .prepare(
-        `INSERT INTO projects (name, folder, permission_mode, approval_rules, idle_stop_minutes, daily_budget_usd, created_at, default_model, standing_rules)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (name, folder, permission_mode, approval_rules, idle_stop_minutes, daily_budget_usd, created_at, default_model, standing_rules, context_limit_tokens)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.name,
@@ -93,6 +98,7 @@ export function addProject(db: DatabaseSync, input: ProjectInput, now: Date = ne
         iso(now),
         null,
         input.standingRules === undefined || input.standingRules === '' ? null : input.standingRules,
+        input.contextLimitTokens ?? DEFAULT_CONTEXT_LIMIT_TOKENS,
       );
     const projectId = Number(result.lastInsertRowid);
     const extra = input.workstreams ?? [];

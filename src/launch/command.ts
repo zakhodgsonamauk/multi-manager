@@ -60,6 +60,9 @@ export function escapeForWt(arg: string): string {
   return arg.replace(/;/g, '\\;');
 }
 
+/** Above the default 200000-token refresh limit, so the roster's fresh restart normally acts first. */
+export const MANAGER_COMPACT_WINDOW_TOKENS = 400_000;
+
 export function sessionEnv(spec: LaunchSpec): Record<string, string> {
   const env: Record<string, string> = {
     MM_ROLE: spec.role,
@@ -68,6 +71,11 @@ export function sessionEnv(spec: LaunchSpec): Record<string, string> {
     MM_VOICE: 'off',
   };
   if (spec.parentId !== null) env.MM_PARENT_ID = String(spec.parentId);
+  if (spec.role === 'architect' || spec.role === 'project-manager') {
+    // Safety net behind the roster's own fresh restart: Claude Code summarises the conversation on its own once it nears this size.
+    // Checked in a real launch: a low value made it summarise (a compact_boundary event).
+    env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(MANAGER_COMPACT_WINDOW_TOKENS);
+  }
   if (spec.role === 'developer') {
     // A developer's copy sits deep under .claude/worktrees, where long file names pass Windows' 260-character
     // limit: every git it runs gets core.longpaths=true (as if passed with -c), without touching any git config file.
@@ -141,6 +149,25 @@ export function projectManagerPrompt(project: string, goalId?: number): string {
   return `${start} Your goal is roster goal #${goalId}. Call the roster tool get_goal with goal_id ${goalId} and follow your briefing.`;
 }
 
+/**
+ * Reasons that make restartPrompt start the session fresh from its written notes instead of asking it to wait.
+ * They travel in the reason text because restartArchitect passes only that (launcher.ts is not changed for this).
+ */
+export const FRESH_AFTER_REFRESH = 'its conversation grew large, so it was refreshed on purpose';
+export const FRESH_AFTER_IDLE_STOP = 'it was stopped while idle to save usage, and an item is now waiting for it';
+
+/** The start prompt of a deliberate fresh start: resume from the written notes, never redo finished work, do not wait for a go. */
+export function freshStartPrompt(project: string, workstream: string, reason: string, role: 'architect' | 'project-manager'): string {
+  const who = role === 'project-manager' ? `project manager for project ${project}` : `architect for project ${project}, workstream ${workstream}`;
+  return [
+    `You are the Multi-Manager ${who}.`,
+    `You were started with a fresh conversation because ${reason}. You remember nothing of earlier work, but your notes are complete.`,
+    'Resume from your own notes: read status.md and progress.md (the project notes named in your briefing) and do not redo anything they record as done.',
+    role === 'project-manager' ? 'Then check_in, list_items, team_health and list_sessions.' : 'Then check_in, list_items, and get_goal for your goal.',
+    'Re-arm your timer if progress.md shows it has expired, carry on from where the notes stop, and answer any item addressed to you. Your developers kept running; do not relaunch them.',
+  ].join(' ');
+}
+
 /** What a restarted architect or project manager is told: catch up, report, and wait for the user's go. */
 export function restartPrompt(
   project: string,
@@ -149,6 +176,7 @@ export function restartPrompt(
   restored: boolean,
   role: 'architect' | 'project-manager' = 'architect',
 ): string {
+  if (reason === FRESH_AFTER_REFRESH || reason === FRESH_AFTER_IDLE_STOP) return freshStartPrompt(project, workstream, reason, role);
   const who = role === 'project-manager' ? `project manager for project ${project}` : `architect for project ${project}, workstream ${workstream}`;
   const why = reason.replace(/[;\r\n]+/g, ', ').trim() || 'an unexpected stop';
   const parts = [

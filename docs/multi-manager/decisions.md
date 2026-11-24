@@ -188,3 +188,35 @@ Alternatives: leave the switch to the front desk only (the project manager then 
 - Items that come back unseen (for example, handed back after a re-route) show again, because the flag is the only thing that hides them.
 - `commands/tick.md` front desk section: after showing new items, call `mark_seen` with their ids. The front desk must do this itself; the digest does not mark anything.
 - The "real roster tool" test now allows `item_ids` (a parameter name, not a tool), same as `session_id`.
+
+## 2026-11-24 — Task 027: fresh start for big, idle managers
+- Context size and the session's own activity come from the end of the transcript (last 6 MB, cached by file size and time): `src/monitor/transcript.ts`. Size = latest assistant call's input + cache read + cache write tokens.
+- Idle signal: a turn Claude Code marks `turnOrigin: "scheduled"` (the timer check-in), plus the replies and tool results inside it, is ignored. `own_activity_ms` is the last line outside such turns. The roster check-in time, the session file's status time and the transcript's file time are NOT used for idle stop or refresh, because the timer bumps all three. Stuck detection (`last_activity_ms`) is unchanged.
+- Setting: `projects.context_limit_tokens`, default 200000, set through `add_project`.
+- Code cannot wake an idle session, so the note turn goes through the front desk: the monitor flags the manager, `front_desk_digest` lists it in `refresh_due` with the message to send, the manager calls the new tool `resume_note_written`, and the next monitor pass (manager idle again for 1 minute, nothing pending) restarts it fresh. No note, no restart. A note followed by 3+ minutes of real work is stale and is asked for again.
+- "Clean" means: idle, quiet 5 min, no open non-info item addressed to it (a developer's done report under review is one) and no answered item it has not read. Running developers do not block a refresh.
+- Fresh restart reuses `restartArchitect` unchanged (launcher.ts is off limits): the saved conversation id is cleared first, and two reason strings in `command.ts` (`FRESH_AFTER_REFRESH`, `FRESH_AFTER_IDLE_STOP`) make `restartPrompt` return the resume-from-notes prompt instead of "wait for the go".
+- Idle stop now runs in code in the monitor tick for architects and project managers: idle, own quiet over `idle_stop_minutes`, no running developers (architect) or architects (project manager), no open non-info item for it, project not paused. A waiting goal does not block it. The stop is recorded in a new table `manager_lifecycle`.
+- Bring-back: while a stopped-by-idle manager has any open item (or unread answer) addressed to it, the same monitor pass restarts it fresh. The mark is cleared first, so a failed bring-back raises one `blocked` item to the front desk and is not retried every 30 s.
+- `front_desk_digest.idle_past_limit` is left as it was (report only); the monitor now acts first.
+- Env var: `CLAUDE_CODE_AUTO_COMPACT_WINDOW` is honoured (a low value made a real run summarise). Set to 400000 for architects and project managers in `sessionEnv`, above the refresh limit so the roster acts first. Architect approved keeping it (item #6).
+
+## 2026-11-24 — Task 027, send-back round 1
+- No second copy of a live manager: `lifecycle.ts` proves the process is the session's own (its wrapper, else its claude.exe, same rules as the launcher's stop) and kills it itself, checking the exit code, before any relaunch. Unproven or failed kill: skip, report in `errors`, open no tab. `launcher.ts` is not edited. Refresh does not use `stopSession`, because that would stop its developers too.
+- Idle stop records `idle_stopped_at` (and the pid it had) only when the kill worked; if the stop did not kill, the session row is set back to running.
+- "Something is waiting for a manager" is one definition for refresh, idle stop and bring-back: any open item addressed to it (information items too) or an unread answer. An info item therefore keeps an idle manager alive until it clears itself. Bring-back never runs for a session stopped in the same pass.
+- Only an idle-stopped manager is brought back: the mark carries the stopped pid and is dropped when the session runs again or has another pid. Never restored while paused.
+- A resume-note request expires after 30 minutes or when the context is back under the limit (the digest then goes quiet).
+- The saved conversation id is cleared only after the guards pass, and put back if the relaunch throws.
+- Transcript: a user line with no `turnOrigin` that is not meta and not a tool result starts the session's own turn.
+- Automatic-summary window: Claude Code's documentation says the value is capped at the model's own context window (read second-hand through a summary, not word for word), so 400000 on a smaller model gives that model's normal limit and never raises it. Kept at 400000.
+
+## 2026-11-24 — Task 027, send-back round 1
+- No second copy of a live manager: `lifecycle.ts` proves the process is the session's own (its wrapper, else its claude.exe, same rules as the launcher's stop) and kills it itself, checking the exit code, before any relaunch. Unproven or failed kill: skip, report in `errors`, open no tab. `launcher.ts` is not edited. Refresh does not use `stopSession`, because that would stop its developers too.
+- Idle stop records `idle_stopped_at` (and the pid it had) only when the kill worked; if the stop did not kill, the session row is set back to running.
+- "Something is waiting for a manager" is one definition for refresh, idle stop and bring-back: any open item addressed to it (information items too) or an unread answer. An info item therefore keeps an idle manager alive until it clears itself. Bring-back never runs for a session stopped in the same pass.
+- Only an idle-stopped manager is brought back: the mark carries the stopped pid and is dropped when the session runs again or has another pid. Never restored while paused.
+- A resume-note request expires after 30 minutes or when the context is back under the limit (the digest then goes quiet).
+- The saved conversation id is cleared only after the guards pass, and put back if the relaunch throws.
+- Transcript: a user line with no `turnOrigin` that is not meta and not a tool result starts the session's own turn.
+- Automatic-summary window: Claude Code's documentation says the value is capped at the model's own context window (read second-hand through a summary, not word for word), so 400000 on a smaller model gives that model's normal limit and never raises it. Kept at 400000.

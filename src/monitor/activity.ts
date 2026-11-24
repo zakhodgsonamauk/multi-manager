@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { readTranscriptInfo, type TranscriptInfo } from './transcript.ts';
 
 /**
  * How recently a Claude Code session did something. Claude Code keeps ~/.claude/sessions/<claude pid>.json
@@ -18,6 +19,8 @@ export interface ActivityReaders {
   findTranscript: (sessionId: string) => string | null;
   /** mtime in ms, or null if missing. */
   mtimeMs: (path: string) => number | null;
+  /** Context size and the session's own last activity from the transcript. Optional: without it both stay null. */
+  transcriptInfo?: (path: string) => TranscriptInfo | null;
 }
 
 export interface Activity {
@@ -26,6 +29,10 @@ export interface Activity {
   last_activity_ms: number;
   claude_session_id: string | null;
   transcript: string | null;
+  /** Size of the conversation read on the latest call (tokens), or null if unknown. */
+  context_tokens: number | null;
+  /** Last time the session did something itself: timer check-in turns and their replies do not count. Null if unknown. */
+  own_activity_ms: number | null;
 }
 
 const SESSION_ID = /^[A-Za-z0-9_-]+$/;
@@ -64,6 +71,7 @@ export function realActivityReaders(claudeHome: string = join(homedir(), '.claud
       if (path !== null) found.set(sessionId, path);
       return path;
     },
+    transcriptInfo: readTranscriptInfo,
     mtimeMs: (path) => {
       try {
         return statSync(path).mtimeMs;
@@ -89,5 +97,6 @@ export function readActivity(pid: number | null, rosterMs: number, readers: Acti
   const transcript = sessionId === null ? null : readers.findTranscript(sessionId);
   const times = [rosterMs, field<number>(file, 'statusUpdatedAt', 'number'), transcript === null ? null : readers.mtimeMs(transcript)];
   const last = Math.max(...times.filter((t): t is number => t !== null && Number.isFinite(t)));
-  return { status, last_activity_ms: last, claude_session_id: sessionId, transcript };
+  const info = transcript === null ? null : (readers.transcriptInfo?.(transcript) ?? null);
+  return { status, last_activity_ms: last, claude_session_id: sessionId, transcript, context_tokens: info?.contextTokens ?? null, own_activity_ms: info?.lastOwnActivityMs ?? null };
 }

@@ -28,5 +28,5 @@ currentIdentity(ctx);
 registerRosterTools(server, ctx);
 // The monitor only acts in the front desk's server: its passes are no-ops until the front desk is recognised or
 // start_front_desk makes this session the front desk, and a lease keeps a second front-desk server from acting at the same time.
-startMonitor(db, { ...realMonitorDeps(), active: () => currentIdentity(ctx, { throttled: true }).role === 'front-desk' });
+startMonitor(db, { ...realMonitorDeps(), launch: ctx.launch, active: () => currentIdentity(ctx, { throttled: true }).role === 'front-desk' });
 await server.connect(new StdioServerTransport());

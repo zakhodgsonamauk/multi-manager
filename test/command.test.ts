@@ -7,6 +7,10 @@ import {
   claudeArgs,
   developerPrompt,
   escapeForWt,
+  sessionEnv,
+  FRESH_AFTER_IDLE_STOP,
+  FRESH_AFTER_REFRESH,
+  restartPrompt,
   modelChangePrompt,
   sessionName,
   type LaunchSpec,
@@ -68,7 +72,7 @@ test('the session env goes into the --settings file', () => {
   const command = buildLaunchCommand(base);
   assert.equal(command.settings.path, base.settingsPath);
   assert.deepEqual(JSON.parse(command.settings.content), {
-    env: { MM_ROLE: 'architect', MM_SESSION_ID: '7', MM_PARENT_ID: '1', MM_ROSTER_DB: base.rosterDb, MM_VOICE: 'off' },
+    env: { MM_ROLE: 'architect', MM_SESSION_ID: '7', MM_PARENT_ID: '1', MM_ROSTER_DB: base.rosterDb, MM_VOICE: 'off', CLAUDE_CODE_AUTO_COMPACT_WINDOW: '400000' },
   });
 });
 
@@ -173,4 +177,23 @@ test('without a tool-connection file the arguments are unchanged and no extra fi
 test('buildLaunchCommand returns the tool-connection file to write', () => {
   const command = buildLaunchCommand({ ...base, mcpConfigPath: 'C:/s/7.mcp.json', mcpConfigContent: '{}\n' });
   assert.deepEqual(command.mcpConfig, { path: 'C:/s/7.mcp.json', content: '{}\n' });
+});
+
+test('a deliberate fresh start tells the session to resume from its notes and not to wait', () => {
+  for (const reason of [FRESH_AFTER_REFRESH, FRESH_AFTER_IDLE_STOP]) {
+    for (const role of ['architect', 'project-manager'] as const) {
+      const prompt = restartPrompt('alpha', 'main', reason, false, role);
+      assert.match(prompt, /status\.md and progress\.md/);
+      assert.match(prompt, /do not redo/);
+      assert.doesNotMatch(prompt, /WAIT for the user/);
+    }
+  }
+  assert.match(restartPrompt('alpha', 'main', 'a crash', false), /WAIT for the user/);
+});
+
+test('architects and project managers get the automatic-summary window, developers do not', () => {
+  const spec = (role: LaunchSpec['role']): LaunchSpec => ({ ...base, role });
+  assert.equal(sessionEnv(spec('architect')).CLAUDE_CODE_AUTO_COMPACT_WINDOW, '400000');
+  assert.equal(sessionEnv(spec('project-manager')).CLAUDE_CODE_AUTO_COMPACT_WINDOW, '400000');
+  assert.equal(sessionEnv(spec('developer')).CLAUDE_CODE_AUTO_COMPACT_WINDOW, undefined);
 });

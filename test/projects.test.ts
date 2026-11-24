@@ -94,3 +94,9 @@ test('code_graph defaults to off and round-trips', (t) => {
   setCodeGraph(db, 'alpha', false);
   assert.equal(getCodeGraph(db, 'alpha'), false);
 });
+
+test('a project has a context limit of 200000 tokens unless set', (t) => {
+  const db = tempRoster(t);
+  assert.equal(addProject(db, { name: 'a', folder: '/work/a' }).context_limit_tokens, 200_000);
+  assert.equal(addProject(db, { name: 'b', folder: '/work/b', contextLimitTokens: 40_000 }).context_limit_tokens, 40_000);
+});

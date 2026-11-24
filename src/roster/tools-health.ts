@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { launchDeveloper, stopSession } from '../launch/launcher.ts';
 import { realActivityReaders, type ActivityReaders } from '../monitor/activity.ts';
+import { lifecycleRow, markNoteReady, refreshRequestLive } from '../monitor/lifecycle.ts';
 import { RESTART_LINE, closeHealthItems, recordNudge, sessionHealth, unresolvedDeaths, type SessionHealth } from '../monitor/health.ts';
 import { assertNotPaused, isPaused } from './pause.ts';
 import { getSessionTask, saveSessionTask } from './session-tasks.ts';
@@ -108,7 +109,7 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
     'front_desk_digest',
     {
       description:
-        'Front desk only: does anything need you right now? Compact JSON: quiet (true when nothing below is non-empty), paused, act_on (sessions team_health recommends acting on), idle_past_limit (architects idle past the idle_stop_minutes of their project with no live goal), new_items (open items for the front desk that are not marked seen yet, raised since the optional ISO time `since`; items already marked seen are left out) and a fingerprint that stays the same while nothing changes.',
+        'Front desk only: does anything need you right now? Compact JSON: quiet (true when nothing below is non-empty), paused, act_on (sessions team_health recommends acting on), idle_past_limit (architects idle past the idle_stop_minutes of their project with no live goal), refresh_due (managers with a conversation past their limit: SendMessage each its `message` once, then leave it to restart itself), new_items (open items for the front desk that are not marked seen yet, raised since the optional ISO time `since`; items already marked seen are left out) and a fingerprint that stays the same while nothing changes.',
       inputSchema: { since: z.string().optional().describe('ISO time; only items raised after it are listed') },
     },
     ({ since }) =>
@@ -140,6 +141,17 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
             return live === undefined;
           })
           .map(({ health: h }) => ({ id: h.session_id, name: h.name, idle_minutes: h.minutes_quiet }));
+        // Managers whose conversation grew past their project's limit: the monitor will restart them fresh once they have written their note.
+        const refresh_due = top
+          .filter(({ session }) => {
+            const row = lifecycleRow(db, session.id);
+            return session.state === 'running' && refreshRequestLive(row, t);
+          })
+          .map(({ health: h }) => ({
+            id: h.session_id,
+            name: h.name,
+            message: 'Your conversation is big, so you will be restarted fresh. Write your resume note to progress.md (where you stopped, what is in flight, next step), update status.md, then call resume_note_written and stop.',
+          }));
         const rows = many<{ id: number; kind: ItemKind; body: string; project: string | null; raised_by: string | null }>(
           db
             .prepare(
@@ -163,12 +175,28 @@ export function registerHealthTools(server: McpServer, ctx: ToolContext, options
           body: r.body.length > 200 ? `${r.body.slice(0, 199)}…` : r.body,
         }));
         const fingerprint = createHash('sha1')
-          .update([...act_on.map((a) => `a${a.id}:${a.action}`), ...idle_past_limit.map((i) => `i${i.id}`), ...new_items.map((i) => `n${i.id}`)].join('|'))
+          .update([...act_on.map((a) => `a${a.id}:${a.action}`), ...idle_past_limit.map((i) => `i${i.id}`), ...refresh_due.map((r) => `r${r.id}`), ...new_items.map((i) => `n${i.id}`)].join('|'))
           .digest('hex')
           .slice(0, 8);
-        const quiet = act_on.length === 0 && idle_past_limit.length === 0 && new_items.length === 0;
+        const quiet = act_on.length === 0 && idle_past_limit.length === 0 && refresh_due.length === 0 && new_items.length === 0;
         // Compact on purpose: a quiet answer is about 120 characters.
-        return JSON.stringify({ quiet, paused: isPaused(db), act_on, idle_past_limit, new_items, fingerprint });
+        return JSON.stringify({ quiet, paused: isPaused(db), act_on, idle_past_limit, ...(refresh_due.length > 0 ? { refresh_due } : {}), new_items, fingerprint });
+      }),
+  );
+
+  server.registerTool(
+    'resume_note_written',
+    {
+      description:
+        'Architect or project manager only, when you were asked to write your resume note because your conversation is big: call it once progress.md and status.md are up to date, then stop. You are restarted with a fresh conversation that resumes from those notes; your developers keep running.',
+      inputSchema: {},
+    },
+    () =>
+      guard(() => {
+        const caller = me(ctx);
+        if (caller.role !== 'architect' && caller.role !== 'project-manager') throw new Error('Only architects and project managers can call resume_note_written');
+        if (!markNoteReady(db, caller.id, now())) throw new Error('No refresh was requested for you. Carry on with your work.');
+        return 'Noted. Stop now: you will be restarted fresh from your notes in a minute or two.';
       }),
   );
 

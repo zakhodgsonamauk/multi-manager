@@ -88,6 +88,7 @@ test('launching an architect opens a tab, stores the pid and moves the goal to p
     MM_SESSION_ID: String(result.session.id),
     MM_PARENT_ID: String(desk.id),
     MM_ROSTER_DB: rosterDb,
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: '400000',
     MM_VOICE: 'off',
   });
   assert.equal(requireGoal(db, goal.id).state, 'planning');

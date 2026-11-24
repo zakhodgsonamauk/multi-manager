@@ -132,6 +132,7 @@ const ADDED_COLUMNS: { table: string; column: string; type: string }[] = [
   { table: 'items', column: 'watched_by', type: 'INTEGER REFERENCES sessions(id)' },
   { table: 'projects', column: 'standing_rules', type: 'TEXT' },
   { table: 'projects', column: 'code_graph', type: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'projects', column: 'context_limit_tokens', type: 'INTEGER NOT NULL DEFAULT 200000' },
 ];
 
 export function migrate(db: DatabaseSync): void {

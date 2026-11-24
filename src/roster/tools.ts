@@ -196,6 +196,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
         permission_mode: z.string().optional().describe('Default dangerously-skip-permissions'),
         approval_rules: z.string().optional(),
         idle_stop_minutes: z.number().int().positive().optional(),
+        context_limit_tokens: z.number().int().positive().optional().describe('An idle architect or project manager with a conversation bigger than this is restarted fresh from its notes. Default 200000'),
         daily_budget_usd: z.number().nonnegative().optional(),
         standing_rules: z.string().optional().describe("The user's standing rules for every session in this project, stored exactly as given"),
         workstreams: z.array(z.object({ name: z.string().min(1), branch: z.string().min(1) })).optional(),
@@ -210,6 +211,7 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
           permissionMode: a.permission_mode,
           approvalRules: a.approval_rules,
           idleStopMinutes: a.idle_stop_minutes,
+          contextLimitTokens: a.context_limit_tokens,
           dailyBudgetUsd: a.daily_budget_usd,
           workstreams: a.workstreams,
         });

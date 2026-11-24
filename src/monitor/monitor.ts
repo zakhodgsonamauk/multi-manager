@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { buildStopCommand } from '../launch/command.ts';
+import type { LaunchContext } from '../launch/launcher.ts';
 import { findSessionPid } from '../launch/process.ts';
 import { runCommand, type RunResult } from '../launch/runner.ts';
 import { releaseAll } from '../roster/claims.ts';
@@ -10,6 +11,7 @@ import { getSession, setClaudeSessionId, setSessionPid, type Session } from '../
 import { realActivityReaders, type ActivityReaders } from './activity.ts';
 import { planEnforcement, type Enforcement, type MonitoredSession } from './enforce.ts';
 import { addresseeFor, detectStuck, type StuckReport } from './health.ts';
+import { runLifecycle, type LifecycleReport } from './lifecycle.ts';
 import { snapshotProcesses, type ProcessInfo } from './processes.ts';
 
 export const DEFAULT_INTERVAL_MS = 30_000;
@@ -27,6 +29,8 @@ export interface MonitorDeps {
   active?: () => boolean;
   /** Claude Code session files and transcripts, for stuck detection. Without it, stuck detection is skipped. */
   activity?: ActivityReaders;
+  /** Launch context, to stop idle managers and restart big ones fresh. Without it (or without `activity`) that pass is skipped. */
+  launch?: LaunchContext;
   /**
    * The newest Claude Code session file naming this session, with its cwd inside `within`, whose pid passes isLive
    * (findSessionPid's rules). Used to pick up sessions whose launch gave up waiting for the process. Without it,
@@ -256,6 +260,8 @@ export interface TickResult {
   stuck: StuckReport[];
   /** Information items closed this pass (old, or on a finished goal). */
   autoClosed: number;
+  /** Idle stops, resume-note requests, fresh restarts and restores of architects and project managers this pass. */
+  lifecycle?: LifecycleReport;
   errors: string[];
 }
 
@@ -326,6 +332,14 @@ export function runTick(db: DatabaseSync, deps: MonitorDeps): Promise<TickResult
       } catch (error) {
         result.errors.push(error instanceof Error ? error.message : String(error));
       }
+      if (deps.launch !== undefined) {
+        try {
+          result.lifecycle = await runLifecycle(deps.launch, deps.activity, now);
+          result.errors.push(...result.lifecycle.errors);
+        } catch (error) {
+          result.errors.push(error instanceof Error ? error.message : String(error));
+        }
+      }
     }
     return result;
   });
@@ -363,6 +377,9 @@ export function startMonitor(db: DatabaseSync, deps: MonitorDeps, intervalMs: nu
     for (const error of result.errors) deps.log?.(error);
     for (const death of result.deaths) deps.log?.(`session #${death.session_id} died (${death.reason}); item #${death.item_id}`);
     for (const e of result.enforcements) deps.log?.(`enforced: ${e.reason}`);
+    for (const s of result.lifecycle?.idle_stopped ?? []) deps.log?.(`stopped idle ${s.name} (quiet ${s.quiet_minutes} min)`);
+    for (const s of result.lifecycle?.refreshed ?? []) deps.log?.(`restarted ${s.name} fresh (context ${s.context_tokens} tokens)`);
+    for (const s of result.lifecycle?.restored ?? []) deps.log?.(`brought back ${s.name} for a waiting item`);
     for (const s of result.stuck) deps.log?.(`session #${s.session_id} looks ${s.state}, quiet ${s.minutes_quiet} min; item #${s.item_id}`);
     return result;
   };
