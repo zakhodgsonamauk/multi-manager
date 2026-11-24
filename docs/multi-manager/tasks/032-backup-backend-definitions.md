@@ -44,3 +44,12 @@ In `test/backends.test.ts`:
 
 ## Evidence required
 Test summary lines. A one-off run of each readiness check against the real machine (box, strata, Ollama), pasted as the plain-words result, with no key shown.
+
+## Send-back round 1 (2026-11-24)
+From the outside review. The rest passed (no secrets, faithful port, margin math, tests). These four can leave a proxy running with nobody using it, which the user's lean-PC rule forbids.
+1. **A hung proxy is orphaned.** `src/backends/proxy.ts` `proxyStatus` (around line 113) deletes the state file when the pid is alive but the port is silent, without killing that pid; a second proxy then starts. Fix: kill the process tree first (`killTree`), guarded so a reused pid belonging to some other program is not killed (for example, check the process's image name is the litellm/fake program recorded at start).
+2. **Users are a bare counter.** A session that crashes never releases, so the proxy runs forever; and after a mid-use proxy death the restarted proxy's count is drained by the old sessions' releases. Fix: store the set of session ids (`acquireProxy(sessionId)`, `releaseProxy(sessionId)`, idempotent), and add `reconcileProxy(liveSessionIds)` that drops ids not in the list and stops the proxy when none are left. Task 033's launcher and monitor will call it.
+3. **No lock.** Add an in-process promise chain so overlapping `acquireProxy` / `releaseProxy` calls run one after another, and say in the file header that one Multi-Manager process owns the state file.
+4. **Strata check misses the program.** `checkBackend('strata')` only tests `import litellm`; also call `findLitellm` and report "litellm.exe not found" in plain words when it is missing, as the .bat does. Delete `strata-litellm.yaml` when the proxy stops.
+
+Missing tests to add: tree kill of a fake proxy that has a child process (both gone after release); proxy dies mid-use, then acquire and release by the old and new sessions leave it stopped with no users; live pid with silent port is killed and replaced; `reconcileProxy` with a crashed session stops the proxy; overlapping acquires start exactly one proxy.
