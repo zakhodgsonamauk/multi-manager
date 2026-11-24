@@ -40,3 +40,7 @@ Only three backups: `glm`, then `box`, then `strata`, in that order ("glm, then 
 ## 2026-11-24 Model comparison result: thinking must be off for glm and box
 Context: item #17 comparison (comparison/README.md). With thinking on, glm and box spent the whole answer budget thinking and produced no code; with it off, glm 16/16 in 1.4 s, box 14/16 in 2.6 s, Strata 16/16 in 4.1 s.
 Decision: offered the user a glm thinking-off option and a box server setting (item #22). Not built until the user answers; the box server is outside this repo.
+
+## 2026-11-24 Tests that touch real backends or start programs run headless only
+Context: item #29 (test windows on the user's screen while gaming) and item #27 ("can run tests but only if headless!").
+Decision: every test start of a program is hidden and cleaned up (task 037). 033's real-backend check becomes a headless run (no tab). Fixes for #29 go to a helper agent in its own copy of the project, not a developer tab, so nothing new appears on screen.
