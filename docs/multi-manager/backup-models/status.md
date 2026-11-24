@@ -8,8 +8,9 @@ Roster goal #4: fold the backup Claude Code launchers (GLM via Ollama, LeaderGPU
 Plan and testing approach signed off: 2026-11-24, item #13 (backups: glm, box, strata only; all roles; ask mode).
 
 ## In flight
-- 033 Start a session on a backup: dev session #11, tab `mm-multi-manager-backup-models-dev-033-start-on-backup`, branch `worktree-mm-multi-manager-backup-models-dev-033-start-on-backup`, round 1 (sonnet; complexity 4, clarity 4).
-- Model comparison (item #17): done, reported as item #22; evidence in `comparison/`. Waiting on the user about thinking-off for glm and the box.
+- 033 Start a session on a backup: dev session #11, tab `mm-multi-manager-backup-models-dev-033-start-on-backup`, branch `worktree-mm-multi-manager-backup-models-dev-033-start-on-backup`, round 1 (sonnet; complexity 4, clarity 4). Code returned (item #26), HELD: review stopped for item #29; send-back round 1 to follow after 037 (headless real GLM check per item #27, GLM thinking off per #27 Q2 default, review findings).
+- 037 Backend proxy tests must never open windows (URGENT, item #29): helper agent, roster session #12, own temporary copy of the project. Stopgap on main 454763c (8 tests skipped). Close #29 with proof after merge.
+- Model comparison (item #17): done, reported as item #22; evidence in `comparison/`. GLM thinking off: default yes (item #27 Q2 unanswered). Box thinking: user's call, not built.
 
 ## Merged
 - 032 Backup backends: definitions and health checks: `c5908cf` (2026-11-24), after one send-back round.
