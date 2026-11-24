@@ -10,11 +10,11 @@ A session that has run out of Claude usage can be moved to a backup without losi
 - Works for developers too. Today `restart_developer` starts a fresh conversation; this switch must resume instead.
 - Readiness check first; not ready means nothing is closed.
 - Record each switch in the model ledger (`claude:opus` to `box:opus` style, with a reason).
-- Batch form: `session_ids: "all"` (every live session on `claude`) for the "usage ran out" case in 035. It skips the front desk unless asked: the front desk is the user's own window and is switched only when the user picks it.
+- Batch form: `session_ids: "all"` (every live session on `claude`) for the "usage ran out" case in 035. The user said every role may go on a backup (sign-off #13, Q3: "all"), so this includes the front desk and project managers. Switch the front desk last, after the others, because its window hosts the side pane. If the front desk cannot be relaunched by Multi-Manager with its conversation kept, report that before building around it.
 - First check, by hand, that a conversation started on Claude resumes cleanly on a backup and back (the transcript is kept locally, so it should). Report what you find before building on it. If a backend cannot take a long conversation (bigger than its context limit), fall back to a fresh start with the task re-sent, and say so in the tool result.
 
 ## Tests first
-In `test/switch-backend.test.ts`: switch closes the old tab and relaunches with `--resume` and the new backend's env; not-ready leaves the tab alone; ledger row written; batch form skips the front desk and sessions already on a backup; developer switch resumes rather than starting fresh; too-big conversation falls back to a fresh start with the task.
+In `test/switch-backend.test.ts`: switch closes the old tab and relaunches with `--resume` and the new backend's env; not-ready leaves the tab alone; ledger row written; batch form switches every role, the front desk last, and skips sessions already on a backup; developer switch resumes rather than starting fresh; too-big conversation falls back to a fresh start with the task.
 
 ## Files expected to change
 `src/launch/launcher.ts`, `src/roster/tools.ts` (or a sibling tools file), `src/roster/model-ledger.ts` if needed, `briefings/front-desk.md` (one paragraph: how to switch sessions), tests.

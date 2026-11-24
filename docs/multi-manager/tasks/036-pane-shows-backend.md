@@ -4,7 +4,7 @@ Goal #4. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/t
 Waits for: task 033 merged, goal #2's task 026 merged (same pane file).
 
 ## Goal
-The user can see at a glance which sessions are on a backup. In the pane, a session on a backup gets a small plain label after its name ("on box", "on GPT"); sessions on Claude show nothing extra. `status` and `list_sessions` include the backend. A backup whose shared proxy is running shows in the pane footer ("strata proxy running, 2 sessions").
+The user can see at a glance which sessions are on a backup. In the pane, a session on a backup gets a small plain label after its name ("on box", "on glm"); sessions on Claude show nothing extra. `status` and `list_sessions` include the backend. A backup whose shared proxy is running shows in the pane footer ("strata proxy running, 2 sessions").
 
 ## Tests first
 Extend the mod tests (`npm run test:mod`) and the test file that covers the `status` tool: label present for a backup session, absent for Claude; footer line only while a proxy runs.

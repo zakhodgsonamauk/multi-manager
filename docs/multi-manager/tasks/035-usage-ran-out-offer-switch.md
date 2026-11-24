@@ -10,9 +10,9 @@ When Claude usage runs out, **every** Claude session stops answering at once, th
 
 - The monitor reads each live session's transcript tail for the usage-limit message Claude Code writes. First collect real examples: search the user's existing transcripts under `~/.claude/projects` for the limit messages (and their reset time), and paste the exact wording (no other content) in the return report. Build the matcher from those.
 - When found: mark the session `out-of-usage` with the reset time, in the roster.
-- The pane shows one banner: "Claude usage ran out (resets <time>). N sessions stopped. Switch them to [backup]?" listing the backends that pass their readiness check, in the user's preferred order, and one button. The button calls 034's batch switch. A second line offers the front desk too.
+- The pane shows one banner: "Claude usage ran out (resets <time>). N sessions stopped. Switch them to [backup]?" offering the backends that pass their readiness check, in the user's order: `glm`, then `box`, then `strata`, and no others (sign-off #13, Q2). One button switches every session, the front desk included (Q3: "all"), through 034's batch switch.
 - After the reset time, the banner offers "Claude is back. Switch N sessions back?" the same way.
-- Project setting `backup_mode`: `ask` (default) or `auto` (switch to the first ready backup without asking, and back after reset; the banner then just reports what happened).
+- Project setting `backup_mode`: `ask` (default; the user left Q1 at the default) or `auto` (switch to the first ready backup without asking, and back after reset; the banner then just reports what happened).
 - Record each episode as an `info` roster item so the front desk sees it once it is answering again.
 
 ## Tests first
