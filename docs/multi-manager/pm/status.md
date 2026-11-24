@@ -1,14 +1,14 @@
 # Project manager status (multi-manager)
 
-Updated: 2026-11-24 18:05
+Updated: 2026-11-24 20:01
 
-Project manager: roster session #2, no goal yet, workstream `pm`.
+Project manager: roster session #13 (resumed after pause #1), no goal yet, workstream `pm`.
 
 ## Architects
 - (#3 usage-efficiency stopped 20:00, goal #2 done; reload timing asked in #32)
 
 ## Architects (cont.)
-- #8 backup-models, goal #4 (pointer goal #3): proposal for sign-off.
+- #14 backup-models, goal #4 (pointer goal #3): resumed, holding for the user's go (info #39): 037 test fix, 033 review, comparison round 2.
 
 ## Goals
 - #99 / #100, #101 / #102 code-review-graph: done.
