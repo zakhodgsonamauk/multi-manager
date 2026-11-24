@@ -69,3 +69,10 @@ One dated entry per decision, newest last. Never rewrite an old entry. Add a new
 - Decision: Idle stop kills first and checks the exit code; only after a good kill does `stopSession` clean up. A resume-note request that expired is remembered (`refresh_expired_at`) and not re-asked for 2 hours.
 - Alternatives: The roster monitor nudging a manager only when its scope has news. Rejected: the mod route needs no new message path and reuses the front desk's tested decision code.
 - Who: developer, task 026.
+
+## 2026-11-24 — Wrap-up testing under "only if headless"
+
+- Context: The user's answer to item #25 was "can run tests but only if headless!". A manager's quiet check-in loop and a fresh restart need a real interactive terminal, and a restart opens a Terminal tab by design.
+- Decision: Measure start-up size with headless `claude -p` runs. Rely on the focused and end-to-end tests for 026 and 027. Confirm 026 and 027 from real use after go-live, by re-measuring with the saved scripts.
+- Alternatives: Hidden consoles. Rejected: Windows can hand them to Windows Terminal and pop a window. A fake `wt.exe`. Rejected: too hacky for a test.
+- Who: the architect, under the user's rule.

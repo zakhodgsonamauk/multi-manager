@@ -1,10 +1,10 @@
 # Status
 
 Live handover for workstream `usage-efficiency`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-24 19:52
+Updated: 2026-11-24 20:05
 
 ## Current goal
-Roster goal #2: make Multi-Manager use less Claude usage. State: in-progress.
+Roster goal #2: make Multi-Manager use less Claude usage. State: done (2026-11-24); waiting for the go-live reload, which the project manager coordinates.
 Plan and testing approach signed off 2026-11-24 in item #2. The user's answer, verbatim: "go on all as recommended, except: q2 - ideally we'd wrap plugins in some sort of middle-man so they're still available, but only stuck into context when relevant. "
 Findings: `findings.md` in this folder.
 
@@ -19,13 +19,15 @@ Findings: `findings.md` in this folder.
 - 030 Use only the C:\dev copy: `ff8a5c4` (2026-11-24). Two desktop shortcuts now point at C:\dev; a one-line warning appears when anything runs from another copy. Running sessions keep their copy until next start. A throwaway test cluster roster sits in the Dropbox copy's scratch-ignored folder (not moved).
 
 ## Queued (in order)
-- 031 Tool connections through a middle-man: runs after 029, and only if 029's numbers show it is worth it.
+- (none)
 
 ## Paused / parked
-- (none)
+- 031 Tool connections through a middle-man. Parked by the architect: decide after re-measuring real use. Would save at most about 7.6k tokens per call. Needs the user's go.
+- Live tests of 026 and 027 in real windows. Not possible under the user's "only if headless" (item #25): a manager needs a real terminal. To be checked from real use after go-live.
 
 ## Findings (record-only)
 - Q3: the "Other active sessions" line stays as it is. The user's agreed default was to turn it off only if it could be switched off per tab, and claude-context-sync has no per-tab switch.
 
 ## Next
-All five tasks are merged. Still to do: the live test in a throwaway project (C:\dev\mm-e2e-usage) of 026, 027 and 029. It was paused at 19:52 because the user was in a full-screen game; it waits for the user's answer to item #25. Then: tell the PM before the go-live reload, re-measure after a day of use, and decide 031.
+1. Go-live: the project manager checks nothing else is running, then reloads the roster and plugin (user: "fine for reload etc", item #4). Sessions started before the reload keep the old behaviour until they restart.
+2. After a day of real use, re-run `measure/extract.js` and `measure/analyze.js`. Compare with the baseline in `conductor/usage-baseline/`: tick turns, context per manager call, restarts. Then decide 031.
