@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { canonicalPluginDir, pluginCopyWarning } from '../launch/plugin-copy.ts';
 import { realDeps } from '../launch/runner.ts';
 import { realActivityReaders } from '../monitor/activity.ts';
 import { realMonitorDeps, startMonitor } from '../monitor/monitor.ts';
@@ -9,6 +10,9 @@ import { createFrontDeskProbe } from './identity.ts';
 import { currentIdentity, identityFromEnv, registerRosterTools, type ToolContext } from './tools.ts';
 
 const pluginRoot = resolve(import.meta.dirname, '..', '..');
+// Once at start-up, on stderr (stdout carries the protocol): a session running a non-canonical plugin copy says so.
+const copyWarning = pluginCopyWarning(pluginRoot, canonicalPluginDir());
+if (copyWarning !== null) console.error(copyWarning);
 const db = openRoster();
 const server = new McpServer({ name: 'multi-manager-roster', version: '0.1.0' });
 const readers = realActivityReaders();

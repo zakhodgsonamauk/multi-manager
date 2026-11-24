@@ -330,3 +330,21 @@ test('two cluster folders yield two front desk names', () => {
   assert.equal(a[a.indexOf('-n') + 1], 'mm-front-desk-alpha');
   assert.equal(b[b.indexOf('-n') + 1], 'mm-front-desk-beta');
 });
+
+test('runner: warns once, in one line, when the plugin folder is not the canonical one; silent when it is', async () => {
+  for (const [pluginDir, expectWarning] of [[PLUGIN, true], ['C:\\dev\\multi-manager', false]] as const) {
+    const fake = fakeSpawn((child) => child.emit('exit', 0, null));
+    const warnings: string[] = [];
+    const env = { PATH: 'C:\\bin', MM_CANONICAL_PLUGIN_DIR: 'C:\\dev\\multi-manager' };
+    const code = await runFrontDeskLaunch(['--main', '--plugin-dir', pluginDir], {
+      spawn: fake.spawn, env, wtPath: 'wt.exe', error: () => {}, warn: (m) => warnings.push(m),
+    });
+    assert.equal(code, 0);
+    if (expectWarning) {
+      assert.equal(warnings.length, 1);
+      assert.ok(warnings[0].includes('C:\\dev\\multi-manager') && !warnings[0].includes('\n'));
+    } else {
+      assert.deepEqual(warnings, []);
+    }
+  }
+});

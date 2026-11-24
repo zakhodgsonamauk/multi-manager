@@ -3,6 +3,7 @@ import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, win32 } from 'node:path';
 import { parseArgs } from 'node:util';
 import { escapeForWt, sessionName } from './command.ts';
+import { canonicalPluginDir, pluginCopyWarning } from './plugin-copy.ts';
 import { encodeCommand, PWSH_ARGS, psQuote } from './wrapper.ts';
 
 /**
@@ -126,6 +127,8 @@ export interface FrontDeskRunDeps {
   wtPath: string;
   /** Where failure reasons go (the picker shows them). */
   error: (message: string) => void;
+  /** Where the one-line wrong-plugin-copy warning goes. Optional: a launch without it stays silent. */
+  warn?: (message: string) => void;
 }
 
 const USAGE = 'usage: front-desk-launch.ts (--folder <dir> | --main) --plugin-dir <dir> [--remote]';
@@ -157,6 +160,8 @@ export async function runFrontDeskLaunch(argv: string[], deps: FrontDeskRunDeps)
   const pluginDir = values['plugin-dir'];
   const folder = values.folder;
   if (!pluginDir || (folder === undefined) === !values.main || folder === '') return fail(USAGE);
+  const copyWarning = pluginCopyWarning(pluginDir, canonicalPluginDir(deps.env));
+  if (copyWarning !== null) deps.warn?.(copyWarning);
   if (folder !== undefined) {
     if (!statSync(folder, { throwIfNoEntry: false })?.isDirectory()) return fail(`The folder does not exist: ${folder}`);
     try {

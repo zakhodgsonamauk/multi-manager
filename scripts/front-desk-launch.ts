@@ -10,4 +10,5 @@ process.exitCode = await runFrontDeskLaunch(process.argv.slice(2), {
   env: process.env,
   wtPath: wtPath(process.env),
   error: (message) => console.error(message),
+  warn: (message) => console.error(message),
 });
