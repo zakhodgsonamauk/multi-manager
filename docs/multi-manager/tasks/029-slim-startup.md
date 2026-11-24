@@ -72,3 +72,35 @@ The unsaved edits that used to be in these files were committed as `528e3d7`. Ta
   - that the supaconductor and render skills are gone from its listing;
   - that `find_skill` then `load_skill` returns a usable render skill;
   - that the roster tools and Chrome tools still work.
+
+## Send-back round 1 (2026-11-24)
+From the outside review. The keep-list safety, the unchanged front desk, the no-execution rule and the no-traversal check all passed. Fix these:
+
+1. **Voice and other hook plugins break in tabs** (`src/launch/command.ts:51`). `session-voice` is switched off, so `set_voice` and `voice_status` stop working in tabs. Add `session-voice`, `cc-sounds` and `claudish-to-english` to the keep-list. They are hook plugins the user relies on, not skill bulk. Architect's decision, logged.
+2. **`load_skill` argument substitution is wrong** (`src/roster/skill-broker.ts:180-184`):
+   - Use one pass, with a single regex and function replacers, so `$`, `$&` or `$1` inside the args are never re-expanded.
+   - `$0` must not be erased.
+   - Leave any `$N` with no matching argument as it is, so awk's `$1` and regex back-references survive.
+   - Match Claude Code's current numbering for `$ARGUMENTS[n]` and `$n`. Check the skills docs and note which one you used.
+   - When the body has no `$ARGUMENTS` placeholder and args were given, add `ARGUMENTS: <args>` at the end, as the harness does.
+   - Use function replacers for `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_SKILL_DIR}` too.
+3. **A bad plugins file fails the launch** (`src/roster/skill-broker.ts:92`). A file containing just `null` makes `parsed.plugins` throw outside the try, and the error reaches `launchTab`. Guard the parsed shape. A launch must never fail because of this file.
+4. **Smaller fixes:**
+   - Pick up edits to command files when rebuilding the index.
+   - Make the tool descriptions true in the front desk too (do not say "switched off in this tab").
+   - Bound the supporting-file walk: a depth or count cap.
+
+Missing tests to add:
+- `$0`
+- an unmatched `$N`
+- `$` and `$&` inside args
+- args when the body has no placeholder
+- `installedPluginFolders` with a missing file, a malformed file, and a `null` file
+- the launcher passing `disabledPlugins` for architect, project manager and developer, and not for the front desk
+- the voice, sounds and claudish plugins staying on
+
+Rules:
+- No more headless `claude -p` runs: interactive tabs only.
+- The real-tab evidence is no longer required from you. The architect will check it in a launched tab after merge.
+
+Update the return report, then raise `done` again.

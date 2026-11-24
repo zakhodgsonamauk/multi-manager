@@ -52,3 +52,10 @@ One dated entry per decision, newest last. Never rewrite an old entry. Add a new
   - 031: an MCP broker (`find_tool`, `describe_tool`, `call_tool`) for the user's other tool connections. Build it only if 029's measured saving shows it is worth it. MCP tools are already loaded lazily, so the remaining cost is only their names and instructions, about 7.6k tokens.
 - Alternatives: Edit each skill's frontmatter to hide it. Rejected because it changes other plugins' files. Use a global `skillOverrides` setting. Rejected because it does not apply to plugin skills.
 - Who: the architect, carrying out the user's Q2 answer.
+
+## 2026-11-24 — Plugins that stay on in Multi-Manager tabs (task 029)
+
+- Context: The 029 review found that `session-voice` was switched off in tabs, which breaks `set_voice`.
+- Decision: The keep-list is Multi-Manager, claude-in-chrome, second-opinion, code-review-graph, session-voice, cc-sounds and claudish-to-english. The last three are hook plugins the user relies on, and they add little start-up text.
+- Alternatives: Keep only Multi-Manager's own plugins. Rejected because it silently breaks voice, sounds and the plain-English rewrite in tabs.
+- Who: the architect.
