@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `usage-efficiency`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-24 19:12
+Updated: 2026-11-24 19:16
 
 ## Current goal
 Roster goal #2: make Multi-Manager use less Claude usage. State: in-progress.
@@ -10,9 +10,9 @@ Findings: `findings.md` in this folder.
 
 ## In flight
 - 027 Fresh start for big, idle managers: dev session #4 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-027-fresh-context`, branch `worktree-mm-multi-manager-usage-efficiency-dev-027-fresh-context`, round 1.
-- 028 Cheaper helper agents, Fable and nudges: dev session #6 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-028-cheaper-helpers`, branch `worktree-mm-multi-manager-usage-efficiency-dev-028-cheaper-helpers`, round 1.
 
 ## Merged
+- 028 Cheaper helper agents, Fable and nudges: `6d13b5a` (2026-11-24). It includes the front desk's refresh_due line in commands/tick.md.
 - 030 Use only the C:\dev copy: `ff8a5c4` (2026-11-24). Two desktop shortcuts now point at C:\dev; a one-line warning appears when anything runs from another copy. Running sessions keep their copy until next start. A throwaway test cluster roster sits in the Dropbox copy's scratch-ignored folder (not moved).
 
 ## Queued (in order)
