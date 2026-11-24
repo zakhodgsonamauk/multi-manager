@@ -1,6 +1,6 @@
 # 029 — Plugins through a middle-man: skills on demand
 
-Goal #2. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/029-slim-startup.return.md` on that branch.
+Goal #2. Branch: `worktree-mm-multi-manager-usage-efficiency-dev-029-skill-broker`. Return report: `docs/multi-manager/tasks/029-slim-startup.return.md` on that branch.
 
 ## The user's words (sign-off item #2, Q2)
 "ideally we'd wrap plugins in some sort of middle-man so they're still available, but only stuck into context when relevant."
