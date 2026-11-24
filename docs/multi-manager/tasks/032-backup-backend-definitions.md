@@ -1,6 +1,6 @@
 # 032 — Backup backends: definitions and health checks
 
-Goal #4. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/032-backup-backend-definitions.return.md` on that branch.
+Goal #4. Branch: `worktree-mm-multi-manager-backup-models-dev-032-backends`. Return report: `docs/multi-manager/tasks/032-backup-backend-definitions.return.md` on that branch.
 
 ## Goal
 When Claude usage runs out, the user falls back on hand-made launchers in Dropbox (`claude-on-box.bat`, `claude-on-strata.bat`, and `multi-model-ai\launch-cc-with-glm.bat`). Multi-Manager knows nothing about them. This task teaches Multi-Manager what each backup is, in one place, as plain data plus small checks. Nothing launches on them yet (that is task 033).
