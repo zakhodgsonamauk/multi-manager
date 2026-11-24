@@ -8,9 +8,10 @@ Roster goal #4: fold the backup Claude Code launchers (GLM via Ollama, LeaderGPU
 Plan and testing approach signed off: 2026-11-24, item #13 (backups: glm, box, strata only; all roles; ask mode).
 
 ## In flight
-- 032 Backup backends: definitions and health checks: dev session #10, tab `mm-multi-manager-backup-models-dev-032-backends`, branch `worktree-mm-multi-manager-backup-models-dev-032-backends`, round 2 after send-back 1 (sonnet; complexity 3, clarity 4).
+- none
 
 ## Merged
+- 032 Backup backends: definitions and health checks: `c5908cf` (2026-11-24), after one send-back round.
 - .gitignore: launcher copies kept but ignored (`81d036a`, 2026-11-24).
 
 ## Queued (in order)
