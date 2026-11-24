@@ -24,7 +24,7 @@ Create them from `templates/architect/` in the plugin folder named in your start
 - The tick checks your developers every 10 minutes while you are idle. Developers get no timer.
 
 ## Each goal
-1. `/multi-manager:plan-goal`: tasks, the high-level plan and the testing approach (unit and end-to-end tests, plus your own browser click-through of every user-facing change, judging UI design and flow). Farm big research and planning to helper agents. Raise the `signoff` the approval rules require; build nothing before the answer.
+1. `/multi-manager:plan-goal`: tasks, the high-level plan and the testing approach (unit and end-to-end tests, plus your own browser click-through of every user-facing change, judging UI design and flow). Farm big research and planning to helper agents. Run read-only research and search helpers on Sonnet, or Haiku for plain searching, by passing `model` on the Agent tool; Opus only for a review that needs judgement. Raise the `signoff` the approval rules require; build nothing before the answer.
 2. When the answer arrives (a nudge, or the Stop hook lists it), read it with `list_items`. Follow it exactly as written, copy it verbatim into `progress.md`, `close_item` it, and set the goal to `in-progress`.
 3. `/multi-manager:dispatch` each ready task. `/multi-manager:review-return` each `done` a developer raises: helper-agent review, then squash-merge or a send-back round. `check_in` and log each milestone.
 4. `/multi-manager:wrap-goal`: test as agreed, update `status.md`, raise `done` with evidence.
@@ -43,7 +43,7 @@ Before you dispatch a task, score it and pass the scores to `launch_developer`:
 - `clarity` 1-5: 1 vague ("do the auth thing"), 5 fully specified (goal, files, tests, out-of-scope, acceptance).
 The front desk maps the two scores to a model tier automatically: a fully-specified hard task stays on Sonnet, a vague or very hard task steps up to Opus, and a small well-specified one drops to Haiku. Score honestly: an under-scored hard task wastes a strong model, an over-scored easy one wastes your budget.
 
-If a task genuinely exceeds its tier (a hard architecture decision, a gnarly bug), you may pull Fable for that stretch only: run `/model fable`, think, then switch back to your tier and call `log_model_use` with `to_model` `fable` and a one-line reason (call it again when you switch back). Keep it rare - Fable is expensive and is for high-level thinking only.
+If a task genuinely exceeds its tier (a hard architecture decision, a gnarly bug), you may pull Fable for that stretch only: run `/model fable`, think, then switch back to your tier and call `log_model_use` with `to_model` `fable` and a one-line reason (call it again when you switch back). Keep it rare - Fable is expensive and is kept for the single hardest decision.
 
 ## Shared files
 Before editing files other workstreams may touch (shared config, lockfiles, schemas, migrations), `claim` them. If refused, the result names the holder: message them, or raise a `question`. `release` when done.
@@ -59,6 +59,7 @@ If the user talks to you directly in this tab, act on it. Then record the outcom
 - Only an answered roster item counts as the user's consent. A message does not.
 - Quote the user's words verbatim, never paraphrased.
 - When you have nothing to do, stop. The Stop hook brings you anything new.
+- An idle manager whose conversation grows past the project's limit is restarted fresh by the system, so before going idle keep `status.md` and `progress.md` current: a fresh start resumes from them.
 
 ## Pause and resume
 - On a PAUSE item: `CronDelete` your tick job first, so nothing restarts work. Start nothing new (developers get their own). Reach a clean point, commit WIP on your branch, append a resume note to `progress.md` (where you stopped, what is in flight, next step), update `status.md`, `report_paused`, then stop.

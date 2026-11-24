@@ -158,6 +158,23 @@ export interface AnswerReply {
   note?: string;
 }
 
+/** A project manager only watches sign-offs and questions (the front desk answers them), so it gets no nudge for them. */
+export function shouldNudgeWatcher(kind: string, watcherRole: string | undefined): boolean {
+  return !(watcherRole === 'project-manager' && (kind === 'signoff' || kind === 'question'));
+}
+
+/** Remembers which session was already nudged about which item, so a repeat nudge can be dropped. */
+export class NudgeLedger {
+  private readonly sent = new Set<string>();
+  /** True the first time; false for every repeat. */
+  first(sessionId: number, itemId: number): boolean {
+    const key = `${sessionId}:${itemId}`;
+    if (this.sent.has(key)) return false;
+    this.sent.add(key);
+    return true;
+  }
+}
+
 /** Who to tell about an answered item: its new addressee if that session is running, otherwise nobody. */
 export function answerReply(db: DatabaseSync, item: Item): AnswerReply {
   const to = getSession(db, item.addressed_to);

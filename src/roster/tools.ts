@@ -21,7 +21,7 @@ import { claim, release } from './claims.ts';
 import type { FrontDeskProbe } from './identity.ts';
 import type { Env } from './db.ts';
 import { GOAL_STATES, createGoal, goalWithPlace, updateGoal } from './goals.ts';
-import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, clearItems, closeItem, listItems, markSeen, raiseItem, requireItem } from './items.ts';
+import { ITEM_KINDS, ITEM_STATES, answerItem, answerReply, clearItems, closeItem, listItems, markSeen, raiseItem, requireItem, shouldNudgeWatcher, NudgeLedger } from './items.ts';
 import { listModelUsage, recordModelChange } from './model-ledger.ts';
 import { WORK_MODELS } from './models.ts';
 import {
@@ -125,6 +125,21 @@ function projectIdFor(ctx: ToolContext, project: string | undefined): number {
 
 function nudge(ctx: ToolContext, sessionId: number, itemId: number): { to: string | null; message: string } {
   return { to: getSession(ctx.db, sessionId)?.name ?? null, message: `check roster item #${itemId}` };
+}
+
+const nudgeLedgers = new WeakMap<object, NudgeLedger>();
+
+/** True the first time a nudge for this item goes to this session; false for every repeat, so the reply sends nothing. */
+function firstNudge(ctx: ToolContext, sessionId: number, itemId: number): boolean {
+  let ledger = nudgeLedgers.get(ctx.db);
+  if (ledger === undefined) nudgeLedgers.set(ctx.db, (ledger = new NudgeLedger()));
+  return ledger.first(sessionId, itemId);
+}
+
+function watcherNudge(ctx: ToolContext, item: { id: number; kind: string; watched_by: number | null }): { to: string | null; message: string } | undefined {
+  if (item.watched_by === null) return undefined;
+  if (!shouldNudgeWatcher(item.kind, getSession(ctx.db, item.watched_by)?.role)) return undefined;
+  return firstNudge(ctx, item.watched_by, item.id) ? nudge(ctx, item.watched_by, item.id) : undefined;
 }
 
 function startStatus(db: DatabaseSync): Omit<StatusSummary, 'waiting_for_user'> {
@@ -335,7 +350,9 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
           item,
           nudge: nudge(ctx, item.addressed_to, item.id),
         };
-        if (item.watched_by !== null) reply.watcher_nudge = nudge(ctx, item.watched_by, item.id);
+        firstNudge(ctx, item.addressed_to, item.id);
+        const watcher = watcherNudge(ctx, item);
+        if (watcher !== undefined) reply.watcher_nudge = watcher;
         return reply;
       }),
   );
@@ -355,7 +372,14 @@ export function registerRosterTools(server: McpServer, ctx: ToolContext): void {
           throw new Error(`Item #${before.id} is only watched by you: it is addressed to session #${before.addressed_to}, so you cannot answer it`);
         }
         const item = answerItem(db, a.item_id, a.answer);
-        return { item, ...answerReply(db, item), ...(item.watched_by === null ? {} : { watcher_nudge: nudge(ctx, item.watched_by, item.id) }) };
+        const answer = answerReply(db, item);
+        const duplicate = answer.nudge !== null && item.raised_by !== null && !firstNudge(ctx, item.raised_by, item.id);
+        const watcher = watcherNudge(ctx, item);
+        return {
+          item,
+          ...(duplicate ? { nudge: null, nudge_skipped: 'duplicate' } : answer),
+          ...(watcher === undefined ? {} : { watcher_nudge: watcher }),
+        };
       }),
   );
 

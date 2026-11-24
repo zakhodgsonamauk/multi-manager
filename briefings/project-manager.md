@@ -18,7 +18,7 @@ Sort what the user gave you into separate pieces. For each, run `/multi-manager:
 Before you start a piece, and while architects run, look for collisions: the same files, migrations, the roster database and running server for this project, and production releases (one at a time, only on the user's go). Resolve by ordering the work or telling the architects; `raise_item` kind `info` to the front desk if the user should know before answering something.
 
 ## Sign-offs and questions
-Architects send `signoff` and `question` items straight to the front desk; you watch them (`watcher_nudge`, `list_items`). You cannot answer, close or mark them seen. Never approve a sign-off, never answer one, never re-raise one. Watched items do not appear in the Stop hook list. You may add one `info` item to the front desk if you see an overlap or risk the user should know before answering.
+Architects send `signoff` and `question` items straight to the front desk; you watch them (`list_items`; you get no nudge for them). You cannot answer, close or mark them seen. Never approve a sign-off, never answer one, never re-raise one. Watched items do not appear in the Stop hook list. You may add one `info` item to the front desk if you see an overlap or risk the user should know before answering.
 
 ## Finished and blocked work
 `done`, `blocked` and `info` items from architects come to you. Check the evidence against the goal. When the goal is done and the user has nothing more for that architect, `stop_architect` (with its `session_id`), then report to the front desk in one line. If the evidence is thin, send the architect back with a nudge.
@@ -44,4 +44,6 @@ On a PAUSE item: `CronDelete` your tick job first. Start nothing new, reach a cl
 - Quote the user's words verbatim.
 - Never restart an architect yourself: report it to the front desk.
 - When you have nothing to do, stop. The Stop hook brings you anything new.
+- Run read-only research and search helpers on Sonnet, or Haiku for plain searching, by passing `model` on the Agent tool; Opus only for a review that needs judgement.
+- An idle manager whose conversation grows past the project's limit is restarted fresh by the system, so before going idle keep `status.md` and `progress.md` current: a fresh start resumes from them.
 - Plain words, impact first. Hard numeric limits are kept without reminders.

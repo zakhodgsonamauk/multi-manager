@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { LaunchDeps } from '../src/launch/runner.ts';
-import { getItem } from '../src/roster/items.ts';
+import { NudgeLedger, getItem, shouldNudgeWatcher } from '../src/roster/items.ts';
 import { addProject, addWorkstream, requireWorkstream } from '../src/roster/projects.ts';
 import { registerSession, startFrontDesk } from '../src/roster/sessions.ts';
 import { registerRosterTools, type ToolContext } from '../src/roster/tools.ts';
@@ -51,9 +51,29 @@ test('raise_item reply for a watched sign-off nudges the front desk and the proj
   assert.equal(reply.item.addressed_to, desk.id);
   assert.equal(reply.item.watched_by, pm.id);
   assert.deepEqual(reply.nudge, { to: desk.name, message: `check roster item #${reply.item.id}` });
-  assert.deepEqual(reply.watcher_nudge, { to: 'pm-alpha', message: `check roster item #${reply.item.id}` });
+  // a project manager only watches sign-offs and questions: no nudge for it
+  assert.equal(reply.watcher_nudge, undefined);
+  const q = (await call('raise_item', { kind: 'question', body: 'Q?' })).json();
+  assert.equal(q.item.watched_by, pm.id);
+  assert.equal(q.watcher_nudge, undefined);
   const plain = (await call('raise_item', { kind: 'done', body: 'x' })).json();
   assert.equal(plain.watcher_nudge, undefined);
+});
+
+test('a project manager watcher is nudged for done and blocked, not for sign-offs or questions', () => {
+  assert.equal(shouldNudgeWatcher('signoff', 'project-manager'), false);
+  assert.equal(shouldNudgeWatcher('question', 'project-manager'), false);
+  assert.equal(shouldNudgeWatcher('done', 'project-manager'), true);
+  assert.equal(shouldNudgeWatcher('blocked', 'project-manager'), true);
+  assert.equal(shouldNudgeWatcher('signoff', 'architect'), true);
+});
+
+test('a second nudge for the same item to the same session is recorded as a duplicate', () => {
+  const ledger = new NudgeLedger();
+  assert.equal(ledger.first(7, 42), true);
+  assert.equal(ledger.first(7, 42), false);
+  assert.equal(ledger.first(8, 42), true);
+  assert.equal(ledger.first(7, 43), true);
 });
 
 test('list_items as the project manager flags watched items; the manager cannot answer', async (t) => {
@@ -134,8 +154,8 @@ test('a watcher cannot answer, close or mark seen; the addressee can answer; min
   const answered = (await pmCall('answer_item', { item_id: forPm.id, answer: 'ok' })).json();
   assert.equal(answered.item.state, 'answered');
   assert.equal((await archCall('close_item', { item_id: forPm.id })).error, false);
-  // the watched answer nudges the watcher too
+  // the project manager only watches a sign-off: its answer sends it no nudge
   const answeredWatched = (await deskCall('answer_item', { item_id: item.id, answer: 'go' })).json();
-  assert.equal(answeredWatched.watcher_nudge.to, 'pm-alpha');
+  assert.equal(answeredWatched.watcher_nudge, undefined);
   assert.equal((await deskCall('close_item', { item_id: item.id })).error, false);
 });

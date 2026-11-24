@@ -122,7 +122,8 @@ for (const [role, patterns] of Object.entries(required)) {
     // The per-goal steps moved into the /multi-manager:* commands; the briefing only points at them.
     // 7500, up from 7000: who-gets-what under a project manager (goal 89).
     // 7000, up from 6000: the task-scoring rubric and the Fable rule (model routing, 2026-10-23).
-    assert.ok(text.length < 7500, `${role}.md is ${text.length} characters`);
+    // 8000, up from 7500: cheaper-helper model line and the fresh-restart line (task 028).
+    assert.ok(text.length < 8000, `${role}.md is ${text.length} characters`);
   });
 }
 
@@ -161,7 +162,7 @@ test('every snake_case tool name in a briefing or command is a real roster tool'
     ...readdirSync(join(root, 'briefings')).map((f) => join(root, 'briefings', f)),
     ...readdirSync(join(root, 'commands')).map((f) => join(root, 'commands', f)),
   ];
-  const notTools = new Set(['claude_session_id', 'to_model', 'watcher_nudge', 'session_id', 'item_ids', 'at_least', 'recommended_action']);
+  const notTools = new Set(['claude_session_id', 'to_model', 'watcher_nudge', 'session_id', 'item_ids', 'at_least', 'recommended_action', 'refresh_due']);
   for (const file of files) {
     for (const m of readFileSync(file, 'utf8').matchAll(/`([a-z]+(?:_[a-z]+)+)`/g)) {
       if (notTools.has(m[1])) continue;
@@ -182,4 +183,26 @@ test('the front desk section of tick.md acts from the digest and names front_des
   // The architect and project-manager sections stay as they were.
   assert.match(text, /## Architect\n- `check_in`\./);
   assert.match(text, /Never restart an architect yourself/);
+});
+
+test('the front desk tick sends each refresh_due manager its message, once', () => {
+  const text = readFileSync(join(import.meta.dirname, '..', 'commands', 'tick.md'), 'utf8').replace(/\r\n/g, '\n');
+  const desk = text.slice(text.indexOf('## Front desk'));
+  assert.match(desk, /refresh_due: for each entry, `SendMessage` that manager the entry's `message`, once/);
+});
+
+test('architect and project-manager briefings name a cheaper model for research helpers and a fresh restart', () => {
+  for (const role of ['architect', 'project-manager']) {
+    const text = read(role);
+    assert.match(text, /Sonnet/, `${role}: research helpers on Sonnet`);
+    assert.match(text, /Haiku/, `${role}: plain searching on Haiku`);
+    assert.match(text, /`model`/, `${role}: model passed on the Agent tool`);
+    assert.match(text, /restarted fresh/i, `${role}: idle restart line`);
+    assert.match(text, /`status\.md` and `progress\.md` current/, `${role}: keep files current before idle`);
+  }
+  assert.match(read('architect'), /single hardest decision/);
+});
+
+test('the developer briefing says to report only through done and blocked', () => {
+  assert.match(read('developer'), /Report to your architect only through `done` and `blocked`/);
 });
