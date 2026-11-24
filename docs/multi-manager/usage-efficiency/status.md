@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `usage-efficiency`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-24 19:10
+Updated: 2026-11-24 19:12
 
 ## Current goal
 Roster goal #2: make Multi-Manager use less Claude usage. State: in-progress.
@@ -10,14 +10,14 @@ Findings: `findings.md` in this folder.
 
 ## In flight
 - 027 Fresh start for big, idle managers: dev session #4 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-027-fresh-context`, branch `worktree-mm-multi-manager-usage-efficiency-dev-027-fresh-context`, round 1.
+- 028 Cheaper helper agents, Fable and nudges: dev session #6 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-028-cheaper-helpers`, branch `worktree-mm-multi-manager-usage-efficiency-dev-028-cheaper-helpers`, round 1.
 
 ## Merged
 - 030 Use only the C:\dev copy: `ff8a5c4` (2026-11-24). Two desktop shortcuts now point at C:\dev; a one-line warning appears when anything runs from another copy. Running sessions keep their copy until next start. A throwaway test cluster roster sits in the Dropbox copy's scratch-ignored folder (not moved).
 
 ## Queued (in order)
-- 026 Check-ins that cost nothing when nothing happened: waits for 027 to merge, and for item #4 (the unsaved files).
-- 028 Cheaper helper agents, Fable and nudges: waits for item #4.
-- 029 Skills through a middle-man (the user's answer to Q2): task file written. Waits for item #4, because it touches `launcher.ts` and the briefings.
+- 026 Check-ins that cost nothing when nothing happened: waits for 027 to merge.
+- 029 Skills through a middle-man (the user's answer to Q2): task file written. Waits for 027 to merge (both touch `src/launch/command.ts`).
 - 031 Tool connections through a middle-man: runs after 029, and only if 029's numbers show it is worth it.
 
 ## Paused / parked
@@ -28,4 +28,4 @@ Findings: `findings.md` in this folder.
 
 ## Next
 - Review 027 when it comes back.
-- Dispatch 026 and 028 once item #4 is settled.
+- Dispatch 026 and 029 once 027 is merged.

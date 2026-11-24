@@ -1,6 +1,6 @@
 # 028 — Cheaper helper agents, Fable and nudges
 
-Goal #2. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/028-cheaper-helpers-and-nudges.return.md` on that branch.
+Goal #2. Branch: `worktree-mm-multi-manager-usage-efficiency-dev-028-cheaper-helpers`. Return report: `docs/multi-manager/tasks/028-cheaper-helpers-and-nudges.return.md` on that branch.
 
 ## Goal
 Measured over the last 14 days (estimates at list prices):
