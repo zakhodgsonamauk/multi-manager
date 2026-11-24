@@ -1,7 +1,7 @@
 # Status
 
 Live handover for workstream `usage-efficiency`. A fresh architect resumes from this file and `progress.md`.
-Updated: 2026-11-24 19:07
+Updated: 2026-11-24 19:10
 
 ## Current goal
 Roster goal #2: make Multi-Manager use less Claude usage. State: in-progress.
@@ -10,10 +10,9 @@ Findings: `findings.md` in this folder.
 
 ## In flight
 - 027 Fresh start for big, idle managers: dev session #4 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-027-fresh-context`, branch `worktree-mm-multi-manager-usage-efficiency-dev-027-fresh-context`, round 1.
-- 030 Use only the C:\dev copy: dev session #5 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-030-one-copy`, branch `worktree-mm-multi-manager-usage-efficiency-dev-030-one-copy`, round 1.
 
 ## Merged
-- (none)
+- 030 Use only the C:\dev copy: `ff8a5c4` (2026-11-24). Two desktop shortcuts now point at C:\dev; a one-line warning appears when anything runs from another copy. Running sessions keep their copy until next start. A throwaway test cluster roster sits in the Dropbox copy's scratch-ignored folder (not moved).
 
 ## Queued (in order)
 - 026 Check-ins that cost nothing when nothing happened: waits for 027 to merge, and for item #4 (the unsaved files).
@@ -29,5 +28,4 @@ Findings: `findings.md` in this folder.
 
 ## Next
 - Review 027 when it comes back.
-- Review 030 when it comes back.
 - Dispatch 026 and 028 once item #4 is settled.
