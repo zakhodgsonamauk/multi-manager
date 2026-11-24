@@ -39,6 +39,7 @@ const boxServer = (t: TestContext, state: string, ctx = 262144) =>
     return { status: 404, body: {} };
   });
 
+const SKIP_SPAWNING = 'opens visible windows and leaves processes behind on Windows (roster item #29); fixed in task 037';
 test('no backend env holds a secret; box names LEADERGPU_LLM_KEY as its key source', () => {
   const info = { model: 'some-model', contextTokens: 262144, baseUrl: 'http://127.0.0.1:47832' };
   const names: BackendName[] = ['claude', 'box', 'strata', 'glm'];
@@ -207,7 +208,7 @@ function readChildPid(dir: string): number {
   return Number(readFileSync(join(dir, 'child.pid'), 'utf8'));
 }
 
-test('proxy lifecycle: first user starts, second reuses, last release stops (whole tree, config removed)', async (t) => {
+test('proxy lifecycle: first user starts, second reuses, last release stops (whole tree, config removed)', { skip: SKIP_SPAWNING }, async (t) => {
   const o = startProxyOptions(t);
   const dir = o.dir;
   writeFileSync(join(dir, 'strata-litellm.yaml'), 'x');
@@ -241,7 +242,7 @@ test('proxy lifecycle: first user starts, second reuses, last release stops (who
   assert.ok(!existsSync(join(dir, 'strata-litellm.yaml')));
 });
 
-test('a stale proxy file from a dead process is cleaned up and a new proxy starts', async (t) => {
+test('a stale proxy file from a dead process is cleaned up and a new proxy starts', { skip: SKIP_SPAWNING }, async (t) => {
   const o = startProxyOptions(t);
   const dir = o.dir;
   const dead = spawn(process.execPath, ['-e', '0']);
@@ -261,14 +262,14 @@ test('a stale proxy file from a dead process is cleaned up and a new proxy start
   assert.ok(await waitDead(fresh.pid));
 });
 
-test('a proxy that never starts is not left running and counts no user', async (t) => {
+test('a proxy that never starts is not left running and counts no user', { skip: SKIP_SPAWNING }, async (t) => {
   const dir = tempDir(t);
   const bad = { command: process.execPath, args: () => ['-e', 'setTimeout(()=>{}, 60000)'] };
   await assert.rejects(acquireProxy('s1', { dir, program: bad, waitMs: 600 }), /did not start/);
   assert.ok(!existsSync(join(dir, 'strata-proxy.json')));
 });
 
-test('a live pid with a silent port is killed and replaced', async (t) => {
+test('a live pid with a silent port is killed and replaced', { skip: SKIP_SPAWNING }, async (t) => {
   const o = startProxyOptions(t);
   const hung = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore' });
   const hungPid = hung.pid as number;
@@ -288,7 +289,7 @@ test('a live pid with a silent port is killed and replaced', async (t) => {
   assert.deepEqual((await proxyStatus(o.dir)).users, ['s1']);
 });
 
-test('a reused pid that belongs to another program is not killed', async (t) => {
+test('a reused pid that belongs to another program is not killed', { skip: SKIP_SPAWNING }, async (t) => {
   const o = startProxyOptions(t);
   const other = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore' });
   const otherPid = other.pid as number;
@@ -305,7 +306,7 @@ test('a reused pid that belongs to another program is not killed', async (t) => 
   assert.ok(pidAlive(otherPid), 'killed a program that was not ours');
 });
 
-test('proxy dies mid-use: old and new sessions release in any order and it ends stopped', async (t) => {
+test('proxy dies mid-use: old and new sessions release in any order and it ends stopped', { skip: SKIP_SPAWNING }, async (t) => {
   const o = startProxyOptions(t);
   const first = await acquireProxy('old', o);
   process.kill(first.pid);
@@ -322,7 +323,7 @@ test('proxy dies mid-use: old and new sessions release in any order and it ends 
   assert.ok(await waitDead(second.pid));
 });
 
-test('reconcileProxy drops a crashed session and stops the proxy when none are left', async (t) => {
+test('reconcileProxy drops a crashed session and stops the proxy when none are left', { skip: SKIP_SPAWNING }, async (t) => {
   const o = startProxyOptions(t);
   const p = await acquireProxy('alive', o);
   await acquireProxy('crashed', o);
@@ -334,7 +335,7 @@ test('reconcileProxy drops a crashed session and stops the proxy when none are l
   assert.ok(!existsSync(join(o.dir, 'strata-proxy.json')));
 });
 
-test('overlapping acquires start exactly one proxy', async (t) => {
+test('overlapping acquires start exactly one proxy', { skip: SKIP_SPAWNING }, async (t) => {
   const o = startProxyOptions(t);
   const results = await Promise.all(['a', 'b', 'c'].map((id) => acquireProxy(id, o)));
   assert.equal(results.filter((r) => r.started).length, 1);

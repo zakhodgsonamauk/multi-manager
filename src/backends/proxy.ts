@@ -280,7 +280,7 @@ export function findLitellm(): Promise<{ path: string } | { problem: string }> {
   return new Promise((resolve) => {
     const install = 'python -m pip install "litellm[proxy]"';
     try {
-      execFile('python', ['-c', 'import sysconfig; print(sysconfig.get_path("scripts"))'], { timeout: 20000 }, (err, out) => {
+      execFile('python', ['-c', 'import sysconfig; print(sysconfig.get_path("scripts"))'], { timeout: 20000, windowsHide: true }, (err, out) => {
         const dir = String(out ?? '').trim();
         const exe = process.platform === 'win32' ? 'litellm.exe' : 'litellm';
         const path = join(dir, exe);
