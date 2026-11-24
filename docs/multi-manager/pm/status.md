@@ -5,7 +5,7 @@ Updated: 2026-11-24 18:05
 Project manager: roster session #2, no goal yet, workstream `pm`.
 
 ## Architects
-- (none running)
+- #3 usage-efficiency, goal #2 (pointer goal #1): measuring where usage goes, plan sign-off next.
 
 ## Goals
 - #99 / #100, #101 / #102 code-review-graph: done.
@@ -15,7 +15,7 @@ Project manager: roster session #2, no goal yet, workstream `pm`.
 - #128 / #129 quiet check-ins, digest skips seen items: done and live (old timer gone, panel runs check-ins).
 
 ## Overlaps
-- (none)
+- Uncommitted blue-screen fix in project folder (launcher.ts, briefings, plan-goal.md): not ours, architect told to leave it; user asked in item #1.
 
 ## Next
 - Not seen live yet: answering a sign-off/question from the panel; panel's backup path when it can't start a check-in. Watch in real use.
