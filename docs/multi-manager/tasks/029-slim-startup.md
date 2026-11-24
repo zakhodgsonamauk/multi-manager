@@ -1,46 +1,74 @@
-# 029 — Smaller start-up text for Multi-Manager tabs
+# 029 — Plugins through a middle-man: skills on demand
 
 Goal #2. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/029-slim-startup.return.md` on that branch.
 
-Only dispatched if the user says yes to slimming the start-up text in the plan sign-off. Follow the user's answer exactly as written.
+## The user's words (sign-off item #2, Q2)
+"ideally we'd wrap plugins in some sort of middle-man so they're still available, but only stuck into context when relevant."
 
 ## Goal
-Every Multi-Manager session starts with about 65-70k tokens of fixed text, and that text is re-read on every call for the life of the session. Most of it comes from things that are not Multi-Manager:
-- the skill list: about 9.5k tokens, of which about 60% is third-party skill plugins (orchestrator-supaconductor, render and others)
-- deferred tool names: about 5.6k tokens
-- 7 user-level tool connections and about 20 claude.ai connectors
-- agent lists
-- server instructions
+Every Multi-Manager session starts with about 65-70k tokens of fixed text, and that text is re-read on every model call for the whole life of the session. Most of it comes from other plugins, not Multi-Manager:
+- The skill list is about 9.5k tokens. About 60% of it is third-party plugins such as orchestrator-supaconductor and render.
+- Those plugins' agent types add to the agent list.
+- The claude.ai connectors add about 20 entries.
 
-Each session also starts its own roster server process (12 or more are running at once).
+After this task, Multi-Manager tabs (architects, project managers, developers) start with those other plugins and the connectors switched off for that session only. Their skills stay available through a middle-man: two new roster tools.
+- `find_skill(query)` searches an index of every installed plugin's skills and commands (name, plugin, one-line description) and returns the best few matches.
+- `load_skill(name, args?)` returns that skill's instructions, ready to follow.
 
-After this task, launched architects, project managers and developers start with only what Multi-Manager work needs. The exact keep-list is in the user's sign-off answer. The default is:
-- keep: the Multi-Manager plugin, its roster tool connection, the Chrome browser tools, second-opinion, code-review-graph
-- drop: other plugins' skills, and claude.ai connectors
+A one-line note in each briefing tells the model the middle-man exists. The user's own normal Claude Code sessions do not change, and nothing is written to the user's global settings.
 
-The user's own normal Claude Code sessions are unchanged. Nothing is changed in the user's global settings: the launch passes its own settings and tool-connection list (`src/launch/command.ts`, which already passes `--settings` and `--mcp-config`).
+## Documented levers (researched 2026-11-24 from the Claude Code docs; verify each in a real launch)
+- `enabledPlugins` in the per-session `--settings` file. It outranks user settings and applies to that session only. Use `"name@marketplace": false`, and `"name@synced": false` for plugins synced from claude.ai. The docs give no "all except" form, so build the false-list from `claude plugin list --json` (or the installed plugins file) at launch time. Multi-Manager itself loads through `--plugin-dir` (it shows as `@inline`), so it stays on.
+- `"disableClaudeAiConnectors": true` in the same settings file, or the environment variable `ENABLE_CLAUDEAI_MCP_SERVERS=false`. This removes the claude.ai connectors.
+- `skillListingMaxDescChars` and `skillListingBudgetFraction` cap the skill list that is left. Set them modestly, so Multi-Manager's own skills stay fully described. Check their names and defaults before relying on them.
+
+## The middle-man's job
+- Index: scan the installed plugins' folders (under `~/.claude/plugins/`, the cache and the marketplaces) for `skills/*/SKILL.md` and `commands/*.md`, and read their frontmatter. Cache the index and rebuild it when the plugin folders change.
+- `load_skill`: return the body with the work the Claude Code harness would normally do already done:
+  - substitute `${CLAUDE_PLUGIN_ROOT}` with that plugin's folder;
+  - substitute arguments (`$ARGUMENTS`, `$1`...);
+  - list any supporting files in the skill folder by absolute path, so the model can Read them;
+  - for inline shell blocks (`!` lines), do not run them. Return them clearly marked as commands the model can run itself.
+- Keep the two tools' descriptions short. They are always in context.
+- Out of scope here: wrapping other plugins' MCP servers and agent types. MCP tools are already loaded lazily by Claude Code (only their names show). Task 031 handles MCP servers.
+
+## Keep-list (default, from the plan)
+Always kept on:
+- the Multi-Manager plugin;
+- the Chrome browser tools (needed for click-through tests);
+- second-opinion;
+- code-review-graph.
+
+Every other plugin is off in the tab and reachable through `find_skill` / `load_skill`.
 
 ## Tests first
-- `claudeArgs` for an architect or developer includes the flags or settings that limit plugins and tool connections to the keep-list. Front-desk launches are unchanged unless the sign-off says otherwise.
-- The generated settings file disables the plugins not on the keep-list and keeps the Multi-Manager plugin.
+- `claudeArgs` / the generated per-session settings for an architect or developer contain `enabledPlugins` false for every installed plugin except the keep-list, plus `disableClaudeAiConnectors: true`. The front desk is unchanged.
+- The index: given a fake plugins folder with two plugins (one skill, one command each), `find_skill("deploy")` returns the matching one with its plugin name. A rebuild picks up a newly added skill.
+- `load_skill` substitutes `${CLAUDE_PLUGIN_ROOT}` and `$ARGUMENTS`, lists supporting files by absolute path, and marks `!` shell lines without running them. An unknown name gives a clear "not found, did you mean" answer.
+- Briefings test: each role's briefing mentions `find_skill`.
 
 ## Files expected to change
 - `src/launch/command.ts`
-- `src/launch/launcher.ts`
-- `src/launch/terminal-profile.ts`, only if needed
+- the settings-file writer (find where `settingsPath` is made)
+- a new `src/roster/skill-broker.ts` (index and load), registered in `src/roster/tools.ts`
+- the briefings (one line each)
 - tests
 
-NOTE: `src/launch/launcher.ts` and `test/launcher.test.ts` currently have uncommitted edits in the project folder that belong to someone else. Start only after those are committed or settled.
-
-First, check which Claude Code launch options can limit plugins and claude.ai connectors for one session (for example `--strict-mcp-config`, or per-session `enabledPlugins` in the `--settings` file). Report what works before building.
+NOTE: `src/launch/launcher.ts`, `test/launcher.test.ts`, `briefings/architect.md` and `briefings/developer.md` have someone else's unsaved edits in the project folder. Dispatch only after roster item #4 settles them. Do not overwrite those edits.
 
 ## Out of scope
-- The user's global settings files.
-- The "Other active sessions" prompt line. That comes from the user's own claude-context-sync tool, not Multi-Manager.
+- The user's global settings.
+- MCP servers (task 031).
+- The "Other active sessions" line (left as it is; the user's agreed default).
+- Editing other plugins' files.
 
 ## Test scope
-`node --test test/command.test.ts test/launcher.test.ts test/launch-model.test.ts`, then `npm run typecheck` and `npm run lint`. Never run the full suite.
+`node --test test/command.test.ts test/launcher.test.ts test/briefings.test.ts` plus the new skill-broker tests, then `npm run typecheck` and `npm run lint`. Never run the full suite.
 
 ## Evidence required
 - Test summary lines.
-- A real launched architect in a throwaway project: its first-turn context size before and after (from the transcript), and confirmation that roster tools and Chrome tools still work.
+- A real launched architect in a throwaway project (ask the architect before opening test tabs). Show:
+  - its first-turn context size before and after, from the transcript;
+  - that the supaconductor and render skills are gone from its listing;
+  - that `find_skill` then `load_skill` returns a usable render skill;
+  - that the roster tools and Chrome tools still work.
