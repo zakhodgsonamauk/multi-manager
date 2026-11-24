@@ -44,3 +44,6 @@ Decision: offered the user a glm thinking-off option and a box server setting (i
 ## 2026-11-24 Tests that touch real backends or start programs run headless only
 Context: item #29 (test windows on the user's screen while gaming) and item #27 ("can run tests but only if headless!").
 Decision: every test start of a program is hidden and cleaned up (task 037). 033's real-backend check becomes a headless run (no tab). Fixes for #29 go to a helper agent in its own copy of the project, not a developer tab, so nothing new appears on screen.
+
+## 2026-11-24 Thinking stays on (item #24)
+The user said "i don't know about thinking off, i want good answer quality". Backends keep thinking on. Claude Code's 32000-token answer cap has to leave room for thinking plus the answer. A headless comparison on a harder task (thinking on vs off, quality first) will produce a recommendation. Nothing switches thinking off without the user's yes.
