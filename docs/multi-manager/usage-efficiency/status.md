@@ -10,7 +10,7 @@ Findings: `findings.md` in this folder.
 
 ## In flight
 - 027 Fresh start for big, idle managers: dev session #4 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-027-fresh-context`, branch `worktree-mm-multi-manager-usage-efficiency-dev-027-fresh-context`, round 2 (sent back 19:16: duplicate-copy risk, idle misread, stop/restore loop, stale marks).
-- 029 Skills through a middle-man: dev session #7 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-029-skill-broker`, branch `worktree-mm-multi-manager-usage-efficiency-dev-029-skill-broker`, round 1.
+- 029 Skills through a middle-man: dev session #7 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-029-skill-broker`, branch `worktree-mm-multi-manager-usage-efficiency-dev-029-skill-broker`, round 2 (sent back 19:24: voice plugin kept on, argument substitution, bad plugins file).
 
 ## Merged
 - 028 Cheaper helper agents, Fable and nudges: `6d13b5a` (2026-11-24). It includes the front desk's refresh_due line in commands/tick.md.
