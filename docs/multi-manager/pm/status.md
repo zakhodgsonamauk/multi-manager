@@ -5,7 +5,7 @@ Updated: 2026-11-24 18:05
 Project manager: roster session #2, no goal yet, workstream `pm`.
 
 ## Architects
-- #3 usage-efficiency, goal #2 (pointer goal #1): plan signed off 19:02 (tasks 026-031), building. Going-live reload agreed (#3/#4), architect to tell me first.
+- (#3 usage-efficiency stopped 20:00, goal #2 done; reload timing asked in #32)
 
 ## Architects (cont.)
 - #8 backup-models, goal #4 (pointer goal #3): proposal for sign-off.
@@ -22,6 +22,8 @@ Project manager: roster session #2, no goal yet, workstream `pm`.
 - (none; blue-screen fix committed 528e3d7 on the user's go)
 
 ## Next
+- After the reload (#32): a day of real use, then re-measure against the 2026-11-24 baseline (docs/multi-manager/usage-efficiency/measure) and decide 031 (tool-connection middle-man).
+- Do not run test/backends.test.ts until #8's task 037 lands.
 - Not seen live yet: answering a sign-off/question from the panel; panel's backup path when it can't start a check-in. Watch in real use.
 - Empty test windows from end-to-end tests: user to close by hand.
 - Parked for the user's go: switch financial-portal's code-review-graph on.
