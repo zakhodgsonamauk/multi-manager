@@ -4,12 +4,12 @@ Live handover for workstream `backup-models`. A fresh architect resumes from thi
 Updated: 2026-11-24 19:44
 
 ## Current goal
-Roster goal #4: fold the backup Claude Code launchers (GLM via Ollama, LeaderGPU box, Strata) into Multi-Manager. State: in-progress.
+Roster goal #4: fold the backup Claude Code launchers (GLM via Ollama, LeaderGPU box, Strata) into Multi-Manager. State: PAUSED (pause #1, item #34, 2026-11-24 19:56). Resume note at the end of progress.md.
 Plan and testing approach signed off: 2026-11-24, item #13 (backups: glm, box, strata only; all roles; ask mode).
 
 ## In flight
 - 033 Start a session on a backup: dev session #11, tab `mm-multi-manager-backup-models-dev-033-start-on-backup`, branch `worktree-mm-multi-manager-backup-models-dev-033-start-on-backup`, round 1 (sonnet; complexity 4, clarity 4). Code returned (item #26), HELD: review stopped for item #29; send-back round 1 to follow after 037 (headless real GLM check per item #27, thinking stays on per item #24, review findings).
-- 037 Backend proxy tests must never open windows (URGENT, item #29): helper agent, roster session #12, own temporary copy of the project. Stopgap on main 454763c (8 tests skipped). Close #29 with proof after merge.
+- 037 Backend proxy tests must never open windows (URGENT, item #29): returned on branch `worktree-agent-ae098a58b56a1a937` (e4428b3). My verification run: no windows, no leftovers, but 1 of 17 tests fails. Not merged; stopgap still on main (454763c).
 - Model comparison (item #17): done, reported as item #22; evidence in `comparison/`. Thinking stays ON (item #24: "i want good answer quality"); headless follow-up comparison (thinking on vs off, harder task) running; recommendation to user after.
 
 ## Merged
