@@ -9,7 +9,7 @@ Plan and testing approach signed off 2026-11-24 in item #2. The user's answer, v
 Findings: `findings.md` in this folder.
 
 ## In flight
-- 026 Check-ins that cost nothing when nothing happened: dev session #9 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-026-quiet-checkins`, branch `worktree-mm-multi-manager-usage-efficiency-dev-026-quiet-checkins`, round 2 (sent back 19:36: stuck developer nudged only once, check-in text match too broad, double tick after long turns).
+- 026 Check-ins that cost nothing when nothing happened: dev session #9 (Sonnet), tab `mm-multi-manager-usage-efficiency-dev-026-quiet-checkins`, branch `worktree-mm-multi-manager-usage-efficiency-dev-026-quiet-checkins`, round 3 (sent back again: in-flight wait has no time limit).
 
 ## Merged
 - 029 Skills through a middle-man: `8b14024` (2026-11-24, 2 rounds). Tabs switch off other plugins and the claude.ai connectors, and `find_skill`/`load_skill` serve skills on demand. Headless runs measured the first turn at 48.4k -> 36.5k tokens, before the keep-list grew. Not yet checked in a real tab.
