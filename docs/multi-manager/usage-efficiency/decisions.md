@@ -43,3 +43,12 @@ One dated entry per decision, newest last. Never rewrite an old entry. Add a new
 - Context: The user agreed to the default: "yes, if that tool can be switched off per tab; otherwise leave it".
 - Decision: Leave it. claude-context-sync has no per-tab switch today.
 - Who: the user's agreed default (item #2), checked by the architect.
+
+## 2026-11-24 — Q2: build the middle-man in two steps
+
+- Context: The user's answer to Q2: "ideally we'd wrap plugins in some sort of middle-man so they're still available, but only stuck into context when relevant." Claude Code has no lazy loading for skills. It can turn plugins and claude.ai connectors off for one session through the `--settings` file.
+- Decision:
+  - 029: turn the other plugins and the connectors off in Multi-Manager tabs. Add roster tools `find_skill` and `load_skill` that serve those plugins' skills on demand.
+  - 031: an MCP broker (`find_tool`, `describe_tool`, `call_tool`) for the user's other tool connections. Build it only if 029's measured saving shows it is worth it. MCP tools are already loaded lazily, so the remaining cost is only their names and instructions, about 7.6k tokens.
+- Alternatives: Edit each skill's frontmatter to hide it. Rejected because it changes other plugins' files. Use a global `skillOverrides` setting. Rejected because it does not apply to plugin skills.
+- Who: the architect, carrying out the user's Q2 answer.

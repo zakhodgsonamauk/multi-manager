@@ -1,6 +1,6 @@
 # 030 — Use only the C:\dev copy of Multi-Manager
 
-Goal #2. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/030-one-plugin-copy.return.md` on that branch.
+Goal #2. Branch: `worktree-mm-multi-manager-usage-efficiency-dev-030-one-copy`. Return report: `docs/multi-manager/tasks/030-one-plugin-copy.return.md` on that branch.
 
 ## The user's answer (sign-off item #2, Q4)
 The question was: "Which plugin copy runs: some front desks (and this project's manager and architect) run the Dropbox copy, others run C:\dev. The code is identical today. Make C:\dev the only copy used? [yes]"
