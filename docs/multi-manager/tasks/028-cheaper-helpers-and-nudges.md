@@ -13,6 +13,7 @@ After this task:
 - Fable is kept for the single hardest decision, and is logged.
 - Nudges are cut where the receiver has nothing to do. A project manager that only watches an item gets no `watcher_nudge` for kinds it never acts on (sign-offs and questions go to the front desk). Duplicate nudges for the same item to the same session are dropped.
 - Developers report progress to their architect only through `done` and `blocked`, not running commentary.
+- Moved here from task 027: one short line in the architect and project-manager briefings. It says an idle manager whose conversation grows past the project's limit is restarted fresh by the system. Before going idle, a manager keeps `status.md` and `progress.md` current, so a fresh start can resume from them.
 
 ## Tests first
 - `raise_item` returns no `watcher_nudge` for a sign-off or question when the watcher is a project manager. It still returns one for `done` and `blocked`.
@@ -25,7 +26,7 @@ After this task:
 - `commands/dispatch.md`, `commands/review-return.md`, `commands/plan-goal.md` (helper-agent model lines)
 - tests
 
-NOTE: `briefings/architect.md`, `briefings/developer.md` and `commands/plan-goal.md` currently have uncommitted edits in the project folder that belong to someone else. Start only after those are committed or settled, and do not overwrite them.
+The unsaved edits that used to be in these files were committed on 2026-11-24 as `528e3d7`. Build on top of them.
 
 ## Out of scope
 - The check-in timer (task 026).
