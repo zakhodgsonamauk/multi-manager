@@ -1,7 +1,9 @@
 # 035 — Notice Claude usage ran out and offer the switch
 
 Goal #4. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/035-usage-ran-out-offer-switch.return.md` on that branch.
-Waits for: task 034 merged, task 036 merged (both touch the pane), goal #2's task 026 merged (same monitor files).
+Waits for: task 034 merged, task 036 merged (both touch the pane), goal #2's tasks 026 and 027 merged (same monitor files).
+
+Hand-off with goal #2's task 027: a session out of Claude usage looks idle, so 027's idle-stop and fresh restart would act on it. Add one guard to 027's lifecycle decision: skip any session flagged out of usage. Test it. (Agreed with architect #3 before dispatch; see `docs/multi-manager/backup-models/decisions.md`.)
 
 ## Goal
 When Claude usage runs out, **every** Claude session stops answering at once, the front desk included. So noticing it and offering the switch must be done by plain code (the monitor and the pane), not by a model session.

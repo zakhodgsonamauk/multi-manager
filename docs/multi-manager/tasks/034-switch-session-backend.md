@@ -1,7 +1,7 @@
 # 034 — Switch a running session to a backup and back, keeping its conversation
 
 Goal #4. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/034-switch-session-backend.return.md` on that branch.
-Waits for: task 033 merged.
+Waits for: task 033 merged, and goal #2's task 027 merged (it changes the restart/resume path).
 
 ## Goal
 A session that has run out of Claude usage can be moved to a backup without losing where it was, and moved back to Claude later.

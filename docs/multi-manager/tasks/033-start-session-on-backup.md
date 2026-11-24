@@ -13,6 +13,7 @@ Any Multi-Manager session (developer, architect, project manager) can be started
 - The environment from `backendEnv` goes into the session's settings file env block, next to `MM_*`. The key does **not**: the tab's start-up script reads it from the named environment variable (or `HKCU\Environment`) into `ANTHROPIC_AUTH_TOKEN` for that process only. No key in any file, log, roster row or command line.
 - Multi-Manager's own plugin and the roster tool connection stay on for backup sessions (the Dropbox launchers turn most plugins off; do not copy that blanket switch-off).
 - The roster tier (haiku/sonnet/opus) still goes on `--model`; the backend's alias variables map it to its real model.
+- Every relaunch keeps the backend: `restartArchitect` (also used by goal #2's task 027 fresh restart and auto-restore), `changeSessionModel`, `restart_developer` and `restore_all` read `backend` from the roster row. A session on a backup must never silently go back to Claude.
 
 ## Tests first
 Extend `test/command.test.ts` and `test/launcher.test.ts`, and add `test/launch-backend.test.ts`:
@@ -21,7 +22,8 @@ Extend `test/command.test.ts` and `test/launcher.test.ts`, and add `test/launch-
 - not-ready backend: no tab opened, note returned;
 - project default backend used when no argument; explicit argument wins;
 - proxy started on the first `strata` session and stopped on the last one's stop;
-- `claude` (or null) launches are exactly the same as before this task.
+- `claude` (or null) launches are exactly the same as before this task;
+- one test per relaunch path (`restartArchitect`, the 027 fresh restart, `changeSessionModel`, `restart_developer`, `restore_all`): a session on `box` comes back on `box`.
 
 ## Files expected to change
 `src/launch/command.ts`, `src/launch/launcher.ts`, `src/launch/wrapper.ts`, `src/roster/db.ts` (migration), `src/roster/tools.ts` (the `backend` argument; a `set_project_default_backend` tool), tests. Claim `src/roster/db.ts` before editing.

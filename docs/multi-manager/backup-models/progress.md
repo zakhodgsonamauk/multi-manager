@@ -12,3 +12,4 @@ Folder: `docs/multi-manager/backup-models/` (status, decisions, progress); task 
 - 2026-11-24 19:30 Goal #4 received (roster session #8, workstream backup-models). Tick armed.
 - 2026-11-24 19:45 Two helper agents read the Dropbox launchers (no keys copied) and the Multi-Manager launch code. Findings in decisions.md.
 - 2026-11-24 19:50 Plan written: tasks 032-036. Sign-off raised.
+- 2026-11-24 19:40 Project manager: build waits for #13 answer, even 032; agree hand-off with architect #3 on 027. Sent #3 the hand-off proposal; tasks 033-035 updated.

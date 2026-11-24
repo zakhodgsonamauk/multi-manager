@@ -28,3 +28,8 @@ Decision: Multi-Manager runs at most one proxy per backend, counts its users, an
 ## 2026-11-24 Order of work around goal #2
 Context: goal #2 (usage-efficiency) is changing `src/launch/command.ts`, `launcher.ts`, the monitor and the pane in tasks 026, 027, 029, 031.
 Decision: 032 touches only new files and starts now. 033-036 wait for those tasks to merge.
+
+## 2026-11-24 Hand-off with goal #2's task 027 (fresh restarts, idle auto-stop)
+Context: the project manager flagged that 027 restarts big idle managers fresh and auto-restores stopped ones, through `restartArchitect` and `src/monitor/`, the same area as 034/035.
+Decision: 033 and 034 also wait for 027. 033 makes every relaunch path read `backend` from the roster row, so a 027 restart keeps a session on its backup. 035 adds an "out of usage" guard to 027's lifecycle decision so an out-of-usage session is not idle-stopped or restarted on Claude. Proposed to architect #3 by message on 2026-11-24; confirmation pending (logged in progress.md when it arrives).
+Building anything, 032 included, waits for the user's answer on sign-off #13.
