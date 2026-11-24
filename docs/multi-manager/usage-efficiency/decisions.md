@@ -30,3 +30,16 @@ One dated entry per decision, newest last. Never rewrite an old entry. Add a new
 - Decision: Out of scope for this workstream. Raised as a question in the sign-off.
 - Alternatives: None. Editing another project's hook is not this workstream's job.
 - Who: the architect.
+
+## 2026-11-24 — Run 027 before 026
+
+- Context: The user approved the plan (item #2). 026, 028 and 029 touch files that have someone else's unsaved edits, and committing those is waiting on item #4.
+- Decision: Start 027 now. Its one briefing line moves to 028, and it takes over the idle-measure fix from 026. 026 follows after 027 merges, because they share health code.
+- Alternatives: Wait for item #4 and change nothing. Rejected, because it would block the whole plan on an unrelated question.
+- Who: the architect.
+
+## 2026-11-24 — Q3: leave the "Other active sessions" line
+
+- Context: The user agreed to the default: "yes, if that tool can be switched off per tab; otherwise leave it".
+- Decision: Leave it. claude-context-sync has no per-tab switch today.
+- Who: the user's agreed default (item #2), checked by the architect.

@@ -1,6 +1,6 @@
 # 027 — Fresh start for big, idle managers
 
-Goal #2. Branch: `<filled in at dispatch>`. Return report: `docs/multi-manager/tasks/027-fresh-context-for-managers.return.md` on that branch.
+Goal #2. Branch: `worktree-mm-multi-manager-usage-efficiency-dev-027-fresh-context`. Return report: `docs/multi-manager/tasks/027-fresh-context-for-managers.return.md` on that branch.
 
 ## Goal
 About 79% of estimated usage over the last 14 days was the model re-reading conversations it had already read. Architects average about 380k tokens of conversation per call and project managers about 440k, often 800k; architects live up to 80 hours and project managers up to 202 hours. Only about 65-70k of that is start-up text; the rest is old conversation. Architects already keep everything they need to carry on in files (`status.md`, `progress.md`, task files), so most of that old conversation is dead weight.
